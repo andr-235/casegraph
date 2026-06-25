@@ -1,4 +1,8 @@
+import { useEffect, useState } from "react";
 import type { CurrentUserDto } from "../../features/auth/model/authTypes";
+import { getCases } from "../../features/cases/api/casesApi";
+import type { CaseDto } from "../../features/cases/model/caseTypes";
+import { CreateCaseModal } from "./CreateCaseModal";
 
 type Props = {
   user: CurrentUserDto;
@@ -6,25 +10,102 @@ type Props = {
 };
 
 export function CasesPage({ user, onLogout }: Props) {
+  const [cases, setCases] = useState<CaseDto[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [createModalOpen, setCreateModalOpen] = useState(false);
+
+  async function loadCases() {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const response = await getCases();
+      setCases(response);
+    } catch (err) {
+      console.error(err);
+      setError("Не удалось загрузить список дел.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    loadCases();
+  }, []);
+
+  function handleCaseCreated(caseItem: CaseDto) {
+    setCases((current) => [caseItem, ...current]);
+    setCreateModalOpen(false);
+  }
+
   return (
     <main style={{ padding: 32 }}>
-      <h1>Список дел</h1>
+      <header style={{ display: "flex", justifyContent: "space-between" }}>
+        <div>
+          <h1>Список дел</h1>
+          <p>
+            Пользователь: <strong>{user.displayName}</strong> · Роль:{" "}
+            <strong>{user.role}</strong>
+          </p>
+        </div>
 
-      <p>
-        Пользователь: <strong>{user.displayName}</strong>
-      </p>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button type="button" onClick={() => setCreateModalOpen(true)}>
+            Создать дело
+          </button>
 
-      <p>
-        Роль: <strong>{user.role}</strong>
-      </p>
-
-      <button type="button" onClick={onLogout}>
-        Выйти
-      </button>
+          <button type="button" onClick={onLogout}>
+            Выйти
+          </button>
+        </div>
+      </header>
 
       <hr />
 
-      <p>Здесь будет CasesPage.</p>
+      {loading && <p>Загрузка дел...</p>}
+
+      {error && <p style={{ color: "crimson" }}>{error}</p>}
+
+      {!loading && !error && cases.length === 0 && (
+        <section>
+          <h2>Дел пока нет</h2>
+          <p>Создайте первое дело, чтобы начать работу.</p>
+        </section>
+      )}
+
+      {!loading && !error && cases.length > 0 && (
+        <table border={1} cellPadding={8} style={{ borderCollapse: "collapse" }}>
+          <thead>
+            <tr>
+              <th>Код</th>
+              <th>Название</th>
+              <th>Объект анализа</th>
+              <th>Статус</th>
+              <th>Создано</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            {cases.map((caseItem) => (
+              <tr key={caseItem.id}>
+                <td>{caseItem.caseCode}</td>
+                <td>{caseItem.title}</td>
+                <td>{caseItem.subject}</td>
+                <td>{caseItem.status}</td>
+                <td>{caseItem.createdAt}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+
+      {createModalOpen && (
+        <CreateCaseModal
+          onCreated={handleCaseCreated}
+          onClose={() => setCreateModalOpen(false)}
+        />
+      )}
     </main>
   );
 }

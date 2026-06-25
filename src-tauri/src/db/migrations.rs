@@ -53,6 +53,27 @@ pub fn apply_migrations(conn: &Connection) -> Result<(), AppErrorDto> {
             description TEXT NOT NULL,
             error_code TEXT
         );
+
+        CREATE TABLE IF NOT EXISTS cases (
+            id TEXT PRIMARY KEY,
+            case_code TEXT NOT NULL UNIQUE,
+            title TEXT NOT NULL,
+            subject TEXT NOT NULL,
+            description TEXT NOT NULL DEFAULT '',
+            status TEXT NOT NULL DEFAULT 'draft',
+            period_start TEXT,
+            period_end TEXT,
+            created_by_user_id TEXT NOT NULL,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            archived_at TEXT,
+
+            FOREIGN KEY (created_by_user_id) REFERENCES users(id)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_cases_case_code ON cases(case_code);
+        CREATE INDEX IF NOT EXISTS idx_cases_status ON cases(status);
+        CREATE INDEX IF NOT EXISTS idx_cases_created_at ON cases(created_at);
         "#,
     )
     .map_err(|err| AppErrorDto::database(err.to_string()))?;
