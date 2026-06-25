@@ -1,4 +1,4 @@
-import { invokeCommand } from "../../../shared/api/invoke";
+import { invokeCommand } from "../../shared/api/invoke";
 
 export type InitializeAppResponse = {
   appVersion: string;
