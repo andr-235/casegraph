@@ -1,7 +1,9 @@
 pub mod commands;
 pub mod db;
 pub mod errors;
+pub mod repositories;
 pub mod security;
+pub mod services;
 
 use commands::app_commands::initialize_app;
 use commands::auth_commands::{create_first_admin, get_current_user, login, logout};
