@@ -62,7 +62,12 @@ impl CaseService {
         let subject = payload.subject.trim().to_string();
         let description = payload.description.unwrap_or_default().trim().to_string();
 
-        validate_create_case_payload(&title, &subject)?;
+        validate_create_case_payload(
+            &title,
+            &subject,
+            payload.period_start.as_deref(),
+            payload.period_end.as_deref(),
+        )?;
 
         let conn = open_connection(app)?;
         let case_code = CaseRepository::get_next_case_code(&conn)?;
@@ -102,7 +107,12 @@ fn require_current_user(session: &SessionState) -> Result<CurrentUserDto, AppErr
         .ok_or_else(|| AppErrorDto::new("ERR_UNAUTHORIZED", "Требуется вход в систему.", None))
 }
 
-fn validate_create_case_payload(title: &str, subject: &str) -> Result<(), AppErrorDto> {
+fn validate_create_case_payload(
+    title: &str,
+    subject: &str,
+    period_start: Option<&str>,
+    period_end: Option<&str>,
+) -> Result<(), AppErrorDto> {
     if title.len() < 3 {
         return Err(AppErrorDto::new(
             "ERR_VALIDATION",
@@ -117,6 +127,16 @@ fn validate_create_case_payload(title: &str, subject: &str) -> Result<(), AppErr
             "Объект анализа должен содержать минимум 2 символа.",
             None,
         ));
+    }
+
+    if let (Some(start), Some(end)) = (period_start, period_end) {
+        if !start.is_empty() && !end.is_empty() && start > end {
+            return Err(AppErrorDto::new(
+                "ERR_VALIDATION",
+                "Дата начала периода не может быть позже даты окончания.",
+                None,
+            ));
+        }
     }
 
     Ok(())
