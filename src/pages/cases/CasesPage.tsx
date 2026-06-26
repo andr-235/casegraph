@@ -3,6 +3,7 @@ import type { CurrentUserDto } from "../../features/auth/model/authTypes";
 import { getCases } from "../../features/cases/api/casesApi";
 import type { CaseDto } from "../../features/cases/model/caseTypes";
 import { CreateCaseModal } from "./CreateCaseModal";
+import { getCaseStatusLabel } from "../../features/cases/model/caseStatus";
 
 type Props = {
   user: CurrentUserDto;
@@ -94,7 +95,7 @@ export function CasesPage({ user, onLogout, onOpenCase }: Props) {
                 <td>{caseItem.caseCode}</td>
                 <td>{caseItem.title}</td>
                 <td>{caseItem.subject}</td>
-                <td>{caseItem.status}</td>
+                <td>{getCaseStatusLabel(caseItem.status)}</td>
                 <td>{caseItem.createdAt}</td>
                 <td>
                   <button type="button" onClick={() => onOpenCase(caseItem)}>

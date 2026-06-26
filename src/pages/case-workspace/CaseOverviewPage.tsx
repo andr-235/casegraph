@@ -7,21 +7,15 @@ import type {
   CaseDto,
   EditableCaseStatus,
 } from "../../features/cases/model/caseTypes";
+import {
+  editableCaseStatusOptions,
+  isEditableCaseStatus,
+} from "../../features/cases/model/caseStatus";
 
 type Props = {
   caseItem: CaseDto;
   onCaseUpdated: (caseItem: CaseDto) => void;
 };
-
-const editableStatusOptions: Array<{
-  value: EditableCaseStatus;
-  label: string;
-}> = [
-  { value: "draft", label: "Черновик" },
-  { value: "in_progress", label: "В работе" },
-  { value: "prepared", label: "Подготовлено" },
-  { value: "completed", label: "Завершено" },
-];
 
 function formatOptionalDate(value: string | null) {
   return value && value.trim().length > 0 ? value : "Не указано";
@@ -124,12 +118,19 @@ export function CaseOverviewPage({ caseItem, onCaseUpdated }: Props) {
 
               <select
                 value={caseItem.status}
-                onChange={(event) =>
-                  handleStatusChange(event.target.value as EditableCaseStatus)
-                }
+                onChange={(event) => {
+                  const nextStatus = event.target.value;
+
+                  if (!isEditableCaseStatus(nextStatus)) {
+                    setError("Недопустимый статус дела.");
+                    return;
+                  }
+
+                  handleStatusChange(nextStatus);
+                }}
                 disabled={statusSaving}
               >
-                {editableStatusOptions.map((option) => (
+                {editableCaseStatusOptions.map((option) => (
                   <option key={option.value} value={option.value}>
                     {option.label}
                   </option>

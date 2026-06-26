@@ -1,5 +1,6 @@
 use rusqlite::{params, Connection, OptionalExtension};
 
+use crate::domain::case_status::CASE_STATUS_DRAFT;
 use crate::errors::app_error::AppErrorDto;
 
 #[derive(Debug)]
@@ -75,7 +76,7 @@ impl CaseRepository {
                 period_end,
                 created_by_user_id
             )
-            VALUES (?1, ?2, ?3, ?4, ?5, 'draft', ?6, ?7, ?8)
+                VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
             "#,
             params![
                 record.id,
@@ -83,6 +84,7 @@ impl CaseRepository {
                 record.title,
                 record.subject,
                 record.description,
+                CASE_STATUS_DRAFT,
                 record.period_start,
                 record.period_end,
                 record.created_by_user_id

@@ -2,6 +2,7 @@ use tauri::AppHandle;
 use uuid::Uuid;
 
 use crate::db::connection::open_connection;
+use crate::domain::case_status::is_editable_case_status;
 use crate::domain::cases::{
     CaseDto, CreateCasePayload, CreateCaseResponse, GetCaseByIdPayload, UpdateCasePayload,
     UpdateCaseResponse, UpdateCaseStatusPayload, UpdateCaseStatusResponse,
@@ -254,12 +255,13 @@ fn normalize_optional_string(value: Option<String>) -> Option<String> {
 }
 
 fn validate_case_status(status: &str) -> Result<(), AppErrorDto> {
-    match status {
-        "draft" | "in_progress" | "prepared" | "completed" => Ok(()),
-        _ => Err(AppErrorDto::new(
-            "ERR_VALIDATION",
-            "Недопустимый статус дела.",
-            None,
-        )),
+    if is_editable_case_status(status) {
+        return Ok(());
     }
+
+    Err(AppErrorDto::new(
+        "ERR_VALIDATION",
+        "Недопустимый статус дела.",
+        None,
+    ))
 }
