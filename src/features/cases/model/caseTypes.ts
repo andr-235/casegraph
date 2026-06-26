@@ -47,3 +47,18 @@ export type UpdateCasePayload = {
 export type UpdateCaseResponse = {
   caseItem: CaseDto;
 };
+
+export type EditableCaseStatus =
+  | "draft"
+  | "in_progress"
+  | "prepared"
+  | "completed";
+
+export type UpdateCaseStatusPayload = {
+  caseId: string;
+  status: EditableCaseStatus;
+};
+
+export type UpdateCaseStatusResponse = {
+  caseItem: CaseDto;
+};

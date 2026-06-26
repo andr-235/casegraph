@@ -2,7 +2,7 @@ use tauri::{AppHandle, State};
 
 use crate::domain::cases::{
     CaseDto, CreateCasePayload, CreateCaseResponse, GetCaseByIdPayload, UpdateCasePayload,
-    UpdateCaseResponse,
+    UpdateCaseResponse, UpdateCaseStatusPayload, UpdateCaseStatusResponse,
 };
 use crate::errors::app_error::CommandResult;
 use crate::security::session::SessionState;
@@ -47,6 +47,18 @@ pub fn update_case(
     payload: UpdateCasePayload,
 ) -> CommandResult<UpdateCaseResponse> {
     match CaseService::update_case(&app, &session, payload) {
+        Ok(response) => CommandResult::ok(response),
+        Err(error) => CommandResult::err(error),
+    }
+}
+
+#[tauri::command]
+pub fn update_case_status(
+    app: AppHandle,
+    session: State<'_, SessionState>,
+    payload: UpdateCaseStatusPayload,
+) -> CommandResult<UpdateCaseStatusResponse> {
+    match CaseService::update_case_status(&app, &session, payload) {
         Ok(response) => CommandResult::ok(response),
         Err(error) => CommandResult::err(error),
     }

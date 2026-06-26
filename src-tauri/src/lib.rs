@@ -8,7 +8,9 @@ pub mod services;
 
 use commands::app_commands::initialize_app;
 use commands::auth_commands::{create_first_admin, get_current_user, login, logout};
-use commands::case_commands::{create_case, get_case_by_id, get_cases, update_case};
+use commands::case_commands::{
+    create_case, get_case_by_id, get_cases, update_case, update_case_status,
+};
 use security::session::SessionState;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -24,7 +26,8 @@ pub fn run() {
             get_cases,
             create_case,
             get_case_by_id,
-            update_case
+            update_case,
+            update_case_status
         ])
         .run(tauri::generate_context!())
         .expect("error while running CaseGraph");

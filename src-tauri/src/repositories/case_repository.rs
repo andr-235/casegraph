@@ -200,7 +200,7 @@ impl CaseRepository {
                 period_end = ?6,
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = ?1
-              AND archived_at IS NULL
+            AND archived_at IS NULL
             "#,
                 params![
                     record.case_id,
@@ -210,6 +210,36 @@ impl CaseRepository {
                     record.period_start,
                     record.period_end
                 ],
+            )
+            .map_err(|err| AppErrorDto::database(err.to_string()))?;
+
+        if changed_count == 0 {
+            return Err(AppErrorDto::new(
+                "ERR_CASE_NOT_FOUND",
+                "Дело не найдено.",
+                None,
+            ));
+        }
+
+        Ok(())
+    }
+
+    pub fn update_case_status(
+        conn: &Connection,
+        case_id: &str,
+        status: &str,
+    ) -> Result<(), AppErrorDto> {
+        let changed_count = conn
+            .execute(
+                r#"
+                UPDATE cases
+                SET
+                    status = ?2,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?1
+                AND archived_at IS NULL
+                "#,
+                params![case_id, status],
             )
             .map_err(|err| AppErrorDto::database(err.to_string()))?;
 

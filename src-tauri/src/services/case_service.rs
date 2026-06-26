@@ -4,7 +4,7 @@ use uuid::Uuid;
 use crate::db::connection::open_connection;
 use crate::domain::cases::{
     CaseDto, CreateCasePayload, CreateCaseResponse, GetCaseByIdPayload, UpdateCasePayload,
-    UpdateCaseResponse,
+    UpdateCaseResponse, UpdateCaseStatusPayload, UpdateCaseStatusResponse,
 };
 use crate::errors::app_error::AppErrorDto;
 use crate::repositories::case_repository::{
@@ -151,6 +151,43 @@ impl CaseService {
             case_item: case_row_to_dto(updated_case),
         })
     }
+
+    pub fn update_case_status(
+        app: &AppHandle,
+        session: &SessionState,
+        payload: UpdateCaseStatusPayload,
+    ) -> Result<UpdateCaseStatusResponse, AppErrorDto> {
+        require_current_user(session)?;
+
+        let case_id = payload.case_id.trim().to_string();
+        let status = payload.status.trim().to_string();
+
+        if case_id.is_empty() {
+            return Err(AppErrorDto::new(
+                "ERR_VALIDATION",
+                "Не указан идентификатор дела.",
+                None,
+            ));
+        }
+
+        validate_case_status(&status)?;
+
+        let conn = open_connection(app)?;
+
+        CaseRepository::update_case_status(&conn, &case_id, &status)?;
+
+        let updated_case = CaseRepository::get_case_by_id(&conn, &case_id)?.ok_or_else(|| {
+            AppErrorDto::new(
+                "ERR_CASE_NOT_FOUND_AFTER_UPDATE",
+                "Дело обновлено, но не найдено после сохранения.",
+                None,
+            )
+        })?;
+
+        Ok(UpdateCaseStatusResponse {
+            case_item: case_row_to_dto(updated_case),
+        })
+    }
 }
 
 fn require_current_user(session: &SessionState) -> Result<CurrentUserDto, AppErrorDto> {
@@ -214,4 +251,15 @@ fn normalize_optional_string(value: Option<String>) -> Option<String> {
     value
         .map(|item| item.trim().to_string())
         .filter(|item| !item.is_empty())
+}
+
+fn validate_case_status(status: &str) -> Result<(), AppErrorDto> {
+    match status {
+        "draft" | "in_progress" | "prepared" | "completed" => Ok(()),
+        _ => Err(AppErrorDto::new(
+            "ERR_VALIDATION",
+            "Недопустимый статус дела.",
+            None,
+        )),
+    }
 }

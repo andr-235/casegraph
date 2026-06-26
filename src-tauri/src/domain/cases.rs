@@ -54,3 +54,16 @@ pub struct UpdateCasePayload {
 pub struct UpdateCaseResponse {
     pub case_item: CaseDto,
 }
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateCaseStatusPayload {
+    pub case_id: String,
+    pub status: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateCaseStatusResponse {
+    pub case_item: CaseDto,
+}

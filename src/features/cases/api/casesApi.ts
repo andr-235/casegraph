@@ -5,8 +5,9 @@ import type {
   CreateCaseResponse,
   UpdateCasePayload,
   UpdateCaseResponse,
+  UpdateCaseStatusPayload,
+  UpdateCaseStatusResponse,
 } from "../model/caseTypes";
-
 export function getCases(): Promise<CaseDto[]> {
   return invokeCommand<CaseDto[]>("get_cases");
 }
@@ -31,6 +32,14 @@ export function updateCase(
   payload: UpdateCasePayload
 ): Promise<UpdateCaseResponse> {
   return invokeCommand<UpdateCaseResponse>("update_case", {
+    payload,
+  });
+}
+
+export function updateCaseStatus(
+  payload: UpdateCaseStatusPayload
+): Promise<UpdateCaseStatusResponse> {
+  return invokeCommand<UpdateCaseStatusResponse>("update_case_status", {
     payload,
   });
 }

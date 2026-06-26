@@ -1,11 +1,27 @@
 import { FormEvent, useEffect, useState } from "react";
-import { updateCase } from "../../features/cases/api/casesApi";
-import type { CaseDto } from "../../features/cases/model/caseTypes";
+import {
+  updateCase,
+  updateCaseStatus,
+} from "../../features/cases/api/casesApi";
+import type {
+  CaseDto,
+  EditableCaseStatus,
+} from "../../features/cases/model/caseTypes";
 
 type Props = {
   caseItem: CaseDto;
   onCaseUpdated: (caseItem: CaseDto) => void;
 };
+
+const editableStatusOptions: Array<{
+  value: EditableCaseStatus;
+  label: string;
+}> = [
+  { value: "draft", label: "Черновик" },
+  { value: "in_progress", label: "В работе" },
+  { value: "prepared", label: "Подготовлено" },
+  { value: "completed", label: "Завершено" },
+];
 
 function formatOptionalDate(value: string | null) {
   return value && value.trim().length > 0 ? value : "Не указано";
@@ -19,6 +35,7 @@ export function CaseOverviewPage({ caseItem, onCaseUpdated }: Props) {
   const [periodStart, setPeriodStart] = useState(caseItem.periodStart ?? "");
   const [periodEnd, setPeriodEnd] = useState(caseItem.periodEnd ?? "");
   const [saving, setSaving] = useState(false);
+  const [statusSaving, setStatusSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -68,6 +85,31 @@ export function CaseOverviewPage({ caseItem, onCaseUpdated }: Props) {
     }
   }
 
+  async function handleStatusChange(nextStatus: EditableCaseStatus) {
+    if (nextStatus === caseItem.status) {
+      return;
+    }
+
+    setError(null);
+
+    try {
+      setStatusSaving(true);
+
+      const response = await updateCaseStatus({
+        caseId: caseItem.id,
+        status: nextStatus,
+      });
+
+      onCaseUpdated(response.caseItem);
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Не удалось изменить статус дела.";
+      setError(message);
+    } finally {
+      setStatusSaving(false);
+    }
+  }
+
   if (!editing) {
     return (
       <section>
@@ -77,14 +119,40 @@ export function CaseOverviewPage({ caseItem, onCaseUpdated }: Props) {
               {caseItem.caseCode} · {caseItem.title}
             </h2>
 
-            <p>
-              Статус: <strong>{caseItem.status}</strong>
-            </p>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span>Статус:</span>
+
+              <select
+                value={caseItem.status}
+                onChange={(event) =>
+                  handleStatusChange(event.target.value as EditableCaseStatus)
+                }
+                disabled={statusSaving}
+              >
+                {editableStatusOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+
+              {statusSaving && <span>Сохранение...</span>}
+            </div>
           </div>
 
-          <button type="button" onClick={() => setEditing(true)}>
-            Редактировать
-          </button>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button type="button" onClick={() => setEditing(true)}>
+              Редактировать
+            </button>
+
+            <button
+              type="button"
+              disabled
+              title="Архивация будет реализована отдельным срезом."
+            >
+              Архивировать
+            </button>
+          </div>
         </header>
 
         <div
