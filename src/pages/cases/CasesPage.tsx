@@ -7,9 +7,10 @@ import { CreateCaseModal } from "./CreateCaseModal";
 type Props = {
   user: CurrentUserDto;
   onLogout: () => void;
+  onOpenCase: (caseItem: CaseDto) => void;
 };
 
-export function CasesPage({ user, onLogout }: Props) {
+export function CasesPage({ user, onLogout, onOpenCase }: Props) {
   const [cases, setCases] = useState<CaseDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -83,6 +84,7 @@ export function CasesPage({ user, onLogout }: Props) {
               <th>Объект анализа</th>
               <th>Статус</th>
               <th>Создано</th>
+              <th>Действия</th>
             </tr>
           </thead>
 
@@ -94,6 +96,11 @@ export function CasesPage({ user, onLogout }: Props) {
                 <td>{caseItem.subject}</td>
                 <td>{caseItem.status}</td>
                 <td>{caseItem.createdAt}</td>
+                <td>
+                  <button type="button" onClick={() => onOpenCase(caseItem)}>
+                    Открыть
+                  </button>
+                </td>
               </tr>
             ))}
           </tbody>

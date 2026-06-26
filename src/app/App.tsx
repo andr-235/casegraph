@@ -1,76 +1,128 @@
 import { useEffect, useState } from "react";
 import {
-  initializeApp,
-  type InitializeAppResponse,
-} from "./api/appApi";
-import {
   getCurrentUser,
   logout,
 } from "../features/auth/api/authApi";
 import type { CurrentUserDto } from "../features/auth/model/authTypes";
+import type { CaseDto } from "../features/cases/model/caseTypes";
+import { initializeApp } from "../app/api/appApi";
 import { FirstAdminSetupPage } from "../pages/first-admin/FirstAdminSetupPage";
 import { LoginPage } from "../pages/login/LoginPage";
 import { CasesPage } from "../pages/cases/CasesPage";
+import { CaseWorkspacePage } from "../pages/case-workspace/CaseWorkspacePage";
 
-type AppStatus = "booting" | "ready" | "error";
+type BootstrapState =
+  | "loading"
+  | "firstAdminRequired"
+  | "loginRequired"
+  | "authenticated"
+  | "error";
 
 export function App() {
-  const [status, setStatus] = useState<AppStatus>("booting");
-  const [init, setInit] = useState<InitializeAppResponse | null>(null);
+  const [bootstrapState, setBootstrapState] =
+    useState<BootstrapState>("loading");
   const [currentUser, setCurrentUser] = useState<CurrentUserDto | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [selectedCase, setSelectedCase] = useState<CaseDto | null>(null);
+  const [startupError, setStartupError] = useState<string | null>(null);
 
   async function boot() {
     try {
-      setStatus("booting");
+      setBootstrapState("loading");
+      setStartupError(null);
 
-      const initResponse = await initializeApp();
-      setInit(initResponse);
+      const appState = await initializeApp();
 
-      if (initResponse.hasAdmin) {
-        const user = await getCurrentUser();
-        setCurrentUser(user);
-      } else {
+      if (!appState.hasAdmin) {
         setCurrentUser(null);
+        setSelectedCase(null);
+        setBootstrapState("firstAdminRequired");
+        return;
       }
 
-      setStatus("ready");
+      const user = await getCurrentUser();
+
+      if (!user) {
+        setCurrentUser(null);
+        setSelectedCase(null);
+        setBootstrapState("loginRequired");
+        return;
+      }
+
+      setCurrentUser(user);
+      setBootstrapState("authenticated");
     } catch (err) {
       console.error(err);
-      setError("Не удалось инициализировать приложение.");
-      setStatus("error");
+      setStartupError("Не удалось запустить приложение.");
+      setBootstrapState("error");
     }
-  }
-
-  async function handleLogout() {
-    await logout();
-    setCurrentUser(null);
   }
 
   useEffect(() => {
     boot();
   }, []);
 
-  if (status === "booting") {
-    return <div>Загрузка CaseGraph...</div>;
+  async function handleLogout() {
+    try {
+      await logout();
+    } finally {
+      setCurrentUser(null);
+      setSelectedCase(null);
+      setBootstrapState("loginRequired");
+    }
   }
 
-  if (status === "error") {
+  if (bootstrapState === "loading") {
+    return <main style={{ padding: 32 }}>Загрузка CaseGraph...</main>;
+  }
+
+  if (bootstrapState === "error") {
     return (
-      <div>
+      <main style={{ padding: 32 }}>
         <h1>Ошибка запуска</h1>
-        <p>{error}</p>
-      </div>
+        <p>{startupError}</p>
+        <button type="button" onClick={boot}>
+          Повторить
+        </button>
+      </main>
     );
   }
 
-  if (!init?.hasAdmin) {
+  if (bootstrapState === "firstAdminRequired") {
     return <FirstAdminSetupPage onCreated={boot} />;
   }
 
-  if (!currentUser) {
-    return <LoginPage onLoggedIn={setCurrentUser} />;
+  if (bootstrapState === "loginRequired") {
+    return (
+      <LoginPage
+        onLoggedIn={(user) => {
+          setCurrentUser(user);
+          setSelectedCase(null);
+          setBootstrapState("authenticated");
+        }}
+      />
+    );
   }
 
-  return <CasesPage user={currentUser} onLogout={handleLogout} />;
+  if (!currentUser) {
+    return <main style={{ padding: 32 }}>Сессия не найдена.</main>;
+  }
+
+  if (selectedCase) {
+    return (
+      <CaseWorkspacePage
+        user={currentUser}
+        caseItem={selectedCase}
+        onBackToCases={() => setSelectedCase(null)}
+        onLogout={handleLogout}
+      />
+    );
+  }
+
+    return (
+    <CasesPage
+      user={currentUser}
+      onLogout={handleLogout}
+      onOpenCase={setSelectedCase}
+    />
+  );
 }

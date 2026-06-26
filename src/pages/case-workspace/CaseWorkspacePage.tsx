@@ -1,0 +1,119 @@
+import { useState } from "react";
+import type { CurrentUserDto } from "../../features/auth/model/authTypes";
+import type { CaseDto } from "../../features/cases/model/caseTypes";
+import { CaseOverviewPage } from "./CaseOverviewPage";
+import {
+  CaseSidebar,
+  type CaseWorkspaceSection,
+} from "./CaseSidebar";
+
+type Props = {
+  user: CurrentUserDto;
+  caseItem: CaseDto;
+  onBackToCases: () => void;
+  onLogout: () => void;
+};
+
+const sectionTitles: Record<CaseWorkspaceSection, string> = {
+  overview: "Карточка дела",
+  materials: "Материалы",
+  objects: "Объекты",
+  relations: "Связи",
+  graph: "Граф связей",
+  timeline: "Хронология",
+  report: "Справка",
+};
+
+export function CaseWorkspacePage({
+  user,
+  caseItem,
+  onBackToCases,
+  onLogout,
+}: Props) {
+  const [activeSection, setActiveSection] =
+    useState<CaseWorkspaceSection>("overview");
+
+  return (
+    <main style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
+      <header
+        style={{
+          height: 56,
+          borderBottom: "1px solid #ddd",
+          padding: "0 24px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          boxSizing: "border-box",
+        }}
+      >
+        <div>
+          <strong>CaseGraph</strong>
+          <span style={{ marginLeft: 16 }}>
+            {caseItem.caseCode} · {caseItem.title}
+          </span>
+        </div>
+
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <span>
+            {user.displayName} · {user.role}
+          </span>
+
+          <button type="button" onClick={onLogout}>
+            Выйти
+          </button>
+        </div>
+      </header>
+
+      <div style={{ flex: 1, display: "flex" }}>
+        <CaseSidebar
+          activeSection={activeSection}
+          onSectionChange={setActiveSection}
+          onBackToCases={onBackToCases}
+        />
+
+        <section style={{ flex: 1, padding: 32 }}>
+          {activeSection === "overview" ? (
+            <CaseOverviewPage caseItem={caseItem} />
+          ) : (
+            <PlaceholderSection
+              title={sectionTitles[activeSection]}
+              caseItem={caseItem}
+            />
+          )}
+        </section>
+      </div>
+    </main>
+  );
+}
+
+type PlaceholderSectionProps = {
+  title: string;
+  caseItem: CaseDto;
+};
+
+function PlaceholderSection({ title, caseItem }: PlaceholderSectionProps) {
+  return (
+    <section>
+      <h2>{title}</h2>
+
+      <p>
+        Дело: <strong>{caseItem.caseCode}</strong> · {caseItem.title}
+      </p>
+
+      <div
+        style={{
+          marginTop: 24,
+          padding: 24,
+          border: "1px dashed #aaa",
+          background: "#fafafa",
+        }}
+      >
+        <h3>Раздел пока не реализован</h3>
+        <p>
+          Это заглушка рабочего раздела. Реальную функциональность подключим
+          отдельным vertical slice.
+        </p>
+      </div>
+    </section>
+  );
+}
