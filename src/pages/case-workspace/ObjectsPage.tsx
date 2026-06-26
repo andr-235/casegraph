@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { getObjects } from "../../features/objects/api/objectsApi";
 import { getObjectTypeLabel } from "../../features/objects/model/objectOptions";
 import type { ObjectListItemDto } from "../../features/objects/model/objectTypes";
+import { ObjectCardModal } from "../../features/objects/ui/ObjectCardModal";
 import { CreateObjectModal } from "../../features/objects/ui/CreateObjectModal";
 import type { CaseDto } from "../../features/cases/model/caseTypes";
 
@@ -15,6 +16,7 @@ export function ObjectsPage({ caseItem }: ObjectsPageProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [selectedObjectId, setSelectedObjectId] = useState<string | null>(null);
 
   async function loadObjects() {
     setIsLoading(true);
@@ -41,6 +43,14 @@ export function ObjectsPage({ caseItem }: ObjectsPageProps) {
   function handleCreated(objectItem: ObjectListItemDto) {
     setIsCreateOpen(false);
     setItems((currentItems) => [objectItem, ...currentItems]);
+  }
+
+  function handleUpdated(updatedObject: ObjectListItemDto) {
+    setItems((currentItems) =>
+      currentItems.map((item) =>
+        item.id === updatedObject.id ? updatedObject : item,
+      ),
+    );
   }
 
   return (
@@ -82,7 +92,11 @@ export function ObjectsPage({ caseItem }: ObjectsPageProps) {
           </thead>
           <tbody>
             {items.map((objectItem) => (
-              <tr key={objectItem.id}>
+              <tr
+                key={objectItem.id}
+                onClick={() => setSelectedObjectId(objectItem.id)}
+                style={{ cursor: "pointer" }}
+              >
                 <td>{objectItem.objectCode}</td>
                 <td>{getObjectTypeLabel(objectItem.objectType)}</td>
                 <td>{objectItem.title}</td>
@@ -103,6 +117,15 @@ export function ObjectsPage({ caseItem }: ObjectsPageProps) {
           caseId={caseItem.id}
           onClose={() => setIsCreateOpen(false)}
           onCreated={handleCreated}
+        />
+      )}
+
+      {selectedObjectId && (
+        <ObjectCardModal
+          caseId={caseItem.id}
+          objectId={selectedObjectId}
+          onClose={() => setSelectedObjectId(null)}
+          onUpdated={handleUpdated}
         />
       )}
     </section>

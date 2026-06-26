@@ -1,10 +1,21 @@
 use rusqlite::{params, Connection, OptionalExtension};
 
 use crate::domain::object_type::object_code_prefix;
-use crate::domain::objects::ObjectListItemDto;
+use crate::domain::objects::{LinkedObjectMaterialDto, ObjectDetailsDto, ObjectListItemDto};
 use crate::errors::app_error::AppErrorDto;
 
 #[derive(Debug)]
+pub struct UpdateObjectRecord {
+    pub case_id: String,
+    pub object_id: String,
+    pub title: String,
+    pub value: Option<String>,
+    pub description: String,
+    pub is_key: bool,
+    pub confidence_note: String,
+    pub include_in_report: bool,
+}
+
 pub struct CreateObjectRecord {
     pub id: String,
     pub case_id: String,
@@ -153,6 +164,193 @@ impl ObjectRepository {
                     relation_count: row.get(10)?,
                     created_at: row.get(11)?,
                     updated_at: row.get(12)?,
+                })
+            })
+            .map_err(|err| AppErrorDto::database(err.to_string()))?;
+
+        let mut items = Vec::new();
+
+        for row in rows {
+            items.push(row.map_err(|err| AppErrorDto::database(err.to_string()))?);
+        }
+
+        Ok(items)
+    }
+
+    pub fn find_by_id(
+        conn: &Connection,
+        case_id: &str,
+        object_id: &str,
+    ) -> Result<Option<ObjectDetailsDto>, AppErrorDto> {
+        let object_row = conn
+            .query_row(
+                r#"
+                SELECT
+                    o.id,
+                    o.case_id,
+                    o.object_code,
+                    o.object_type,
+                    o.title,
+                    o.value,
+                    o.description,
+                    o.is_key,
+                    o.confidence_note,
+                    o.include_in_report,
+                    (
+                        SELECT COUNT(*)
+                        FROM object_materials om
+                        WHERE om.object_id = o.id
+                    ) AS linked_material_count,
+                    0 AS relation_count,
+                    o.created_at,
+                    o.updated_at
+                FROM object_nodes o
+                WHERE o.id = ?1
+                  AND o.case_id = ?2
+                  AND o.archived_at IS NULL
+                LIMIT 1
+                "#,
+                params![object_id, case_id],
+                |row| {
+                    let is_key: i64 = row.get(7)?;
+                    let include_in_report: i64 = row.get(9)?;
+
+                    Ok((
+                        row.get::<_, String>(0)?,
+                        row.get::<_, String>(1)?,
+                        row.get::<_, String>(2)?,
+                        row.get::<_, String>(3)?,
+                        row.get::<_, String>(4)?,
+                        row.get::<_, Option<String>>(5)?,
+                        row.get::<_, String>(6)?,
+                        is_key == 1,
+                        row.get::<_, String>(8)?,
+                        include_in_report == 1,
+                        row.get::<_, i64>(10)?,
+                        row.get::<_, i64>(11)?,
+                        row.get::<_, String>(12)?,
+                        row.get::<_, String>(13)?,
+                    ))
+                },
+            )
+            .optional()
+            .map_err(|err| AppErrorDto::database(err.to_string()))?;
+
+        let Some((
+            id,
+            case_id,
+            object_code,
+            object_type,
+            title,
+            value,
+            description,
+            is_key,
+            confidence_note,
+            include_in_report,
+            linked_material_count,
+            relation_count,
+            created_at,
+            updated_at,
+        )) = object_row
+        else {
+            return Ok(None);
+        };
+
+        let linked_materials = Self::list_linked_materials(conn, &id)?;
+
+        Ok(Some(ObjectDetailsDto {
+            id,
+            case_id,
+            object_code,
+            object_type,
+            title,
+            value,
+            description,
+            is_key,
+            confidence_note,
+            include_in_report,
+            linked_material_count,
+            relation_count,
+            created_at,
+            updated_at,
+            linked_materials,
+            relations: Vec::new(),
+        }))
+    }
+
+    pub fn update_object(conn: &Connection, record: UpdateObjectRecord) -> Result<(), AppErrorDto> {
+        let changed_count = conn
+            .execute(
+                r#"
+                UPDATE object_nodes
+                SET
+                    title = ?3,
+                    value = ?4,
+                    description = ?5,
+                    is_key = ?6,
+                    confidence_note = ?7,
+                    include_in_report = ?8,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?1
+                  AND case_id = ?2
+                  AND archived_at IS NULL
+                "#,
+                params![
+                    record.object_id,
+                    record.case_id,
+                    record.title,
+                    record.value,
+                    record.description,
+                    if record.is_key { 1 } else { 0 },
+                    record.confidence_note,
+                    if record.include_in_report { 1 } else { 0 },
+                ],
+            )
+            .map_err(|err| AppErrorDto::database(err.to_string()))?;
+
+        if changed_count == 0 {
+            return Err(AppErrorDto::new(
+                "ERR_OBJECT_NOT_FOUND",
+                "Объект не найден.",
+                None,
+            ));
+        }
+
+        Ok(())
+    }
+
+    fn list_linked_materials(
+        conn: &Connection,
+        object_id: &str,
+    ) -> Result<Vec<LinkedObjectMaterialDto>, AppErrorDto> {
+        let mut stmt = conn
+            .prepare(
+                r#"
+                SELECT
+                    m.id,
+                    m.material_code,
+                    m.title,
+                    m.material_type,
+                    m.integrity_status,
+                    om.link_reason
+                FROM object_materials om
+                INNER JOIN materials m ON m.id = om.material_id
+                WHERE om.object_id = ?1
+                  AND m.archived_at IS NULL
+                ORDER BY m.created_at DESC
+                "#,
+            )
+            .map_err(|err| AppErrorDto::database(err.to_string()))?;
+
+        let rows = stmt
+            .query_map(params![object_id], |row| {
+                Ok(LinkedObjectMaterialDto {
+                    id: row.get(0)?,
+                    material_code: row.get(1)?,
+                    title: row.get(2)?,
+                    material_type: row.get(3)?,
+                    hash_status: row.get(4)?,
+                    link_reason: row.get(5)?,
                 })
             })
             .map_err(|err| AppErrorDto::database(err.to_string()))?;
