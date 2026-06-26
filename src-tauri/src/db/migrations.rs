@@ -105,6 +105,53 @@ pub fn apply_migrations(conn: &Connection) -> Result<(), AppErrorDto> {
         CREATE INDEX IF NOT EXISTS idx_materials_created_at ON materials(created_at);
         CREATE INDEX IF NOT EXISTS idx_materials_archived_at ON materials(archived_at);
 
+        CREATE TABLE IF NOT EXISTS object_nodes (
+            id TEXT PRIMARY KEY,
+            case_id TEXT NOT NULL,
+            object_code TEXT NOT NULL,
+            object_type TEXT NOT NULL,
+            title TEXT NOT NULL,
+            value TEXT,
+            description TEXT NOT NULL DEFAULT '',
+            is_key INTEGER NOT NULL DEFAULT 0,
+            confidence_note TEXT NOT NULL DEFAULT '',
+            include_in_report INTEGER NOT NULL DEFAULT 1,
+
+            created_by_user_id TEXT NOT NULL,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            archived_at TEXT,
+
+            FOREIGN KEY (case_id) REFERENCES cases(id),
+            FOREIGN KEY (created_by_user_id) REFERENCES users(id),
+            UNIQUE(case_id, object_code)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_object_nodes_case_id ON object_nodes(case_id);
+        CREATE INDEX IF NOT EXISTS idx_object_nodes_object_code ON object_nodes(object_code);
+        CREATE INDEX IF NOT EXISTS idx_object_nodes_object_type ON object_nodes(object_type);
+        CREATE INDEX IF NOT EXISTS idx_object_nodes_title ON object_nodes(title);
+        CREATE INDEX IF NOT EXISTS idx_object_nodes_is_key ON object_nodes(is_key);
+        CREATE INDEX IF NOT EXISTS idx_object_nodes_include_in_report ON object_nodes(include_in_report);
+        CREATE INDEX IF NOT EXISTS idx_object_nodes_archived_at ON object_nodes(archived_at);
+
+        CREATE TABLE IF NOT EXISTS object_materials (
+            id TEXT PRIMARY KEY,
+            object_id TEXT NOT NULL,
+            material_id TEXT NOT NULL,
+            link_reason TEXT NOT NULL DEFAULT '',
+            created_by_user_id TEXT NOT NULL,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+            FOREIGN KEY (object_id) REFERENCES object_nodes(id),
+            FOREIGN KEY (material_id) REFERENCES materials(id),
+            FOREIGN KEY (created_by_user_id) REFERENCES users(id),
+            UNIQUE(object_id, material_id)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_object_materials_object_id ON object_materials(object_id);
+        CREATE INDEX IF NOT EXISTS idx_object_materials_material_id ON object_materials(material_id);
+
         CREATE INDEX IF NOT EXISTS idx_cases_case_code ON cases(case_code);
         CREATE INDEX IF NOT EXISTS idx_cases_status ON cases(status);
         CREATE INDEX IF NOT EXISTS idx_cases_created_at ON cases(created_at);

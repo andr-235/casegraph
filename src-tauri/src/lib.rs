@@ -15,6 +15,7 @@ use commands::case_commands::{
 use commands::material_commands::{
     create_material, delete_material, get_materials, update_material,
 };
+use commands::object_commands::{create_object, get_objects};
 use security::session::SessionState;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -36,7 +37,9 @@ pub fn run() {
             get_materials,
             create_material,
             update_material,
-            delete_material
+            delete_material,
+            create_object,
+            get_objects
         ])
         .run(tauri::generate_context!())
         .expect("error while running CaseGraph");

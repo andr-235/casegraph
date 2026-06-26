@@ -7,6 +7,7 @@ import {
   type CaseWorkspaceSection,
 } from "./CaseSidebar";
 import { MaterialsPage } from "../materials/MaterialsPage";
+import { ObjectsPage } from "./ObjectsPage";
 
 type Props = {
   user: CurrentUserDto;
@@ -86,7 +87,11 @@ export function CaseWorkspacePage({
             <MaterialsPage caseItem={caseItem} />
           )}
 
-          {activeSection !== "overview" && activeSection !== "materials" && (
+          {activeSection === "objects" && (
+            <ObjectsPage caseItem={caseItem} />
+          )}
+
+          {activeSection !== "overview" && activeSection !== "materials" && activeSection !== "objects" && (
             <PlaceholderSection
               title={sectionTitles[activeSection]}
               caseItem={caseItem}
