@@ -4,7 +4,9 @@ use uuid::Uuid;
 
 use crate::db::connection::open_connection;
 use crate::errors::app_error::AppErrorDto;
-use crate::repositories::case_repository::{CaseRepository, CaseRow, CreateCaseRecord};
+use crate::repositories::case_repository::{
+    CaseRepository, CaseRow, CreateCaseRecord, UpdateCaseRecord,
+};
 use crate::security::session::{CurrentUserDto, SessionState};
 
 #[derive(Debug, Serialize)]
@@ -36,6 +38,29 @@ pub struct CreateCasePayload {
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateCaseResponse {
+    pub case_item: CaseDto,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GetCaseByIdPayload {
+    pub case_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateCasePayload {
+    pub case_id: String,
+    pub title: String,
+    pub subject: String,
+    pub description: Option<String>,
+    pub period_start: Option<String>,
+    pub period_end: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateCaseResponse {
     pub case_item: CaseDto,
 }
 
@@ -99,6 +124,85 @@ impl CaseService {
             case_item: case_row_to_dto(created_case),
         })
     }
+
+    pub fn get_case_by_id(
+        app: &AppHandle,
+        session: &SessionState,
+        payload: GetCaseByIdPayload,
+    ) -> Result<CaseDto, AppErrorDto> {
+        require_current_user(session)?;
+
+        let case_id = payload.case_id.trim();
+
+        if case_id.is_empty() {
+            return Err(AppErrorDto::new(
+                "ERR_VALIDATION",
+                "Не указан идентификатор дела.",
+                None,
+            ));
+        }
+
+        let conn = open_connection(app)?;
+
+        let case_row = CaseRepository::get_case_by_id(&conn, case_id)?
+            .ok_or_else(|| AppErrorDto::new("ERR_CASE_NOT_FOUND", "Дело не найдено.", None))?;
+
+        Ok(case_row_to_dto(case_row))
+    }
+
+    pub fn update_case(
+        app: &AppHandle,
+        session: &SessionState,
+        payload: UpdateCasePayload,
+    ) -> Result<UpdateCaseResponse, AppErrorDto> {
+        require_current_user(session)?;
+
+        let case_id = payload.case_id.trim().to_string();
+        let title = payload.title.trim().to_string();
+        let subject = payload.subject.trim().to_string();
+        let description = payload.description.unwrap_or_default().trim().to_string();
+
+        if case_id.is_empty() {
+            return Err(AppErrorDto::new(
+                "ERR_VALIDATION",
+                "Не указан идентификатор дела.",
+                None,
+            ));
+        }
+
+        validate_create_case_payload(
+            &title,
+            &subject,
+            payload.period_start.as_deref(),
+            payload.period_end.as_deref(),
+        )?;
+
+        let conn = open_connection(app)?;
+
+        CaseRepository::update_case(
+            &conn,
+            UpdateCaseRecord {
+                case_id: case_id.clone(),
+                title,
+                subject,
+                description,
+                period_start: normalize_optional_string(payload.period_start),
+                period_end: normalize_optional_string(payload.period_end),
+            },
+        )?;
+
+        let updated_case = CaseRepository::get_case_by_id(&conn, &case_id)?.ok_or_else(|| {
+            AppErrorDto::new(
+                "ERR_CASE_NOT_FOUND_AFTER_UPDATE",
+                "Дело обновлено, но не найдено после сохранения.",
+                None,
+            )
+        })?;
+
+        Ok(UpdateCaseResponse {
+            case_item: case_row_to_dto(updated_case),
+        })
+    }
 }
 
 fn require_current_user(session: &SessionState) -> Result<CurrentUserDto, AppErrorDto> {
@@ -156,4 +260,10 @@ fn case_row_to_dto(row: CaseRow) -> CaseDto {
         created_at: row.created_at,
         updated_at: row.updated_at,
     }
+}
+
+fn normalize_optional_string(value: Option<String>) -> Option<String> {
+    value
+        .map(|item| item.trim().to_string())
+        .filter(|item| !item.is_empty())
 }

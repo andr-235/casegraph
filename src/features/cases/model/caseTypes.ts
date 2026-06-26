@@ -30,3 +30,20 @@ export type CreateCasePayload = {
 export type CreateCaseResponse = {
   caseItem: CaseDto;
 };
+
+export type GetCaseByIdPayload = {
+  caseId: string;
+};
+
+export type UpdateCasePayload = {
+  caseId: string;
+  title: string;
+  subject: string;
+  description?: string;
+  periodStart?: string | null;
+  periodEnd?: string | null;
+};
+
+export type UpdateCaseResponse = {
+  caseItem: CaseDto;
+};

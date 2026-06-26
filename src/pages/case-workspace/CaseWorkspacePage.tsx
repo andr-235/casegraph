@@ -10,6 +10,7 @@ import {
 type Props = {
   user: CurrentUserDto;
   caseItem: CaseDto;
+  onCaseUpdated: (caseItem: CaseDto) => void;
   onBackToCases: () => void;
   onLogout: () => void;
 };
@@ -27,6 +28,7 @@ const sectionTitles: Record<CaseWorkspaceSection, string> = {
 export function CaseWorkspacePage({
   user,
   caseItem,
+  onCaseUpdated,
   onBackToCases,
   onLogout,
 }: Props) {
@@ -73,7 +75,10 @@ export function CaseWorkspacePage({
 
         <section style={{ flex: 1, padding: 32 }}>
           {activeSection === "overview" ? (
-            <CaseOverviewPage caseItem={caseItem} />
+            <CaseOverviewPage
+              caseItem={caseItem}
+              onCaseUpdated={onCaseUpdated}
+            />
           ) : (
             <PlaceholderSection
               title={sectionTitles[activeSection]}

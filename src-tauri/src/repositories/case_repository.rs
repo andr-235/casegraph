@@ -29,6 +29,16 @@ pub struct CreateCaseRecord {
     pub created_by_user_id: String,
 }
 
+#[derive(Debug)]
+pub struct UpdateCaseRecord {
+    pub case_id: String,
+    pub title: String,
+    pub subject: String,
+    pub description: String,
+    pub period_start: Option<String>,
+    pub period_end: Option<String>,
+}
+
 pub struct CaseRepository;
 
 impl CaseRepository {
@@ -175,5 +185,42 @@ impl CaseRepository {
         )
         .optional()
         .map_err(|err| AppErrorDto::database(err.to_string()))
+    }
+
+    pub fn update_case(conn: &Connection, record: UpdateCaseRecord) -> Result<(), AppErrorDto> {
+        let changed_count = conn
+            .execute(
+                r#"
+            UPDATE cases
+            SET
+                title = ?2,
+                subject = ?3,
+                description = ?4,
+                period_start = ?5,
+                period_end = ?6,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?1
+              AND archived_at IS NULL
+            "#,
+                params![
+                    record.case_id,
+                    record.title,
+                    record.subject,
+                    record.description,
+                    record.period_start,
+                    record.period_end
+                ],
+            )
+            .map_err(|err| AppErrorDto::database(err.to_string()))?;
+
+        if changed_count == 0 {
+            return Err(AppErrorDto::new(
+                "ERR_CASE_NOT_FOUND",
+                "Дело не найдено.",
+                None,
+            ));
+        }
+
+        Ok(())
     }
 }

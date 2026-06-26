@@ -112,6 +112,7 @@ export function App() {
       <CaseWorkspacePage
         user={currentUser}
         caseItem={selectedCase}
+        onCaseUpdated={setSelectedCase}
         onBackToCases={() => setSelectedCase(null)}
         onLogout={handleLogout}
       />
