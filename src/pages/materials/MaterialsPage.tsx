@@ -1,6 +1,10 @@
 import { useEffect, useState } from "react";
 import type { CaseDto } from "../../features/cases/model/caseTypes";
 import { getMaterials } from "../../features/materials/api/materialsApi";
+import {
+  getIntegrityStatusLabel,
+  getMaterialTypeLabel,
+} from "../../features/materials/lib/materialOptions";
 import type { MaterialDto } from "../../features/materials/model/materialTypes";
 import { AddMaterialModal } from "./AddMaterialModal";
 import { MaterialCardModal } from "./MaterialCardModal";
@@ -8,32 +12,6 @@ import { MaterialCardModal } from "./MaterialCardModal";
 type Props = {
   caseItem: CaseDto;
 };
-
-function getMaterialTypeLabel(type: string) {
-  const labels: Record<string, string> = {
-    image: "Изображение",
-    pdf: "PDF",
-    document: "Документ",
-    spreadsheet: "Таблица",
-    text: "Текст",
-    html: "HTML",
-    other: "Другое",
-  };
-
-  return labels[type] ?? type;
-}
-
-function getIntegrityStatusLabel(status: string) {
-  const labels: Record<string, string> = {
-    not_checked: "Не проверено",
-    ok: "OK",
-    mismatch: "Несовпадение",
-    missing: "Файл отсутствует",
-    read_error: "Ошибка чтения",
-  };
-
-  return labels[status] ?? status;
-}
 
 export function MaterialsPage({ caseItem }: Props) {
   const [materials, setMaterials] = useState<MaterialDto[]>([]);

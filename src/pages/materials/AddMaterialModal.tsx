@@ -1,6 +1,7 @@
 import { FormEvent, useState } from "react";
 import { createMaterial } from "../../features/materials/api/materialsApi";
 import { pickMaterialFile } from "../../features/materials/api/materialFilePicker";
+import { materialTypeOptions } from "../../features/materials/lib/materialOptions";
 import type {
   MaterialDto,
   MaterialType,
@@ -11,19 +12,6 @@ type Props = {
   onCreated: (material: MaterialDto) => void;
   onClose: () => void;
 };
-
-const materialTypeOptions: Array<{
-  value: MaterialType;
-  label: string;
-}> = [
-  { value: "image", label: "Изображение" },
-  { value: "pdf", label: "PDF" },
-  { value: "document", label: "Документ" },
-  { value: "spreadsheet", label: "Таблица" },
-  { value: "text", label: "Текст" },
-  { value: "html", label: "HTML" },
-  { value: "other", label: "Другое" },
-];
 
 export function AddMaterialModal({ caseId, onCreated, onClose }: Props) {
   const [title, setTitle] = useState("");

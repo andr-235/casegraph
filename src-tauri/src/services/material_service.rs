@@ -2,6 +2,10 @@ use tauri::AppHandle;
 use uuid::Uuid;
 
 use crate::db::connection::open_connection;
+use crate::domain::material_integrity_status::{
+    MATERIAL_INTEGRITY_NOT_CHECKED, MATERIAL_INTEGRITY_OK,
+};
+use crate::domain::material_type::is_valid_material_type;
 use crate::domain::materials::{
     CreateMaterialPayload, CreateMaterialResponse, DeleteMaterialPayload, DeleteMaterialResponse,
     GetMaterialsPayload, MaterialDto, UpdateMaterialPayload, UpdateMaterialResponse,
@@ -84,7 +88,7 @@ impl MaterialService {
                 Some(file.file_size),
                 file.mime_type,
                 Some(file.sha256),
-                "ok".to_string(),
+                MATERIAL_INTEGRITY_OK.to_string(),
             ),
             None => (
                 None,
@@ -93,7 +97,7 @@ impl MaterialService {
                 None,
                 None,
                 None,
-                "not_checked".to_string(),
+                MATERIAL_INTEGRITY_NOT_CHECKED.to_string(),
             ),
         };
 
@@ -259,13 +263,6 @@ fn validate_create_material_payload(title: &str, material_type: &str) -> Result<
     }
 
     Ok(())
-}
-
-fn is_valid_material_type(material_type: &str) -> bool {
-    matches!(
-        material_type,
-        "image" | "pdf" | "document" | "spreadsheet" | "text" | "html" | "other"
-    )
 }
 
 fn ensure_case_exists(conn: &rusqlite::Connection, case_id: &str) -> Result<(), AppErrorDto> {

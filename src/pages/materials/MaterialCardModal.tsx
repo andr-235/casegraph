@@ -3,6 +3,10 @@ import {
   deleteMaterial,
   updateMaterial,
 } from "../../features/materials/api/materialsApi";
+import {
+  getIntegrityStatusLabel,
+  materialTypeOptions,
+} from "../../features/materials/lib/materialOptions";
 import type {
   MaterialDto,
   MaterialType,
@@ -14,31 +18,6 @@ type Props = {
   onDeleted: (materialId: string) => void;
   onClose: () => void;
 };
-
-const materialTypeOptions: Array<{
-  value: MaterialType;
-  label: string;
-}> = [
-  { value: "image", label: "Изображение" },
-  { value: "pdf", label: "PDF" },
-  { value: "document", label: "Документ" },
-  { value: "spreadsheet", label: "Таблица" },
-  { value: "text", label: "Текст" },
-  { value: "html", label: "HTML" },
-  { value: "other", label: "Другое" },
-];
-
-function getIntegrityStatusLabel(status: string) {
-  const labels: Record<string, string> = {
-    not_checked: "Не проверено",
-    ok: "OK",
-    mismatch: "Несовпадение",
-    missing: "Файл отсутствует",
-    read_error: "Ошибка чтения",
-  };
-
-  return labels[status] ?? status;
-}
 
 function formatFileSize(value: number | null) {
   if (value === null) {
