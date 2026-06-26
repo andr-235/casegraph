@@ -247,6 +247,37 @@ impl MaterialRepository {
         Ok(materials)
     }
 
+    pub fn soft_delete_material(
+        conn: &Connection,
+        case_id: &str,
+        material_id: &str,
+    ) -> Result<(), AppErrorDto> {
+        let changed_count = conn
+            .execute(
+                r#"
+            UPDATE materials
+            SET
+                archived_at = CURRENT_TIMESTAMP,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?1
+              AND case_id = ?2
+              AND archived_at IS NULL
+            "#,
+                params![material_id, case_id],
+            )
+            .map_err(|err| AppErrorDto::database(err.to_string()))?;
+
+        if changed_count == 0 {
+            return Err(AppErrorDto::new(
+                "ERR_MATERIAL_NOT_FOUND",
+                "Материал не найден.",
+                None,
+            ));
+        }
+
+        Ok(())
+    }
+
     pub fn get_material_by_id(
         conn: &Connection,
         material_id: &str,

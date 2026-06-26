@@ -1,5 +1,8 @@
 import { FormEvent, useEffect, useState } from "react";
-import { updateMaterial } from "../../features/materials/api/materialsApi";
+import {
+  deleteMaterial,
+  updateMaterial,
+} from "../../features/materials/api/materialsApi";
 import type {
   MaterialDto,
   MaterialType,
@@ -8,6 +11,7 @@ import type {
 type Props = {
   material: MaterialDto;
   onUpdated: (material: MaterialDto) => void;
+  onDeleted: (materialId: string) => void;
   onClose: () => void;
 };
 
@@ -63,6 +67,7 @@ function readOnlyValue(value: string | number | null) {
 export function MaterialCardModal({
   material,
   onUpdated,
+  onDeleted,
   onClose,
 }: Props) {
   const [title, setTitle] = useState(material.title);
@@ -86,6 +91,35 @@ export function MaterialCardModal({
     setIncludeInReport(material.includeInReport);
     setError(null);
   }, [material]);
+
+  async function handleDelete() {
+    const confirmed = window.confirm(
+      "Удалить материал из дела? Файл во внутреннем хранилище не будет физически удалён."
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setError(null);
+
+    try {
+      setSaving(true);
+
+      const response = await deleteMaterial({
+        caseId: material.caseId,
+        materialId: material.id,
+      });
+
+      onDeleted(response.materialId);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Не удалось удалить материал."
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -287,6 +321,15 @@ export function MaterialCardModal({
 
           <button type="button" onClick={onClose} disabled={saving}>
             Отмена
+          </button>
+
+          <button
+            type="button"
+            onClick={handleDelete}
+            disabled={saving}
+            style={{ marginLeft: "auto", color: "crimson" }}
+          >
+            Удалить
           </button>
         </div>
       </form>

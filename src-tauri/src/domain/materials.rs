@@ -67,3 +67,16 @@ pub struct UpdateMaterialPayload {
 pub struct UpdateMaterialResponse {
     pub material: MaterialDto,
 }
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DeleteMaterialPayload {
+    pub case_id: String,
+    pub material_id: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DeleteMaterialResponse {
+    pub material_id: String,
+}

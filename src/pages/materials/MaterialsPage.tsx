@@ -68,6 +68,14 @@ export function MaterialsPage({ caseItem }: Props) {
     setAddModalOpen(false);
   }
 
+  function handleMaterialDeleted(materialId: string) {
+    setMaterials((current) =>
+      current.filter((material) => material.id !== materialId)
+    );
+
+    setSelectedMaterial(null);
+  }
+
   function handleMaterialUpdated(updatedMaterial: MaterialDto) {
     setMaterials((current) =>
       current.map((material) =>
@@ -176,6 +184,7 @@ export function MaterialsPage({ caseItem }: Props) {
         <MaterialCardModal
           material={selectedMaterial}
           onUpdated={handleMaterialUpdated}
+          onDeleted={handleMaterialDeleted}
           onClose={() => setSelectedMaterial(null)}
         />
       )}

@@ -1,8 +1,8 @@
 use tauri::{AppHandle, State};
 
 use crate::domain::materials::{
-    CreateMaterialPayload, CreateMaterialResponse, GetMaterialsPayload, MaterialDto,
-    UpdateMaterialPayload, UpdateMaterialResponse,
+    CreateMaterialPayload, CreateMaterialResponse, DeleteMaterialPayload, DeleteMaterialResponse,
+    GetMaterialsPayload, MaterialDto, UpdateMaterialPayload, UpdateMaterialResponse,
 };
 use crate::errors::app_error::CommandResult;
 use crate::security::session::SessionState;
@@ -39,6 +39,18 @@ pub fn update_material(
     payload: UpdateMaterialPayload,
 ) -> CommandResult<UpdateMaterialResponse> {
     match MaterialService::update_material(&app, &session, payload) {
+        Ok(response) => CommandResult::ok(response),
+        Err(error) => CommandResult::err(error),
+    }
+}
+
+#[tauri::command]
+pub fn delete_material(
+    app: AppHandle,
+    session: State<'_, SessionState>,
+    payload: DeleteMaterialPayload,
+) -> CommandResult<DeleteMaterialResponse> {
+    match MaterialService::delete_material(&app, &session, payload) {
         Ok(response) => CommandResult::ok(response),
         Err(error) => CommandResult::err(error),
     }

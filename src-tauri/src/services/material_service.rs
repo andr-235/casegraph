@@ -3,8 +3,8 @@ use uuid::Uuid;
 
 use crate::db::connection::open_connection;
 use crate::domain::materials::{
-    CreateMaterialPayload, CreateMaterialResponse, GetMaterialsPayload, MaterialDto,
-    UpdateMaterialPayload, UpdateMaterialResponse,
+    CreateMaterialPayload, CreateMaterialResponse, DeleteMaterialPayload, DeleteMaterialResponse,
+    GetMaterialsPayload, MaterialDto, UpdateMaterialPayload, UpdateMaterialResponse,
 };
 use crate::errors::app_error::AppErrorDto;
 use crate::repositories::case_repository::CaseRepository;
@@ -132,6 +132,35 @@ impl MaterialService {
         Ok(CreateMaterialResponse {
             material: material_row_to_dto(created_material),
         })
+    }
+
+    pub fn delete_material(
+        app: &AppHandle,
+        session: &SessionState,
+        payload: DeleteMaterialPayload,
+    ) -> Result<DeleteMaterialResponse, AppErrorDto> {
+        require_current_user(session)?;
+
+        let case_id = payload.case_id.trim().to_string();
+        let material_id = payload.material_id.trim().to_string();
+
+        validate_case_id(&case_id)?;
+
+        if material_id.is_empty() {
+            return Err(AppErrorDto::new(
+                "ERR_VALIDATION",
+                "Не указан идентификатор материала.",
+                None,
+            ));
+        }
+
+        let conn = open_connection(app)?;
+
+        ensure_case_exists(&conn, &case_id)?;
+
+        MaterialRepository::soft_delete_material(&conn, &case_id, &material_id)?;
+
+        Ok(DeleteMaterialResponse { material_id })
     }
 
     pub fn update_material(

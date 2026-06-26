@@ -71,3 +71,12 @@ export type UpdateMaterialPayload = {
 export type UpdateMaterialResponse = {
   material: MaterialDto;
 };
+
+export type DeleteMaterialPayload = {
+  caseId: string;
+  materialId: string;
+};
+
+export type DeleteMaterialResponse = {
+  materialId: string;
+};
