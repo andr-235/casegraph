@@ -2,7 +2,6 @@ use tauri::AppHandle;
 use uuid::Uuid;
 
 use crate::db::connection::open_connection;
-use crate::domain::object_type::is_valid_object_type;
 use crate::domain::objects::{
     CreateObjectPayload, CreateObjectResponse, GetObjectByIdPayload, GetObjectByIdResponse,
     GetObjectsPayload, GetObjectsResponse, LinkObjectToMaterialsPayload,
@@ -15,6 +14,11 @@ use crate::repositories::object_repository::{
     CreateObjectRecord, ObjectMaterialLinkRecord, ObjectRepository, UpdateObjectRecord,
 };
 use crate::security::session::SessionState;
+use crate::services::object_validation::{
+    normalize_confidence_note, normalize_link_reason, normalize_object_description,
+    normalize_object_title, normalize_object_type, normalize_optional_value, normalize_required_id,
+    normalize_unique_ids,
+};
 
 pub struct ObjectService;
 
@@ -36,45 +40,14 @@ impl ObjectService {
             ));
         }
 
-        let case_id = payload.case_id.trim().to_string();
-        let object_type = payload.object_type.trim().to_string();
-        let title = payload.title.trim().to_string();
-        let value = payload
-            .value
-            .map(|v| v.trim().to_string())
-            .filter(|v| !v.is_empty());
-        let description = payload
-            .description
-            .map(|v| v.trim().to_string())
-            .unwrap_or_default();
-        let confidence_note = payload
-            .confidence_note
-            .map(|v| v.trim().to_string())
-            .unwrap_or_default();
+        let case_id =
+            normalize_required_id(&payload.case_id, "ERR_CASE_REQUIRED", "Не выбрано дело.")?;
 
-        if case_id.is_empty() {
-            return Err(AppErrorDto::new(
-                "ERR_CASE_REQUIRED",
-                "Не выбрано дело.",
-                None,
-            ));
-        }
-
-        if !is_valid_object_type(&object_type) {
-            return Err(AppErrorDto::new(
-                "ERR_OBJECT_TYPE_INVALID",
-                "Недопустимый тип объекта.",
-                Some(object_type),
-            ));
-        }
-
-        if title.chars().count() < 2 {
-            return Err(AppErrorDto::new(
-                "ERR_OBJECT_TITLE_TOO_SHORT",
-                "Название объекта должно содержать минимум 2 символа.",
-                None,
-            ));
-        }
+        let object_type = normalize_object_type(&payload.object_type)?;
+        let title = normalize_object_title(&payload.title)?;
+        let value = normalize_optional_value(payload.value)?;
+        let description = normalize_object_description(payload.description)?;
+        let confidence_note = normalize_confidence_note(payload.confidence_note)?;
 
         let conn = open_connection(app)?;
 
@@ -140,15 +113,8 @@ impl ObjectService {
             ));
         }
 
-        let case_id = payload.case_id.trim().to_string();
-
-        if case_id.is_empty() {
-            return Err(AppErrorDto::new(
-                "ERR_CASE_REQUIRED",
-                "Не выбрано дело.",
-                None,
-            ));
-        }
+        let case_id =
+            normalize_required_id(&payload.case_id, "ERR_CASE_REQUIRED", "Не выбрано дело.")?;
 
         let conn = open_connection(app)?;
         let items = ObjectRepository::list_by_case(&conn, &case_id)?;
@@ -176,24 +142,14 @@ impl ObjectService {
             ));
         }
 
-        let case_id = payload.case_id.trim().to_string();
-        let object_id = payload.object_id.trim().to_string();
+        let case_id =
+            normalize_required_id(&payload.case_id, "ERR_CASE_REQUIRED", "Не выбрано дело.")?;
 
-        if case_id.is_empty() {
-            return Err(AppErrorDto::new(
-                "ERR_CASE_REQUIRED",
-                "Не выбрано дело.",
-                None,
-            ));
-        }
-
-        if object_id.is_empty() {
-            return Err(AppErrorDto::new(
-                "ERR_OBJECT_REQUIRED",
-                "Не выбран объект.",
-                None,
-            ));
-        }
+        let object_id = normalize_required_id(
+            &payload.object_id,
+            "ERR_OBJECT_REQUIRED",
+            "Не выбран объект.",
+        )?;
 
         let conn = open_connection(app)?;
 
@@ -220,38 +176,17 @@ impl ObjectService {
             ));
         }
 
-        let case_id = payload.case_id.trim().to_string();
-        let object_id = payload.object_id.trim().to_string();
-        let link_reason = payload
-            .link_reason
-            .map(|value| value.trim().to_string())
-            .unwrap_or_default();
+        let case_id =
+            normalize_required_id(&payload.case_id, "ERR_CASE_REQUIRED", "Не выбрано дело.")?;
 
-        if case_id.is_empty() {
-            return Err(AppErrorDto::new(
-                "ERR_CASE_REQUIRED",
-                "Не выбрано дело.",
-                None,
-            ));
-        }
+        let object_id = normalize_required_id(
+            &payload.object_id,
+            "ERR_OBJECT_REQUIRED",
+            "Не выбран объект.",
+        )?;
 
-        if object_id.is_empty() {
-            return Err(AppErrorDto::new(
-                "ERR_OBJECT_REQUIRED",
-                "Не выбран объект.",
-                None,
-            ));
-        }
-
-        let mut material_ids = Vec::new();
-
-        for material_id in payload.material_ids {
-            let normalized_id = material_id.trim().to_string();
-
-            if !normalized_id.is_empty() && !material_ids.contains(&normalized_id) {
-                material_ids.push(normalized_id);
-            }
-        }
+        let material_ids = normalize_unique_ids(payload.material_ids);
+        let link_reason = normalize_link_reason(payload.link_reason)?;
 
         let conn = open_connection(app)?;
 
@@ -298,45 +233,19 @@ impl ObjectService {
             ));
         }
 
-        let case_id = payload.case_id.trim().to_string();
-        let object_id = payload.object_id.trim().to_string();
-        let title = payload.title.trim().to_string();
-        let value = payload
-            .value
-            .map(|v| v.trim().to_string())
-            .filter(|v| !v.is_empty());
-        let description = payload
-            .description
-            .map(|v| v.trim().to_string())
-            .unwrap_or_default();
-        let confidence_note = payload
-            .confidence_note
-            .map(|v| v.trim().to_string())
-            .unwrap_or_default();
+        let case_id =
+            normalize_required_id(&payload.case_id, "ERR_CASE_REQUIRED", "Не выбрано дело.")?;
 
-        if case_id.is_empty() {
-            return Err(AppErrorDto::new(
-                "ERR_CASE_REQUIRED",
-                "Не выбрано дело.",
-                None,
-            ));
-        }
+        let object_id = normalize_required_id(
+            &payload.object_id,
+            "ERR_OBJECT_REQUIRED",
+            "Не выбран объект.",
+        )?;
 
-        if object_id.is_empty() {
-            return Err(AppErrorDto::new(
-                "ERR_OBJECT_REQUIRED",
-                "Не выбран объект.",
-                None,
-            ));
-        }
-
-        if title.chars().count() < 2 {
-            return Err(AppErrorDto::new(
-                "ERR_OBJECT_TITLE_TOO_SHORT",
-                "Название объекта должно содержать минимум 2 символа.",
-                None,
-            ));
-        }
+        let title = normalize_object_title(&payload.title)?;
+        let value = normalize_optional_value(payload.value)?;
+        let description = normalize_object_description(payload.description)?;
+        let confidence_note = normalize_confidence_note(payload.confidence_note)?;
 
         let conn = open_connection(app)?;
 
@@ -383,24 +292,14 @@ impl ObjectService {
             ));
         }
 
-        let case_id = payload.case_id.trim().to_string();
-        let object_id = payload.object_id.trim().to_string();
+        let case_id =
+            normalize_required_id(&payload.case_id, "ERR_CASE_REQUIRED", "Не выбрано дело.")?;
 
-        if case_id.is_empty() {
-            return Err(AppErrorDto::new(
-                "ERR_CASE_REQUIRED",
-                "Не выбрано дело.",
-                None,
-            ));
-        }
-
-        if object_id.is_empty() {
-            return Err(AppErrorDto::new(
-                "ERR_OBJECT_REQUIRED",
-                "Не выбран объект.",
-                None,
-            ));
-        }
+        let object_id = normalize_required_id(
+            &payload.object_id,
+            "ERR_OBJECT_REQUIRED",
+            "Не выбран объект.",
+        )?;
 
         let conn = open_connection(app)?;
 

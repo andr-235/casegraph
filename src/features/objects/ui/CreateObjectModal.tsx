@@ -27,12 +27,17 @@ export function CreateObjectModal({
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
 
-    const normalizedTitle = title.trim();
-
-    if (normalizedTitle.length < 2) {
-      setError("Название объекта должно содержать минимум 2 символа.");
+    if (!title.trim()) {
+      setError("Название объекта обязательно.");
       return;
     }
+
+    if (!objectType.trim()) {
+      setError("Выберите тип объекта.");
+      return;
+    }
+
+    const normalizedTitle = title.trim();
 
     const payload: CreateObjectPayload = {
       caseId,

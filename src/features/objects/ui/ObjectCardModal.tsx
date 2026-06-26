@@ -152,12 +152,12 @@ export function ObjectCardModal({
       return;
     }
 
-    const normalizedTitle = title.trim();
-
-    if (normalizedTitle.length < 2) {
-      setError("Название объекта должно содержать минимум 2 символа.");
+    if (!title.trim()) {
+      setError("Название объекта обязательно.");
       return;
     }
+
+    const normalizedTitle = title.trim();
 
     setIsSaving(true);
     setError("");
