@@ -123,3 +123,16 @@ pub struct UpdateRelationPayload {
 pub struct UpdateRelationResponse {
     pub relation: RelationDetailsDto,
 }
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SoftDeleteRelationPayload {
+    pub case_id: String,
+    pub relation_id: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SoftDeleteRelationResponse {
+    pub relation_id: String,
+}

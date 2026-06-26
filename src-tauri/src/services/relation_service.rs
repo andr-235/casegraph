@@ -6,7 +6,8 @@ use crate::domain::relation_confidence::is_valid_confidence_level;
 use crate::domain::relation_type::is_valid_relation_type;
 use crate::domain::relations::{
     CreateRelationPayload, CreateRelationResponse, GetRelationByIdPayload, GetRelationByIdResponse,
-    GetRelationsPayload, GetRelationsResponse, UpdateRelationPayload, UpdateRelationResponse,
+    GetRelationsPayload, GetRelationsResponse, SoftDeleteRelationPayload,
+    SoftDeleteRelationResponse, UpdateRelationPayload, UpdateRelationResponse,
 };
 use crate::errors::app_error::AppErrorDto;
 use crate::repositories::case_repository::CaseRepository;
@@ -279,6 +280,38 @@ impl RelationService {
             .ok_or_else(|| AppErrorDto::new("ERR_RELATION_NOT_FOUND", "Связь не найдена.", None))?;
 
         Ok(UpdateRelationResponse { relation })
+    }
+    pub fn soft_delete_relation(
+        app: &AppHandle,
+        session: &SessionState,
+        payload: SoftDeleteRelationPayload,
+    ) -> Result<SoftDeleteRelationResponse, AppErrorDto> {
+        let current_user = session.get_current_user().ok_or_else(|| {
+            AppErrorDto::new("ERR_UNAUTHORIZED", "Пользователь не авторизован.", None)
+        })?;
+
+        if current_user.role != "administrator" && current_user.role != "analyst" {
+            return Err(AppErrorDto::new(
+                "ERR_ACCESS_DENIED",
+                "Недостаточно прав для удаления связи.",
+                None,
+            ));
+        }
+
+        let case_id =
+            normalize_required_id(&payload.case_id, "ERR_CASE_REQUIRED", "Не выбрано дело.")?;
+
+        let relation_id = normalize_required_id(
+            &payload.relation_id,
+            "ERR_RELATION_REQUIRED",
+            "Не выбрана связь.",
+        )?;
+
+        let conn = open_connection(app)?;
+
+        RelationRepository::soft_delete_relation(&conn, &case_id, &relation_id)?;
+
+        Ok(SoftDeleteRelationResponse { relation_id })
     }
 }
 

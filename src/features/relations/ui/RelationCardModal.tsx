@@ -2,7 +2,11 @@ import { FormEvent, useEffect, useState } from "react";
 
 import type { MaterialDto } from "../../materials/model/materialTypes";
 import { getObjectTypeLabel } from "../../objects/model/objectOptions";
-import { getRelationById, updateRelation } from "../api/relationsApi";
+import {
+  getRelationById,
+  softDeleteRelation,
+  updateRelation,
+} from "../api/relationsApi";
 import {
   confidenceLevelOptions,
   relationTypeOptions,
@@ -20,6 +24,7 @@ type RelationCardModalProps = {
   canEdit: boolean;
   onClose: () => void;
   onUpdated: () => void;
+  onDeleted: () => void;
 };
 
 export function RelationCardModal({
@@ -29,6 +34,7 @@ export function RelationCardModal({
   canEdit,
   onClose,
   onUpdated,
+  onDeleted,
 }: RelationCardModalProps) {
   const [relation, setRelation] = useState<RelationDetailsDto | null>(null);
   const [relationType, setRelationType] = useState<RelationType>("related_to");
@@ -42,6 +48,7 @@ export function RelationCardModal({
 
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function loadRelation() {
@@ -70,6 +77,37 @@ export function RelationCardModal({
   useEffect(() => {
     void loadRelation();
   }, [caseId, relationId]);
+
+  async function handleDelete() {
+    if (!canEdit || !relation) {
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Удалить связь ${relation.relationCode}? Связь будет скрыта из списка, но не удалена физически.`,
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setIsDeleting(true);
+    setError(null);
+
+    try {
+      await softDeleteRelation({
+        caseId,
+        relationId,
+      });
+
+      onDeleted();
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Не удалось удалить связь.");
+    } finally {
+      setIsDeleting(false);
+    }
+  }
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -251,12 +289,23 @@ export function RelationCardModal({
             </div>
 
             <div className="modal__footer">
+              {canEdit && (
+                <button
+                  type="button"
+                  className="danger-button"
+                  disabled={isSaving || isDeleting}
+                  onClick={handleDelete}
+                >
+                  {isDeleting ? "Удаление..." : "Удалить связь"}
+                </button>
+              )}
+
               <button type="button" onClick={onClose}>
                 Закрыть
               </button>
 
               {canEdit && (
-                <button type="submit" disabled={isSaving}>
+                <button type="submit" disabled={isSaving || isDeleting}>
                   {isSaving ? "Сохранение..." : "Сохранить"}
                 </button>
               )}

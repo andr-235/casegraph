@@ -145,6 +145,7 @@ export function RelationsPage({ caseId, canEdit }: RelationsPageProps) {
           canEdit={canEdit}
           onClose={() => setSelectedRelationId(null)}
           onUpdated={loadData}
+          onDeleted={loadData}
         />
       )}
     </section>

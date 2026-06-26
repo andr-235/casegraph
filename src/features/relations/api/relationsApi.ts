@@ -4,6 +4,8 @@ import type {
   CreateRelationResponse,
   GetRelationByIdResponse,
   GetRelationsResponse,
+  SoftDeleteRelationPayload,
+  SoftDeleteRelationResponse,
   UpdateRelationPayload,
   UpdateRelationResponse,
 } from "../model/relationTypes";
@@ -28,6 +30,14 @@ export function getRelationById(
 ): Promise<GetRelationByIdResponse> {
   return invokeCommand<GetRelationByIdResponse>("get_relation_by_id", {
     payload: { caseId, relationId },
+  });
+}
+
+export function softDeleteRelation(
+  payload: SoftDeleteRelationPayload,
+): Promise<SoftDeleteRelationResponse> {
+  return invokeCommand<SoftDeleteRelationResponse>("soft_delete_relation", {
+    payload,
   });
 }
 

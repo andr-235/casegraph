@@ -253,6 +253,37 @@ impl RelationRepository {
         Ok(())
     }
 
+    pub fn soft_delete_relation(
+        conn: &Connection,
+        case_id: &str,
+        relation_id: &str,
+    ) -> Result<(), AppErrorDto> {
+        let changed_count = conn
+            .execute(
+                r#"
+                UPDATE relations
+                SET
+                    archived_at = CURRENT_TIMESTAMP,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?1
+                  AND case_id = ?2
+                  AND archived_at IS NULL
+                "#,
+                params![relation_id, case_id],
+            )
+            .map_err(|err| AppErrorDto::database(err.to_string()))?;
+
+        if changed_count == 0 {
+            return Err(AppErrorDto::new(
+                "ERR_RELATION_NOT_FOUND",
+                "Связь не найдена.",
+                None,
+            ));
+        }
+
+        Ok(())
+    }
+
     pub fn get_details_by_id(
         conn: &Connection,
         case_id: &str,

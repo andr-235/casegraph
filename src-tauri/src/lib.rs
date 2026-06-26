@@ -20,7 +20,7 @@ use commands::object_commands::{
     update_object,
 };
 use commands::relation_commands::{
-    create_relation, get_relation_by_id, get_relations, update_relation,
+    create_relation, get_relation_by_id, get_relations, soft_delete_relation, update_relation,
 };
 use security::session::SessionState;
 
@@ -53,7 +53,8 @@ pub fn run() {
             create_relation,
             get_relations,
             get_relation_by_id,
-            update_relation
+            update_relation,
+            soft_delete_relation
         ])
         .run(tauri::generate_context!())
         .expect("error while running CaseGraph");

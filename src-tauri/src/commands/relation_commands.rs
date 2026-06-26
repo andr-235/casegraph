@@ -2,7 +2,8 @@ use tauri::{AppHandle, State};
 
 use crate::domain::relations::{
     CreateRelationPayload, CreateRelationResponse, GetRelationByIdPayload, GetRelationByIdResponse,
-    GetRelationsPayload, GetRelationsResponse, UpdateRelationPayload, UpdateRelationResponse,
+    GetRelationsPayload, GetRelationsResponse, SoftDeleteRelationPayload,
+    SoftDeleteRelationResponse, UpdateRelationPayload, UpdateRelationResponse,
 };
 use crate::errors::app_error::CommandResult;
 use crate::security::session::SessionState;
@@ -39,6 +40,18 @@ pub fn get_relation_by_id(
     payload: GetRelationByIdPayload,
 ) -> CommandResult<GetRelationByIdResponse> {
     match RelationService::get_relation_by_id(&app, &session, payload) {
+        Ok(response) => CommandResult::ok(response),
+        Err(error) => CommandResult::err(error),
+    }
+}
+
+#[tauri::command]
+pub fn soft_delete_relation(
+    app: AppHandle,
+    session: State<SessionState>,
+    payload: SoftDeleteRelationPayload,
+) -> CommandResult<SoftDeleteRelationResponse> {
+    match RelationService::soft_delete_relation(&app, &session, payload) {
         Ok(response) => CommandResult::ok(response),
         Err(error) => CommandResult::err(error),
     }

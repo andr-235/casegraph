@@ -105,3 +105,12 @@ export type UpdateRelationPayload = {
 export type UpdateRelationResponse = {
   relation: RelationDetailsDto;
 };
+
+export type SoftDeleteRelationPayload = {
+  caseId: string;
+  relationId: string;
+};
+
+export type SoftDeleteRelationResponse = {
+  relationId: string;
+};
