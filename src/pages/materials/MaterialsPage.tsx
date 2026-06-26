@@ -96,8 +96,8 @@ export function MaterialsPage({ caseItem }: Props) {
         >
           <h3>Материалов пока нет</h3>
           <p>
-            Добавьте первый материал. В этом срезе сохраняются только метаданные;
-            файловый импорт и SHA-256 будут подключены отдельно.
+            Добавьте первый материал. В этом срезе файл уже копируется во внутреннее
+            хранилище, а SHA-256 рассчитывается автоматически.
           </p>
         </section>
       )}
@@ -111,7 +111,9 @@ export function MaterialsPage({ caseItem }: Props) {
               <th>Тип</th>
               <th>Источник</th>
               <th>Дата фиксации</th>
+              <th>Файл</th>
               <th>SHA-256</th>
+              <th>Целостность</th>
               <th>В справку</th>
               <th>Создано</th>
             </tr>
@@ -125,6 +127,14 @@ export function MaterialsPage({ caseItem }: Props) {
                 <td>{getMaterialTypeLabel(material.materialType)}</td>
                 <td>{material.sourceName || "Не указано"}</td>
                 <td>{material.capturedAt || "Не указано"}</td>
+                <td>{material.originalFileName || "—"}</td>
+                <td>
+                  {material.sha256 ? (
+                    <code title={material.sha256}>{material.sha256.slice(0, 16)}...</code>
+                  ) : (
+                    "—"
+                  )}
+                </td>
                 <td>{getIntegrityStatusLabel(material.integrityStatus)}</td>
                 <td>{material.includeInReport ? "Да" : "Нет"}</td>
                 <td>{material.createdAt}</td>

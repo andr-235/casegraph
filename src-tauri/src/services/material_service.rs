@@ -11,6 +11,7 @@ use crate::repositories::material_repository::{
     CreateMaterialRecord, MaterialRepository, MaterialRow,
 };
 use crate::security::session::{CurrentUserDto, SessionState};
+use crate::storage::material_file_storage::import_material_file;
 
 pub struct MaterialService;
 
@@ -59,6 +60,42 @@ impl MaterialService {
         let material_code = MaterialRepository::get_next_material_code(&conn, &case_id)?;
         let material_id = Uuid::new_v4().to_string();
 
+        let source_file_path = normalize_optional_string(payload.source_file_path);
+
+        let imported_file = match source_file_path {
+            Some(path) => Some(import_material_file(app, &case_id, &material_id, &path)?),
+            None => None,
+        };
+
+        let (
+            original_file_name,
+            original_path,
+            stored_file_path,
+            file_size,
+            mime_type,
+            sha256,
+            integrity_status,
+        ) = match imported_file {
+            Some(file) => (
+                Some(file.original_file_name),
+                Some(file.original_path),
+                Some(file.stored_file_path),
+                Some(file.file_size),
+                file.mime_type,
+                Some(file.sha256),
+                "ok".to_string(),
+            ),
+            None => (
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                "not_checked".to_string(),
+            ),
+        };
+
         MaterialRepository::create_material(
             &conn,
             CreateMaterialRecord {
@@ -71,6 +108,13 @@ impl MaterialService {
                 description,
                 captured_at,
                 include_in_report: payload.include_in_report,
+                original_file_name,
+                original_path,
+                stored_file_path,
+                file_size,
+                mime_type,
+                sha256,
+                integrity_status,
                 created_by_user_id: current_user.user_id,
             },
         )?;

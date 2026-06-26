@@ -50,6 +50,7 @@ export type CreateMaterialPayload = {
   description?: string;
   capturedAt?: string | null;
   includeInReport: boolean;
+  sourceFilePath?: string | null;
 };
 
 export type CreateMaterialResponse = {

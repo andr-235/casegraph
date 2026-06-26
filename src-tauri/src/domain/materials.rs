@@ -40,6 +40,7 @@ pub struct CreateMaterialPayload {
     pub description: Option<String>,
     pub captured_at: Option<String>,
     pub include_in_report: bool,
+    pub source_file_path: Option<String>,
 }
 
 #[derive(Debug, Serialize)]

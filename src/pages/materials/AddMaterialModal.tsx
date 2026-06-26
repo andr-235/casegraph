@@ -31,6 +31,7 @@ export function AddMaterialModal({ caseId, onCreated, onClose }: Props) {
   const [description, setDescription] = useState("");
   const [capturedAt, setCapturedAt] = useState("");
   const [includeInReport, setIncludeInReport] = useState(true);
+  const [sourceFilePath, setSourceFilePath] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -49,6 +50,7 @@ export function AddMaterialModal({ caseId, onCreated, onClose }: Props) {
         description,
         capturedAt: capturedAt || null,
         includeInReport,
+        sourceFilePath: sourceFilePath.trim() || null,
       });
 
       onCreated(response.material);
@@ -84,8 +86,9 @@ export function AddMaterialModal({ caseId, onCreated, onClose }: Props) {
         <h2>Добавить материал</h2>
 
         <p>
-          Сейчас добавляются только метаданные материала. Выбор файла, копирование
-          в хранилище и SHA-256 будут подключены следующим срезом.
+          Укажите путь к локальному файлу. CaseGraph скопирует файл во внутреннее
+          хранилище и рассчитает SHA-256. Системный выбор файла подключим отдельным
+          срезом.
         </p>
 
         <div style={{ marginBottom: 12 }}>
@@ -129,6 +132,19 @@ export function AddMaterialModal({ caseId, onCreated, onClose }: Props) {
               value={sourceName}
               onChange={(event) => setSourceName(event.target.value)}
               disabled={submitting}
+              style={{ display: "block", width: "100%" }}
+            />
+          </label>
+        </div>
+
+        <div style={{ marginBottom: 12 }}>
+          <label>
+            Путь к локальному файлу
+            <input
+              value={sourceFilePath}
+              onChange={(event) => setSourceFilePath(event.target.value)}
+              disabled={submitting}
+              placeholder="C:\Users\...\Documents\file.pdf"
               style={{ display: "block", width: "100%" }}
             />
           </label>

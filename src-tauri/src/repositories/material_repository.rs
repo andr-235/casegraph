@@ -36,6 +36,13 @@ pub struct CreateMaterialRecord {
     pub description: String,
     pub captured_at: Option<String>,
     pub include_in_report: bool,
+    pub original_file_name: Option<String>,
+    pub original_path: Option<String>,
+    pub stored_file_path: Option<String>,
+    pub file_size: Option<i64>,
+    pub mime_type: Option<String>,
+    pub sha256: Option<String>,
+    pub integrity_status: String,
     pub created_by_user_id: String,
 }
 
@@ -78,9 +85,16 @@ impl MaterialRepository {
                 description,
                 captured_at,
                 include_in_report,
+                original_file_name,
+                original_path,
+                stored_file_path,
+                file_size,
+                mime_type,
+                sha256,
+                integrity_status,
                 created_by_user_id
             )
-            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17)
             "#,
             params![
                 record.id,
@@ -92,6 +106,13 @@ impl MaterialRepository {
                 record.description,
                 record.captured_at,
                 if record.include_in_report { 1 } else { 0 },
+                record.original_file_name,
+                record.original_path,
+                record.stored_file_path,
+                record.file_size,
+                record.mime_type,
+                record.sha256,
+                record.integrity_status,
                 record.created_by_user_id
             ],
         )
