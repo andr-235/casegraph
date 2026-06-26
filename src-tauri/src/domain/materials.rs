@@ -48,3 +48,22 @@ pub struct CreateMaterialPayload {
 pub struct CreateMaterialResponse {
     pub material: MaterialDto,
 }
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateMaterialPayload {
+    pub case_id: String,
+    pub material_id: String,
+    pub title: String,
+    pub material_type: String,
+    pub source_name: Option<String>,
+    pub description: Option<String>,
+    pub captured_at: Option<String>,
+    pub include_in_report: bool,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateMaterialResponse {
+    pub material: MaterialDto,
+}

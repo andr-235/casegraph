@@ -56,3 +56,18 @@ export type CreateMaterialPayload = {
 export type CreateMaterialResponse = {
   material: MaterialDto;
 };
+
+export type UpdateMaterialPayload = {
+  caseId: string;
+  materialId: string;
+  title: string;
+  materialType: MaterialType;
+  sourceName?: string;
+  description?: string;
+  capturedAt?: string | null;
+  includeInReport: boolean;
+};
+
+export type UpdateMaterialResponse = {
+  material: MaterialDto;
+};

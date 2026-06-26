@@ -12,7 +12,7 @@ use commands::auth_commands::{create_first_admin, get_current_user, login, logou
 use commands::case_commands::{
     create_case, get_case_by_id, get_cases, update_case, update_case_status,
 };
-use commands::material_commands::{create_material, get_materials};
+use commands::material_commands::{create_material, get_materials, update_material};
 use security::session::SessionState;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -32,7 +32,8 @@ pub fn run() {
             update_case,
             update_case_status,
             get_materials,
-            create_material
+            create_material,
+            update_material
         ])
         .run(tauri::generate_context!())
         .expect("error while running CaseGraph");

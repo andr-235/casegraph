@@ -4,11 +4,12 @@ use uuid::Uuid;
 use crate::db::connection::open_connection;
 use crate::domain::materials::{
     CreateMaterialPayload, CreateMaterialResponse, GetMaterialsPayload, MaterialDto,
+    UpdateMaterialPayload, UpdateMaterialResponse,
 };
 use crate::errors::app_error::AppErrorDto;
 use crate::repositories::case_repository::CaseRepository;
 use crate::repositories::material_repository::{
-    CreateMaterialRecord, MaterialRepository, MaterialRow,
+    CreateMaterialRecord, MaterialRepository, MaterialRow, UpdateMaterialRecord,
 };
 use crate::security::session::{CurrentUserDto, SessionState};
 use crate::storage::material_file_storage::import_material_file;
@@ -130,6 +131,65 @@ impl MaterialService {
 
         Ok(CreateMaterialResponse {
             material: material_row_to_dto(created_material),
+        })
+    }
+
+    pub fn update_material(
+        app: &AppHandle,
+        session: &SessionState,
+        payload: UpdateMaterialPayload,
+    ) -> Result<UpdateMaterialResponse, AppErrorDto> {
+        require_current_user(session)?;
+
+        let case_id = payload.case_id.trim().to_string();
+        let material_id = payload.material_id.trim().to_string();
+        let title = payload.title.trim().to_string();
+        let material_type = payload.material_type.trim().to_string();
+        let source_name = payload.source_name.unwrap_or_default().trim().to_string();
+        let description = payload.description.unwrap_or_default().trim().to_string();
+        let captured_at = normalize_optional_string(payload.captured_at);
+
+        validate_case_id(&case_id)?;
+
+        if material_id.is_empty() {
+            return Err(AppErrorDto::new(
+                "ERR_VALIDATION",
+                "Не указан идентификатор материала.",
+                None,
+            ));
+        }
+
+        validate_create_material_payload(&title, &material_type)?;
+
+        let conn = open_connection(app)?;
+
+        ensure_case_exists(&conn, &case_id)?;
+
+        MaterialRepository::update_material(
+            &conn,
+            UpdateMaterialRecord {
+                material_id: material_id.clone(),
+                case_id,
+                title,
+                material_type,
+                source_name,
+                description,
+                captured_at,
+                include_in_report: payload.include_in_report,
+            },
+        )?;
+
+        let updated_material = MaterialRepository::get_material_by_id(&conn, &material_id)?
+            .ok_or_else(|| {
+                AppErrorDto::new(
+                    "ERR_MATERIAL_NOT_FOUND_AFTER_UPDATE",
+                    "Материал обновлён, но не найден после сохранения.",
+                    None,
+                )
+            })?;
+
+        Ok(UpdateMaterialResponse {
+            material: material_row_to_dto(updated_material),
         })
     }
 }

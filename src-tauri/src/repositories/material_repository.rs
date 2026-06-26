@@ -26,6 +26,18 @@ pub struct MaterialRow {
 }
 
 #[derive(Debug)]
+pub struct UpdateMaterialRecord {
+    pub material_id: String,
+    pub case_id: String,
+    pub title: String,
+    pub material_type: String,
+    pub source_name: String,
+    pub description: String,
+    pub captured_at: Option<String>,
+    pub include_in_report: bool,
+}
+
+#[derive(Debug)]
 pub struct CreateMaterialRecord {
     pub id: String,
     pub case_id: String,
@@ -117,6 +129,50 @@ impl MaterialRepository {
             ],
         )
         .map_err(|err| AppErrorDto::database(err.to_string()))?;
+
+        Ok(())
+    }
+
+    pub fn update_material(
+        conn: &Connection,
+        record: UpdateMaterialRecord,
+    ) -> Result<(), AppErrorDto> {
+        let changed_count = conn
+            .execute(
+                r#"
+                UPDATE materials
+                SET
+                    title = ?3,
+                    material_type = ?4,
+                    source_name = ?5,
+                    description = ?6,
+                    captured_at = ?7,
+                    include_in_report = ?8,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?1
+                  AND case_id = ?2
+                  AND archived_at IS NULL
+                "#,
+                params![
+                    record.material_id,
+                    record.case_id,
+                    record.title,
+                    record.material_type,
+                    record.source_name,
+                    record.description,
+                    record.captured_at,
+                    if record.include_in_report { 1 } else { 0 },
+                ],
+            )
+            .map_err(|err| AppErrorDto::database(err.to_string()))?;
+
+        if changed_count == 0 {
+            return Err(AppErrorDto::new(
+                "ERR_MATERIAL_NOT_FOUND",
+                "Материал не найден.",
+                None,
+            ));
+        }
 
         Ok(())
     }

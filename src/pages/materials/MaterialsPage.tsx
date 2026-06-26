@@ -3,6 +3,7 @@ import type { CaseDto } from "../../features/cases/model/caseTypes";
 import { getMaterials } from "../../features/materials/api/materialsApi";
 import type { MaterialDto } from "../../features/materials/model/materialTypes";
 import { AddMaterialModal } from "./AddMaterialModal";
+import { MaterialCardModal } from "./MaterialCardModal";
 
 type Props = {
   caseItem: CaseDto;
@@ -39,6 +40,9 @@ export function MaterialsPage({ caseItem }: Props) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [addModalOpen, setAddModalOpen] = useState(false);
+  const [selectedMaterial, setSelectedMaterial] = useState<MaterialDto | null>(
+    null
+  );
 
   async function loadMaterials() {
     try {
@@ -62,6 +66,16 @@ export function MaterialsPage({ caseItem }: Props) {
   function handleMaterialCreated(material: MaterialDto) {
     setMaterials((current) => [material, ...current]);
     setAddModalOpen(false);
+  }
+
+  function handleMaterialUpdated(updatedMaterial: MaterialDto) {
+    setMaterials((current) =>
+      current.map((material) =>
+        material.id === updatedMaterial.id ? updatedMaterial : material
+      )
+    );
+
+    setSelectedMaterial(updatedMaterial);
   }
 
   return (
@@ -116,6 +130,7 @@ export function MaterialsPage({ caseItem }: Props) {
               <th>Целостность</th>
               <th>В справку</th>
               <th>Создано</th>
+              <th>Действия</th>
             </tr>
           </thead>
 
@@ -138,6 +153,11 @@ export function MaterialsPage({ caseItem }: Props) {
                 <td>{getIntegrityStatusLabel(material.integrityStatus)}</td>
                 <td>{material.includeInReport ? "Да" : "Нет"}</td>
                 <td>{material.createdAt}</td>
+                <td>
+                  <button type="button" onClick={() => setSelectedMaterial(material)}>
+                    Открыть
+                  </button>
+                </td>
               </tr>
             ))}
           </tbody>
@@ -149,6 +169,14 @@ export function MaterialsPage({ caseItem }: Props) {
           caseId={caseItem.id}
           onCreated={handleMaterialCreated}
           onClose={() => setAddModalOpen(false)}
+        />
+      )}
+
+      {selectedMaterial && (
+        <MaterialCardModal
+          material={selectedMaterial}
+          onUpdated={handleMaterialUpdated}
+          onClose={() => setSelectedMaterial(null)}
         />
       )}
     </section>
