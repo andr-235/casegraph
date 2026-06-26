@@ -3,7 +3,8 @@ use tauri::{AppHandle, State};
 use crate::domain::objects::{
     CreateObjectPayload, CreateObjectResponse, GetObjectByIdPayload, GetObjectByIdResponse,
     GetObjectsPayload, GetObjectsResponse, LinkObjectToMaterialsPayload,
-    LinkObjectToMaterialsResponse, UpdateObjectPayload, UpdateObjectResponse,
+    LinkObjectToMaterialsResponse, SoftDeleteObjectPayload, SoftDeleteObjectResponse,
+    UpdateObjectPayload, UpdateObjectResponse,
 };
 use crate::errors::app_error::CommandResult;
 use crate::security::session::SessionState;
@@ -64,6 +65,18 @@ pub fn update_object(
     payload: UpdateObjectPayload,
 ) -> CommandResult<UpdateObjectResponse> {
     match ObjectService::update_object(&app, &session, payload) {
+        Ok(response) => CommandResult::ok(response),
+        Err(error) => CommandResult::err(error),
+    }
+}
+
+#[tauri::command]
+pub fn soft_delete_object(
+    app: AppHandle,
+    session: State<SessionState>,
+    payload: SoftDeleteObjectPayload,
+) -> CommandResult<SoftDeleteObjectResponse> {
+    match ObjectService::soft_delete_object(&app, &session, payload) {
         Ok(response) => CommandResult::ok(response),
         Err(error) => CommandResult::err(error),
     }

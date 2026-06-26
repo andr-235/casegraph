@@ -139,3 +139,16 @@ pub struct LinkObjectToMaterialsPayload {
 pub struct LinkObjectToMaterialsResponse {
     pub object_item: ObjectDetailsDto,
 }
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SoftDeleteObjectPayload {
+    pub case_id: String,
+    pub object_id: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SoftDeleteObjectResponse {
+    pub object_id: String,
+}

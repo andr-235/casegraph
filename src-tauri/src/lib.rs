@@ -16,7 +16,8 @@ use commands::material_commands::{
     create_material, delete_material, get_materials, update_material,
 };
 use commands::object_commands::{
-    create_object, get_object_by_id, get_objects, link_object_to_materials, update_object,
+    create_object, get_object_by_id, get_objects, link_object_to_materials, soft_delete_object,
+    update_object,
 };
 use security::session::SessionState;
 
@@ -44,7 +45,8 @@ pub fn run() {
             get_objects,
             get_object_by_id,
             update_object,
-            link_object_to_materials
+            link_object_to_materials,
+            soft_delete_object
         ])
         .run(tauri::generate_context!())
         .expect("error while running CaseGraph");

@@ -6,6 +6,8 @@ import type {
   GetObjectsResponse,
   LinkObjectToMaterialsPayload,
   LinkObjectToMaterialsResponse,
+  SoftDeleteObjectPayload,
+  SoftDeleteObjectResponse,
   UpdateObjectPayload,
   UpdateObjectResponse,
 } from "../model/objectTypes";
@@ -45,6 +47,14 @@ export function updateObject(
   payload: UpdateObjectPayload,
 ): Promise<UpdateObjectResponse> {
   return invokeCommand<UpdateObjectResponse>("update_object", {
+    payload,
+  });
+}
+
+export function softDeleteObject(
+  payload: SoftDeleteObjectPayload,
+): Promise<SoftDeleteObjectResponse> {
+  return invokeCommand<SoftDeleteObjectResponse>("soft_delete_object", {
     payload,
   });
 }

@@ -6,7 +6,8 @@ use crate::domain::object_type::is_valid_object_type;
 use crate::domain::objects::{
     CreateObjectPayload, CreateObjectResponse, GetObjectByIdPayload, GetObjectByIdResponse,
     GetObjectsPayload, GetObjectsResponse, LinkObjectToMaterialsPayload,
-    LinkObjectToMaterialsResponse, UpdateObjectPayload, UpdateObjectResponse,
+    LinkObjectToMaterialsResponse, SoftDeleteObjectPayload, SoftDeleteObjectResponse,
+    UpdateObjectPayload, UpdateObjectResponse,
 };
 use crate::errors::app_error::AppErrorDto;
 use crate::repositories::case_repository::CaseRepository;
@@ -363,5 +364,48 @@ impl ObjectService {
             })?;
 
         Ok(UpdateObjectResponse { object_item })
+    }
+
+    pub fn soft_delete_object(
+        app: &AppHandle,
+        session: &SessionState,
+        payload: SoftDeleteObjectPayload,
+    ) -> Result<SoftDeleteObjectResponse, AppErrorDto> {
+        let current_user = session.get_current_user().ok_or_else(|| {
+            AppErrorDto::new("ERR_UNAUTHORIZED", "Пользователь не авторизован.", None)
+        })?;
+
+        if current_user.role != "administrator" && current_user.role != "analyst" {
+            return Err(AppErrorDto::new(
+                "ERR_ACCESS_DENIED",
+                "Недостаточно прав для удаления объекта.",
+                None,
+            ));
+        }
+
+        let case_id = payload.case_id.trim().to_string();
+        let object_id = payload.object_id.trim().to_string();
+
+        if case_id.is_empty() {
+            return Err(AppErrorDto::new(
+                "ERR_CASE_REQUIRED",
+                "Не выбрано дело.",
+                None,
+            ));
+        }
+
+        if object_id.is_empty() {
+            return Err(AppErrorDto::new(
+                "ERR_OBJECT_REQUIRED",
+                "Не выбран объект.",
+                None,
+            ));
+        }
+
+        let conn = open_connection(app)?;
+
+        ObjectRepository::soft_delete_object(&conn, &case_id, &object_id)?;
+
+        Ok(SoftDeleteObjectResponse { object_id })
     }
 }

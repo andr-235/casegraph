@@ -126,6 +126,12 @@ export function ObjectsPage({ caseItem }: ObjectsPageProps) {
           objectId={selectedObjectId}
           onClose={() => setSelectedObjectId(null)}
           onUpdated={handleUpdated}
+          onDeleted={(deletedObjectId) => {
+            setSelectedObjectId(null);
+            setItems((currentItems) =>
+              currentItems.filter((item) => item.id !== deletedObjectId),
+            );
+          }}
         />
       )}
     </section>

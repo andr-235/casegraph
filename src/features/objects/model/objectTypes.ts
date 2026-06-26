@@ -114,3 +114,12 @@ export type LinkObjectToMaterialsPayload = {
 export type LinkObjectToMaterialsResponse = {
   objectItem: ObjectDetailsDto;
 };
+
+export type SoftDeleteObjectPayload = {
+  caseId: string;
+  objectId: string;
+};
+
+export type SoftDeleteObjectResponse = {
+  objectId: string;
+};

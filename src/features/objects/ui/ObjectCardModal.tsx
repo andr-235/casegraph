@@ -2,7 +2,7 @@ import { FormEvent, useEffect, useState } from "react";
 
 import { getMaterials } from "../../materials/api/materialsApi";
 import type { MaterialDto } from "../../materials/model/materialTypes";
-import { getObjectById, linkObjectToMaterials, updateObject } from "../api/objectsApi";
+import { getObjectById, linkObjectToMaterials, softDeleteObject, updateObject } from "../api/objectsApi";
 import { getObjectTypeLabel } from "../model/objectOptions";
 import type { ObjectDetailsDto, ObjectListItemDto } from "../model/objectTypes";
 
@@ -11,6 +11,7 @@ type ObjectCardModalProps = {
   objectId: string;
   onClose: () => void;
   onUpdated: (objectItem: ObjectListItemDto) => void;
+  onDeleted: (objectId: string) => void;
 };
 
 function toListItem(objectItem: ObjectDetailsDto): ObjectListItemDto {
@@ -36,6 +37,7 @@ export function ObjectCardModal({
   objectId,
   onClose,
   onUpdated,
+  onDeleted,
 }: ObjectCardModalProps) {
   const [objectItem, setObjectItem] = useState<ObjectDetailsDto | null>(null);
   const [title, setTitle] = useState("");
@@ -46,6 +48,7 @@ export function ObjectCardModal({
   const [includeInReport, setIncludeInReport] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [error, setError] = useState("");
   const [availableMaterials, setAvailableMaterials] = useState<MaterialDto[]>([]);
   const [selectedMaterialIds, setSelectedMaterialIds] = useState<string[]>([]);
@@ -181,6 +184,37 @@ export function ObjectCardModal({
       );
     } finally {
       setIsSaving(false);
+    }
+  }
+
+  async function handleDeleteObject() {
+    const confirmed = window.confirm(
+      "Удалить объект? Он будет скрыт из списка, но запись останется в базе как архивная.",
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setIsDeleting(true);
+    setError("");
+
+    try {
+      const response = await softDeleteObject({
+        caseId,
+        objectId,
+      });
+
+      onDeleted(response.objectId);
+      onClose();
+    } catch (unknownError) {
+      setError(
+        unknownError instanceof Error
+          ? unknownError.message
+          : "Не удалось удалить объект.",
+      );
+    } finally {
+      setIsDeleting(false);
     }
   }
 
@@ -359,6 +393,13 @@ export function ObjectCardModal({
               </button>
               <button type="submit" disabled={isSaving}>
                 {isSaving ? "Сохранение..." : "Сохранить"}
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteObject}
+                disabled={isDeleting || isSaving}
+              >
+                {isDeleting ? "Удаление..." : "Удалить объект"}
               </button>
             </div>
           </form>
