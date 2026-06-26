@@ -103,3 +103,14 @@ export type UpdateObjectPayload = {
 export type UpdateObjectResponse = {
   objectItem: ObjectDetailsDto;
 };
+
+export type LinkObjectToMaterialsPayload = {
+  caseId: string;
+  objectId: string;
+  materialIds: string[];
+  linkReason?: string;
+};
+
+export type LinkObjectToMaterialsResponse = {
+  objectItem: ObjectDetailsDto;
+};

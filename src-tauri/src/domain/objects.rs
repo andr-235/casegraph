@@ -124,3 +124,18 @@ pub struct UpdateObjectPayload {
 pub struct UpdateObjectResponse {
     pub object_item: ObjectDetailsDto,
 }
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LinkObjectToMaterialsPayload {
+    pub case_id: String,
+    pub object_id: String,
+    pub material_ids: Vec<String>,
+    pub link_reason: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LinkObjectToMaterialsResponse {
+    pub object_item: ObjectDetailsDto,
+}

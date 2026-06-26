@@ -4,6 +4,8 @@ import type {
   CreateObjectResponse,
   GetObjectByIdResponse,
   GetObjectsResponse,
+  LinkObjectToMaterialsPayload,
+  LinkObjectToMaterialsResponse,
   UpdateObjectPayload,
   UpdateObjectResponse,
 } from "../model/objectTypes";
@@ -28,6 +30,14 @@ export function getObjectById(
 ): Promise<GetObjectByIdResponse> {
   return invokeCommand<GetObjectByIdResponse>("get_object_by_id", {
     payload: { caseId, objectId },
+  });
+}
+
+export function linkObjectToMaterials(
+  payload: LinkObjectToMaterialsPayload,
+): Promise<LinkObjectToMaterialsResponse> {
+  return invokeCommand<LinkObjectToMaterialsResponse>("link_object_to_materials", {
+    payload,
   });
 }
 

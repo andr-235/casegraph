@@ -2,7 +2,8 @@ use tauri::{AppHandle, State};
 
 use crate::domain::objects::{
     CreateObjectPayload, CreateObjectResponse, GetObjectByIdPayload, GetObjectByIdResponse,
-    GetObjectsPayload, GetObjectsResponse, UpdateObjectPayload, UpdateObjectResponse,
+    GetObjectsPayload, GetObjectsResponse, LinkObjectToMaterialsPayload,
+    LinkObjectToMaterialsResponse, UpdateObjectPayload, UpdateObjectResponse,
 };
 use crate::errors::app_error::CommandResult;
 use crate::security::session::SessionState;
@@ -39,6 +40,18 @@ pub fn get_object_by_id(
     payload: GetObjectByIdPayload,
 ) -> CommandResult<GetObjectByIdResponse> {
     match ObjectService::get_object_by_id(&app, &session, payload) {
+        Ok(response) => CommandResult::ok(response),
+        Err(error) => CommandResult::err(error),
+    }
+}
+
+#[tauri::command]
+pub fn link_object_to_materials(
+    app: AppHandle,
+    session: State<SessionState>,
+    payload: LinkObjectToMaterialsPayload,
+) -> CommandResult<LinkObjectToMaterialsResponse> {
+    match ObjectService::link_object_to_materials(&app, &session, payload) {
         Ok(response) => CommandResult::ok(response),
         Err(error) => CommandResult::err(error),
     }

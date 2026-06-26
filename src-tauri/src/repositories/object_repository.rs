@@ -1,4 +1,5 @@
 use rusqlite::{params, Connection, OptionalExtension};
+use uuid::Uuid;
 
 use crate::domain::object_type::object_code_prefix;
 use crate::domain::objects::{LinkedObjectMaterialDto, ObjectDetailsDto, ObjectListItemDto};
@@ -27,6 +28,14 @@ pub struct CreateObjectRecord {
     pub is_key: bool,
     pub confidence_note: String,
     pub include_in_report: bool,
+    pub created_by_user_id: String,
+}
+
+#[derive(Debug)]
+pub struct ObjectMaterialLinkRecord {
+    pub object_id: String,
+    pub material_id: String,
+    pub link_reason: String,
     pub created_by_user_id: String,
 }
 
@@ -314,6 +323,116 @@ impl ObjectRepository {
                 "Объект не найден.",
                 None,
             ));
+        }
+
+        Ok(())
+    }
+
+    pub fn object_exists_in_case(
+        conn: &Connection,
+        case_id: &str,
+        object_id: &str,
+    ) -> Result<bool, AppErrorDto> {
+        let exists = conn
+            .query_row(
+                r#"
+                SELECT EXISTS(
+                    SELECT 1
+                    FROM object_nodes
+                    WHERE id = ?1
+                      AND case_id = ?2
+                      AND archived_at IS NULL
+                )
+                "#,
+                params![object_id, case_id],
+                |row| row.get::<_, i64>(0),
+            )
+            .map_err(|err| AppErrorDto::database(err.to_string()))?;
+
+        Ok(exists == 1)
+    }
+
+    pub fn validate_materials_belong_to_case(
+        conn: &Connection,
+        case_id: &str,
+        material_ids: &[String],
+    ) -> Result<(), AppErrorDto> {
+        if material_ids.is_empty() {
+            return Ok(());
+        }
+
+        for material_id in material_ids {
+            let exists = conn
+                .query_row(
+                    r#"
+                    SELECT EXISTS(
+                        SELECT 1
+                        FROM materials
+                        WHERE id = ?1
+                          AND case_id = ?2
+                          AND archived_at IS NULL
+                    )
+                    "#,
+                    params![material_id, case_id],
+                    |row| row.get::<_, i64>(0),
+                )
+                .map_err(|err| AppErrorDto::database(err.to_string()))?;
+
+            if exists != 1 {
+                return Err(AppErrorDto::new(
+                    "ERR_MATERIAL_NOT_IN_CASE",
+                    "Один из выбранных материалов не найден в этом деле.",
+                    None,
+                ));
+            }
+        }
+
+        Ok(())
+    }
+
+    pub fn replace_material_links(
+        conn: &Connection,
+        case_id: &str,
+        object_id: &str,
+        records: Vec<ObjectMaterialLinkRecord>,
+    ) -> Result<(), AppErrorDto> {
+        let object_exists = Self::object_exists_in_case(conn, case_id, object_id)?;
+
+        if !object_exists {
+            return Err(AppErrorDto::new(
+                "ERR_OBJECT_NOT_FOUND",
+                "Объект не найден.",
+                None,
+            ));
+        }
+
+        conn.execute(
+            "DELETE FROM object_materials WHERE object_id = ?1",
+            params![object_id],
+        )
+        .map_err(|err| AppErrorDto::database(err.to_string()))?;
+
+        for record in records {
+            conn.execute(
+                r#"
+                INSERT INTO object_materials (
+                    id,
+                    object_id,
+                    material_id,
+                    link_reason,
+                    created_by_user_id
+                )
+                VALUES (?1, ?2, ?3, ?4, ?5)
+                "#,
+                params![
+                    Uuid::new_v4().to_string(),
+                    record.object_id,
+                    record.material_id,
+                    record.link_reason,
+                    record.created_by_user_id,
+                ],
+            )
+            .map_err(|err| AppErrorDto::database(err.to_string()))?;
         }
 
         Ok(())

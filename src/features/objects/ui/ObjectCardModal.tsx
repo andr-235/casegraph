@@ -1,6 +1,8 @@
 import { FormEvent, useEffect, useState } from "react";
 
-import { getObjectById, updateObject } from "../api/objectsApi";
+import { getMaterials } from "../../materials/api/materialsApi";
+import type { MaterialDto } from "../../materials/model/materialTypes";
+import { getObjectById, linkObjectToMaterials, updateObject } from "../api/objectsApi";
 import { getObjectTypeLabel } from "../model/objectOptions";
 import type { ObjectDetailsDto, ObjectListItemDto } from "../model/objectTypes";
 
@@ -45,6 +47,23 @@ export function ObjectCardModal({
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState("");
+  const [availableMaterials, setAvailableMaterials] = useState<MaterialDto[]>([]);
+  const [selectedMaterialIds, setSelectedMaterialIds] = useState<string[]>([]);
+  const [linkReason, setLinkReason] = useState("");
+  const [isSavingLinks, setIsSavingLinks] = useState(false);
+
+  async function loadAvailableMaterials() {
+    try {
+      const response = await getMaterials(caseId);
+      setAvailableMaterials(response);
+    } catch (unknownError) {
+      setError(
+        unknownError instanceof Error
+          ? unknownError.message
+          : "Не удалось загрузить материалы дела.",
+      );
+    }
+  }
 
   async function loadObject() {
     setIsLoading(true);
@@ -61,6 +80,13 @@ export function ObjectCardModal({
       setConfidenceNote(loadedObject.confidenceNote ?? "");
       setIsKey(loadedObject.isKey);
       setIncludeInReport(loadedObject.includeInReport);
+      setSelectedMaterialIds(
+        loadedObject.linkedMaterials.map((material) => material.id),
+      );
+      const firstReason = loadedObject.linkedMaterials.find(
+        (material) => material.linkReason,
+      )?.linkReason;
+      setLinkReason(firstReason ?? "");
     } catch (unknownError) {
       setError(
         unknownError instanceof Error
@@ -74,7 +100,47 @@ export function ObjectCardModal({
 
   useEffect(() => {
     void loadObject();
+    void loadAvailableMaterials();
   }, [caseId, objectId]);
+
+  function toggleMaterial(materialId: string) {
+    setSelectedMaterialIds((currentIds) => {
+      if (currentIds.includes(materialId)) {
+        return currentIds.filter((id) => id !== materialId);
+      }
+
+      return [...currentIds, materialId];
+    });
+  }
+
+  async function handleSaveMaterialLinks() {
+    if (!objectItem) {
+      return;
+    }
+
+    setIsSavingLinks(true);
+    setError("");
+
+    try {
+      const response = await linkObjectToMaterials({
+        caseId,
+        objectId,
+        materialIds: selectedMaterialIds,
+        linkReason: linkReason.trim() || undefined,
+      });
+
+      setObjectItem(response.objectItem);
+      onUpdated(toListItem(response.objectItem));
+    } catch (unknownError) {
+      setError(
+        unknownError instanceof Error
+          ? unknownError.message
+          : "Не удалось сохранить связи объекта с материалами.",
+      );
+    } finally {
+      setIsSavingLinks(false);
+    }
+  }
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -213,32 +279,72 @@ export function ObjectCardModal({
             <section>
               <h3>Связанные материалы</h3>
 
-              {objectItem.linkedMaterials.length === 0 ? (
-                <p>Материалы пока не связаны с объектом.</p>
+              {availableMaterials.length === 0 ? (
+                <p>В деле пока нет материалов.</p>
               ) : (
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Код</th>
-                      <th>Название</th>
-                      <th>Тип</th>
-                      <th>SHA</th>
-                      <th>Основание</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {objectItem.linkedMaterials.map((material) => (
-                      <tr key={material.id}>
-                        <td>{material.materialCode}</td>
-                        <td>{material.title}</td>
-                        <td>{material.materialType}</td>
-                        <td>{material.hashStatus}</td>
-                        <td>{material.linkReason || "—"}</td>
-                      </tr>
+                <>
+                  <label>
+                    Общее основание связи
+                    <textarea
+                      value={linkReason}
+                      onChange={(event) => setLinkReason(event.target.value)}
+                      placeholder="Например: объект указан в тексте материала или подтверждается вложением"
+                    />
+                  </label>
+
+                  <div className="checkbox-list">
+                    {availableMaterials.map((material) => (
+                      <label key={material.id}>
+                        <input
+                          type="checkbox"
+                          checked={selectedMaterialIds.includes(material.id)}
+                          onChange={() => toggleMaterial(material.id)}
+                        />
+                        {material.materialCode} · {material.title} · {material.materialType}
+                      </label>
                     ))}
-                  </tbody>
-                </table>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleSaveMaterialLinks}
+                    disabled={isSavingLinks}
+                  >
+                    {isSavingLinks ? "Сохранение связей..." : "Сохранить связи с материалами"}
+                  </button>
+                </>
               )}
+
+              <div>
+                <h4>Уже связанные материалы</h4>
+
+                {objectItem.linkedMaterials.length === 0 ? (
+                  <p>Материалы пока не связаны с объектом.</p>
+                ) : (
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Код</th>
+                        <th>Название</th>
+                        <th>Тип</th>
+                        <th>SHA</th>
+                        <th>Основание</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {objectItem.linkedMaterials.map((material) => (
+                        <tr key={material.id}>
+                          <td>{material.materialCode}</td>
+                          <td>{material.title}</td>
+                          <td>{material.materialType}</td>
+                          <td>{material.hashStatus}</td>
+                          <td>{material.linkReason || "—"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
             </section>
 
             <section>

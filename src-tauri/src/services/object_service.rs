@@ -5,12 +5,13 @@ use crate::db::connection::open_connection;
 use crate::domain::object_type::is_valid_object_type;
 use crate::domain::objects::{
     CreateObjectPayload, CreateObjectResponse, GetObjectByIdPayload, GetObjectByIdResponse,
-    GetObjectsPayload, GetObjectsResponse, UpdateObjectPayload, UpdateObjectResponse,
+    GetObjectsPayload, GetObjectsResponse, LinkObjectToMaterialsPayload,
+    LinkObjectToMaterialsResponse, UpdateObjectPayload, UpdateObjectResponse,
 };
 use crate::errors::app_error::AppErrorDto;
 use crate::repositories::case_repository::CaseRepository;
 use crate::repositories::object_repository::{
-    CreateObjectRecord, ObjectRepository, UpdateObjectRecord,
+    CreateObjectRecord, ObjectMaterialLinkRecord, ObjectRepository, UpdateObjectRecord,
 };
 use crate::security::session::SessionState;
 
@@ -199,6 +200,84 @@ impl ObjectService {
             .ok_or_else(|| AppErrorDto::new("ERR_OBJECT_NOT_FOUND", "Объект не найден.", None))?;
 
         Ok(GetObjectByIdResponse { object_item })
+    }
+
+    pub fn link_object_to_materials(
+        app: &AppHandle,
+        session: &SessionState,
+        payload: LinkObjectToMaterialsPayload,
+    ) -> Result<LinkObjectToMaterialsResponse, AppErrorDto> {
+        let current_user = session.get_current_user().ok_or_else(|| {
+            AppErrorDto::new("ERR_UNAUTHORIZED", "Пользователь не авторизован.", None)
+        })?;
+
+        if current_user.role != "administrator" && current_user.role != "analyst" {
+            return Err(AppErrorDto::new(
+                "ERR_ACCESS_DENIED",
+                "Недостаточно прав для связывания объекта с материалами.",
+                None,
+            ));
+        }
+
+        let case_id = payload.case_id.trim().to_string();
+        let object_id = payload.object_id.trim().to_string();
+        let link_reason = payload
+            .link_reason
+            .map(|value| value.trim().to_string())
+            .unwrap_or_default();
+
+        if case_id.is_empty() {
+            return Err(AppErrorDto::new(
+                "ERR_CASE_REQUIRED",
+                "Не выбрано дело.",
+                None,
+            ));
+        }
+
+        if object_id.is_empty() {
+            return Err(AppErrorDto::new(
+                "ERR_OBJECT_REQUIRED",
+                "Не выбран объект.",
+                None,
+            ));
+        }
+
+        let mut material_ids = Vec::new();
+
+        for material_id in payload.material_ids {
+            let normalized_id = material_id.trim().to_string();
+
+            if !normalized_id.is_empty() && !material_ids.contains(&normalized_id) {
+                material_ids.push(normalized_id);
+            }
+        }
+
+        let conn = open_connection(app)?;
+
+        ObjectRepository::validate_materials_belong_to_case(&conn, &case_id, &material_ids)?;
+
+        let records = material_ids
+            .into_iter()
+            .map(|material_id| ObjectMaterialLinkRecord {
+                object_id: object_id.clone(),
+                material_id,
+                link_reason: link_reason.clone(),
+                created_by_user_id: current_user.user_id.clone(),
+            })
+            .collect();
+
+        ObjectRepository::replace_material_links(&conn, &case_id, &object_id, records)?;
+
+        let object_item =
+            ObjectRepository::find_by_id(&conn, &case_id, &object_id)?.ok_or_else(|| {
+                AppErrorDto::new(
+                    "ERR_OBJECT_NOT_FOUND",
+                    "Объект не найден после обновления связей.",
+                    None,
+                )
+            })?;
+
+        Ok(LinkObjectToMaterialsResponse { object_item })
     }
 
     pub fn update_object(
