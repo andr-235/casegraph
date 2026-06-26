@@ -12,6 +12,7 @@ import {
 } from "../../features/relations/model/relationOptions";
 import type { RelationListItemDto } from "../../features/relations/model/relationTypes";
 import { CreateRelationModal } from "../../features/relations/ui/CreateRelationModal";
+import { RelationCardModal } from "../../features/relations/ui/RelationCardModal";
 
 type RelationsPageProps = {
   caseId: string;
@@ -24,6 +25,7 @@ export function RelationsPage({ caseId, canEdit }: RelationsPageProps) {
   const [materials, setMaterials] = useState<MaterialDto[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [selectedRelationId, setSelectedRelationId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   async function loadData() {
@@ -95,7 +97,11 @@ export function RelationsPage({ caseId, canEdit }: RelationsPageProps) {
           </thead>
           <tbody>
             {relations.map((relation) => (
-              <tr key={relation.id}>
+              <tr
+                key={relation.id}
+                onClick={() => setSelectedRelationId(relation.id)}
+                style={{ cursor: "pointer" }}
+              >
                 <td>{relation.relationCode}</td>
                 <td>{getRelationTypeLabel(relation.relationType)}</td>
                 <td>
@@ -128,6 +134,17 @@ export function RelationsPage({ caseId, canEdit }: RelationsPageProps) {
           materials={materials}
           onClose={() => setIsCreateOpen(false)}
           onCreated={loadData}
+        />
+      )}
+
+      {selectedRelationId && (
+        <RelationCardModal
+          caseId={caseId}
+          relationId={selectedRelationId}
+          materials={materials}
+          canEdit={canEdit}
+          onClose={() => setSelectedRelationId(null)}
+          onUpdated={loadData}
         />
       )}
     </section>

@@ -5,11 +5,14 @@ use crate::db::connection::open_connection;
 use crate::domain::relation_confidence::is_valid_confidence_level;
 use crate::domain::relation_type::is_valid_relation_type;
 use crate::domain::relations::{
-    CreateRelationPayload, CreateRelationResponse, GetRelationsPayload, GetRelationsResponse,
+    CreateRelationPayload, CreateRelationResponse, GetRelationByIdPayload, GetRelationByIdResponse,
+    GetRelationsPayload, GetRelationsResponse, UpdateRelationPayload, UpdateRelationResponse,
 };
 use crate::errors::app_error::AppErrorDto;
 use crate::repositories::case_repository::CaseRepository;
-use crate::repositories::relation_repository::{CreateRelationRecord, RelationRepository};
+use crate::repositories::relation_repository::{
+    CreateRelationRecord, RelationRepository, UpdateRelationRecord,
+};
 use crate::security::session::SessionState;
 
 const MAX_RELATION_TITLE_LEN: usize = 200;
@@ -162,6 +165,120 @@ impl RelationService {
         let items = RelationRepository::list_by_case(&conn, &case_id)?;
 
         Ok(GetRelationsResponse { items })
+    }
+
+    pub fn get_relation_by_id(
+        app: &AppHandle,
+        session: &SessionState,
+        payload: GetRelationByIdPayload,
+    ) -> Result<GetRelationByIdResponse, AppErrorDto> {
+        session.get_current_user().ok_or_else(|| {
+            AppErrorDto::new("ERR_UNAUTHORIZED", "Пользователь не авторизован.", None)
+        })?;
+
+        let case_id =
+            normalize_required_id(&payload.case_id, "ERR_CASE_REQUIRED", "Не выбрано дело.")?;
+
+        let relation_id = normalize_required_id(
+            &payload.relation_id,
+            "ERR_RELATION_REQUIRED",
+            "Не выбрана связь.",
+        )?;
+
+        let conn = open_connection(app)?;
+
+        let relation = RelationRepository::get_details_by_id(&conn, &case_id, &relation_id)?
+            .ok_or_else(|| AppErrorDto::new("ERR_RELATION_NOT_FOUND", "Связь не найдена.", None))?;
+
+        Ok(GetRelationByIdResponse { relation })
+    }
+
+    pub fn update_relation(
+        app: &AppHandle,
+        session: &SessionState,
+        payload: UpdateRelationPayload,
+    ) -> Result<UpdateRelationResponse, AppErrorDto> {
+        let current_user = session.get_current_user().ok_or_else(|| {
+            AppErrorDto::new("ERR_UNAUTHORIZED", "Пользователь не авторизован.", None)
+        })?;
+
+        if current_user.role != "administrator" && current_user.role != "analyst" {
+            return Err(AppErrorDto::new(
+                "ERR_ACCESS_DENIED",
+                "Недостаточно прав для редактирования связи.",
+                None,
+            ));
+        }
+
+        let case_id =
+            normalize_required_id(&payload.case_id, "ERR_CASE_REQUIRED", "Не выбрано дело.")?;
+
+        let relation_id = normalize_required_id(
+            &payload.relation_id,
+            "ERR_RELATION_REQUIRED",
+            "Не выбрана связь.",
+        )?;
+
+        let relation_type = normalize_relation_type(&payload.relation_type)?;
+        let confidence_level = normalize_confidence_level(&payload.confidence_level)?;
+        let title = normalize_optional_text(
+            payload.title,
+            MAX_RELATION_TITLE_LEN,
+            "ERR_RELATION_TITLE_TOO_LONG",
+            "Название связи слишком длинное.",
+        )?;
+        let basis = normalize_basis(&payload.basis)?;
+        let analyst_comment = normalize_optional_text(
+            payload.analyst_comment,
+            MAX_ANALYST_COMMENT_LEN,
+            "ERR_RELATION_ANALYST_COMMENT_TOO_LONG",
+            "Комментарий аналитика слишком длинный.",
+        )?;
+
+        let supporting_material_id = payload
+            .supporting_material_id
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty());
+
+        let conn = open_connection(app)?;
+
+        RelationRepository::get_details_by_id(&conn, &case_id, &relation_id)?
+            .ok_or_else(|| AppErrorDto::new("ERR_RELATION_NOT_FOUND", "Связь не найдена.", None))?;
+
+        if let Some(material_id) = supporting_material_id.as_deref() {
+            let material = RelationRepository::find_material_case_info(&conn, material_id)?
+                .ok_or_else(|| {
+                    AppErrorDto::new("ERR_MATERIAL_NOT_FOUND", "Материал не найден.", None)
+                })?;
+
+            if material.case_id != case_id {
+                return Err(AppErrorDto::new(
+                    "ERR_RELATION_MATERIAL_CASE_MISMATCH",
+                    "Подтверждающий материал не относится к выбранному делу.",
+                    None,
+                ));
+            }
+        }
+
+        RelationRepository::update_relation(
+            &conn,
+            UpdateRelationRecord {
+                case_id: case_id.clone(),
+                relation_id: relation_id.clone(),
+                relation_type,
+                title,
+                basis,
+                confidence_level,
+                supporting_material_id,
+                analyst_comment,
+                include_in_report: payload.include_in_report,
+            },
+        )?;
+
+        let relation = RelationRepository::get_details_by_id(&conn, &case_id, &relation_id)?
+            .ok_or_else(|| AppErrorDto::new("ERR_RELATION_NOT_FOUND", "Связь не найдена.", None))?;
+
+        Ok(UpdateRelationResponse { relation })
     }
 }
 

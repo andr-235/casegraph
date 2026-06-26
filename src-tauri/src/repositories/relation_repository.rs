@@ -1,6 +1,8 @@
 use rusqlite::{params, Connection, OptionalExtension};
 
-use crate::domain::relations::{RelationListItemDto, RelationMaterialDto, RelationObjectDto};
+use crate::domain::relations::{
+    RelationDetailsDto, RelationListItemDto, RelationMaterialDto, RelationObjectDto,
+};
 use crate::errors::app_error::AppErrorDto;
 
 #[derive(Debug)]
@@ -18,6 +20,19 @@ pub struct CreateRelationRecord {
     pub analyst_comment: Option<String>,
     pub include_in_report: bool,
     pub created_by_user_id: String,
+}
+
+#[derive(Debug)]
+pub struct UpdateRelationRecord {
+    pub case_id: String,
+    pub relation_id: String,
+    pub relation_type: String,
+    pub title: Option<String>,
+    pub basis: String,
+    pub confidence_level: String,
+    pub supporting_material_id: Option<String>,
+    pub analyst_comment: Option<String>,
+    pub include_in_report: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -191,6 +206,66 @@ impl RelationRepository {
 
         Ok(items)
     }
+
+    pub fn update_relation(
+        conn: &Connection,
+        record: UpdateRelationRecord,
+    ) -> Result<(), AppErrorDto> {
+        let changed_count = conn
+            .execute(
+                r#"
+                UPDATE relations
+                SET
+                    relation_type = ?3,
+                    title = ?4,
+                    basis = ?5,
+                    confidence_level = ?6,
+                    supporting_material_id = ?7,
+                    analyst_comment = ?8,
+                    include_in_report = ?9,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?1
+                  AND case_id = ?2
+                  AND archived_at IS NULL
+                "#,
+                params![
+                    record.relation_id,
+                    record.case_id,
+                    record.relation_type,
+                    record.title,
+                    record.basis,
+                    record.confidence_level,
+                    record.supporting_material_id,
+                    record.analyst_comment,
+                    if record.include_in_report { 1 } else { 0 },
+                ],
+            )
+            .map_err(|err| AppErrorDto::database(err.to_string()))?;
+
+        if changed_count == 0 {
+            return Err(AppErrorDto::new(
+                "ERR_RELATION_NOT_FOUND",
+                "Связь не найдена.",
+                None,
+            ));
+        }
+
+        Ok(())
+    }
+
+    pub fn get_details_by_id(
+        conn: &Connection,
+        case_id: &str,
+        relation_id: &str,
+    ) -> Result<Option<RelationDetailsDto>, AppErrorDto> {
+        conn.query_row(
+            relation_details_select_sql().as_str(),
+            params![case_id, relation_id],
+            map_relation_details_row,
+        )
+        .optional()
+        .map_err(|err| AppErrorDto::database(err.to_string()))
+    }
 }
 
 fn relation_select_sql_with_where(where_sql: &str) -> String {
@@ -280,6 +355,101 @@ fn map_relation_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<RelationListIte
             title: row.get(19)?,
             value: row.get(20)?,
             is_key: row.get::<_, i64>(21)? == 1,
+        },
+        supporting_material,
+    })
+}
+
+fn relation_details_select_sql() -> String {
+    r#"
+    SELECT
+        relations.id,
+        relations.case_id,
+        relations.relation_code,
+        relations.relation_type,
+        relations.title,
+        relations.basis,
+        relations.confidence_level,
+        relations.analyst_comment,
+        relations.include_in_report,
+        relations.created_at,
+        relations.updated_at,
+
+        source_object.id,
+        source_object.object_code,
+        source_object.object_type,
+        source_object.title,
+        source_object.value,
+        source_object.is_key,
+
+        target_object.id,
+        target_object.object_code,
+        target_object.object_type,
+        target_object.title,
+        target_object.value,
+        target_object.is_key,
+
+        materials.id,
+        materials.material_code,
+        materials.title,
+        materials.material_type,
+        materials.integrity_status
+    FROM relations
+    INNER JOIN object_nodes AS source_object
+        ON source_object.id = relations.source_object_id
+    INNER JOIN object_nodes AS target_object
+        ON target_object.id = relations.target_object_id
+    LEFT JOIN materials
+        ON materials.id = relations.supporting_material_id
+    WHERE relations.case_id = ?1
+      AND relations.id = ?2
+      AND relations.archived_at IS NULL
+    LIMIT 1
+    "#
+    .to_string()
+}
+
+fn map_relation_details_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<RelationDetailsDto> {
+    let supporting_material_id: Option<String> = row.get(23)?;
+
+    let supporting_material = match supporting_material_id {
+        Some(id) => Some(RelationMaterialDto {
+            id,
+            material_code: row.get(24)?,
+            title: row.get(25)?,
+            material_type: row.get(26)?,
+            integrity_status: row.get(27)?,
+        }),
+        None => None,
+    };
+
+    Ok(RelationDetailsDto {
+        id: row.get(0)?,
+        case_id: row.get(1)?,
+        relation_code: row.get(2)?,
+        relation_type: row.get(3)?,
+        title: row.get(4)?,
+        basis: row.get(5)?,
+        confidence_level: row.get(6)?,
+        analyst_comment: row.get(7)?,
+        include_in_report: row.get::<_, i64>(8)? == 1,
+        created_at: row.get(9)?,
+        updated_at: row.get(10)?,
+        source_object: RelationObjectDto {
+            id: row.get(11)?,
+            object_code: row.get(12)?,
+            object_type: row.get(13)?,
+            title: row.get(14)?,
+            value: row.get(15)?,
+            is_key: row.get::<_, i64>(16)? == 1,
+        },
+        target_object: RelationObjectDto {
+            id: row.get(17)?,
+            object_code: row.get(18)?,
+            object_type: row.get(19)?,
+            title: row.get(20)?,
+            value: row.get(21)?,
+            is_key: row.get::<_, i64>(22)? == 1,
         },
         supporting_material,
     })

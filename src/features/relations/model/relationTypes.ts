@@ -68,3 +68,40 @@ export type CreateRelationResponse = {
 export type GetRelationsResponse = {
   items: RelationListItemDto[];
 };
+
+export type RelationDetailsDto = {
+  id: string;
+  caseId: string;
+  relationCode: string;
+  sourceObject: RelationObjectDto;
+  targetObject: RelationObjectDto;
+  relationType: RelationType;
+  title?: string | null;
+  basis: string;
+  confidenceLevel: ConfidenceLevel;
+  supportingMaterial?: RelationMaterialDto | null;
+  analystComment?: string | null;
+  includeInReport: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type GetRelationByIdResponse = {
+  relation: RelationDetailsDto;
+};
+
+export type UpdateRelationPayload = {
+  caseId: string;
+  relationId: string;
+  relationType: RelationType;
+  title?: string;
+  basis: string;
+  confidenceLevel: ConfidenceLevel;
+  supportingMaterialId?: string;
+  analystComment?: string;
+  includeInReport: boolean;
+};
+
+export type UpdateRelationResponse = {
+  relation: RelationDetailsDto;
+};

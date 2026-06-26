@@ -2,7 +2,10 @@ import { invokeCommand } from "../../../shared/api/invoke";
 import type {
   CreateRelationPayload,
   CreateRelationResponse,
+  GetRelationByIdResponse,
   GetRelationsResponse,
+  UpdateRelationPayload,
+  UpdateRelationResponse,
 } from "../model/relationTypes";
 
 export function getRelations(caseId: string): Promise<GetRelationsResponse> {
@@ -15,6 +18,23 @@ export function createRelation(
   payload: CreateRelationPayload,
 ): Promise<CreateRelationResponse> {
   return invokeCommand<CreateRelationResponse>("create_relation", {
+    payload,
+  });
+}
+
+export function getRelationById(
+  caseId: string,
+  relationId: string,
+): Promise<GetRelationByIdResponse> {
+  return invokeCommand<GetRelationByIdResponse>("get_relation_by_id", {
+    payload: { caseId, relationId },
+  });
+}
+
+export function updateRelation(
+  payload: UpdateRelationPayload,
+): Promise<UpdateRelationResponse> {
+  return invokeCommand<UpdateRelationResponse>("update_relation", {
     payload,
   });
 }
