@@ -71,6 +71,40 @@ pub fn apply_migrations(conn: &Connection) -> Result<(), AppErrorDto> {
             FOREIGN KEY (created_by_user_id) REFERENCES users(id)
         );
 
+        CREATE TABLE IF NOT EXISTS materials (
+            id TEXT PRIMARY KEY,
+            case_id TEXT NOT NULL,
+            material_code TEXT NOT NULL,
+            title TEXT NOT NULL,
+            material_type TEXT NOT NULL,
+            source_name TEXT NOT NULL DEFAULT '',
+            description TEXT NOT NULL DEFAULT '',
+            captured_at TEXT,
+            include_in_report INTEGER NOT NULL DEFAULT 1,
+
+            original_file_name TEXT,
+            original_path TEXT,
+            stored_file_path TEXT,
+            file_size INTEGER,
+            mime_type TEXT,
+            sha256 TEXT,
+            integrity_status TEXT NOT NULL DEFAULT 'not_checked',
+
+            created_by_user_id TEXT NOT NULL,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            archived_at TEXT,
+
+            FOREIGN KEY (case_id) REFERENCES cases(id),
+            FOREIGN KEY (created_by_user_id) REFERENCES users(id),
+            UNIQUE(case_id, material_code)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_materials_case_id ON materials(case_id);
+        CREATE INDEX IF NOT EXISTS idx_materials_material_code ON materials(material_code);
+        CREATE INDEX IF NOT EXISTS idx_materials_created_at ON materials(created_at);
+        CREATE INDEX IF NOT EXISTS idx_materials_archived_at ON materials(archived_at);
+
         CREATE INDEX IF NOT EXISTS idx_cases_case_code ON cases(case_code);
         CREATE INDEX IF NOT EXISTS idx_cases_status ON cases(status);
         CREATE INDEX IF NOT EXISTS idx_cases_created_at ON cases(created_at);
