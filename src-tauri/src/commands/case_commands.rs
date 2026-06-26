@@ -1,11 +1,12 @@
 use tauri::{AppHandle, State};
 
+use crate::domain::cases::{
+    CaseDto, CreateCasePayload, CreateCaseResponse, GetCaseByIdPayload, UpdateCasePayload,
+    UpdateCaseResponse,
+};
 use crate::errors::app_error::CommandResult;
 use crate::security::session::SessionState;
-use crate::services::case_service::{
-    CaseDto, CaseService, CreateCasePayload, CreateCaseResponse, GetCaseByIdPayload,
-    UpdateCasePayload, UpdateCaseResponse,
-};
+use crate::services::case_service::CaseService;
 
 #[tauri::command]
 pub fn get_cases(app: AppHandle, session: State<'_, SessionState>) -> CommandResult<Vec<CaseDto>> {

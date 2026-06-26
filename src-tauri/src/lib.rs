@@ -1,5 +1,6 @@
 pub mod commands;
 pub mod db;
+pub mod domain;
 pub mod errors;
 pub mod repositories;
 pub mod security;
