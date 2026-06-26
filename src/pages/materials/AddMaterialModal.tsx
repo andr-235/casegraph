@@ -1,5 +1,6 @@
 import { FormEvent, useState } from "react";
 import { createMaterial } from "../../features/materials/api/materialsApi";
+import { pickMaterialFile } from "../../features/materials/api/materialFilePicker";
 import type {
   MaterialDto,
   MaterialType,
@@ -34,6 +35,32 @@ export function AddMaterialModal({ caseId, onCreated, onClose }: Props) {
   const [sourceFilePath, setSourceFilePath] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  async function handlePickFile() {
+    setError(null);
+
+    try {
+      const selectedPath = await pickMaterialFile();
+
+      if (!selectedPath) {
+        return;
+      }
+
+      setSourceFilePath(selectedPath);
+
+      if (!title.trim()) {
+        const fileName = selectedPath.split(/[\\/]/).pop();
+
+        if (fileName) {
+          setTitle(fileName);
+        }
+      }
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Не удалось выбрать файл."
+      );
+    }
+  }
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -86,9 +113,8 @@ export function AddMaterialModal({ caseId, onCreated, onClose }: Props) {
         <h2>Добавить материал</h2>
 
         <p>
-          Укажите путь к локальному файлу. CaseGraph скопирует файл во внутреннее
-          хранилище и рассчитает SHA-256. Системный выбор файла подключим отдельным
-          срезом.
+          Выберите локальный файл. CaseGraph скопирует его во внутреннее хранилище
+          и рассчитает SHA-256.
         </p>
 
         <div style={{ marginBottom: 12 }}>
@@ -140,13 +166,23 @@ export function AddMaterialModal({ caseId, onCreated, onClose }: Props) {
         <div style={{ marginBottom: 12 }}>
           <label>
             Путь к локальному файлу
-            <input
-              value={sourceFilePath}
-              onChange={(event) => setSourceFilePath(event.target.value)}
-              disabled={submitting}
-              placeholder="C:\Users\...\Documents\file.pdf"
-              style={{ display: "block", width: "100%" }}
-            />
+            <div style={{ display: "flex", gap: 8 }}>
+              <input
+                value={sourceFilePath}
+                onChange={(event) => setSourceFilePath(event.target.value)}
+                disabled={submitting}
+                placeholder="C:\Users\...\Documents\file.pdf"
+                style={{ flex: 1 }}
+              />
+
+              <button
+                type="button"
+                onClick={handlePickFile}
+                disabled={submitting}
+              >
+                Выбрать файл
+              </button>
+            </div>
           </label>
         </div>
 
