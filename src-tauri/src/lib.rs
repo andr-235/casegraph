@@ -19,6 +19,7 @@ use commands::object_commands::{
     create_object, get_object_by_id, get_objects, link_object_to_materials, soft_delete_object,
     update_object,
 };
+use commands::relation_commands::{create_relation, get_relations};
 use security::session::SessionState;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -46,7 +47,9 @@ pub fn run() {
             get_object_by_id,
             update_object,
             link_object_to_materials,
-            soft_delete_object
+            soft_delete_object,
+            create_relation,
+            get_relations
         ])
         .run(tauri::generate_context!())
         .expect("error while running CaseGraph");

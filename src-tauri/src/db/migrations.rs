@@ -155,6 +155,47 @@ pub fn apply_migrations(conn: &Connection) -> Result<(), AppErrorDto> {
         CREATE INDEX IF NOT EXISTS idx_cases_case_code ON cases(case_code);
         CREATE INDEX IF NOT EXISTS idx_cases_status ON cases(status);
         CREATE INDEX IF NOT EXISTS idx_cases_created_at ON cases(created_at);
+
+        CREATE TABLE IF NOT EXISTS relations (
+            id TEXT PRIMARY KEY,
+            case_id TEXT NOT NULL,
+            relation_code TEXT NOT NULL,
+
+            source_object_id TEXT NOT NULL,
+            target_object_id TEXT NOT NULL,
+
+            relation_type TEXT NOT NULL,
+            title TEXT,
+            basis TEXT NOT NULL,
+            confidence_level TEXT NOT NULL,
+            supporting_material_id TEXT,
+            analyst_comment TEXT,
+            include_in_report INTEGER NOT NULL DEFAULT 1,
+
+            created_by_user_id TEXT NOT NULL,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            archived_at TEXT,
+
+            FOREIGN KEY (case_id) REFERENCES cases(id),
+            FOREIGN KEY (source_object_id) REFERENCES object_nodes(id),
+            FOREIGN KEY (target_object_id) REFERENCES object_nodes(id),
+            FOREIGN KEY (supporting_material_id) REFERENCES materials(id),
+            FOREIGN KEY (created_by_user_id) REFERENCES users(id),
+
+            CHECK (source_object_id <> target_object_id),
+            UNIQUE(case_id, relation_code)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_relations_case_id ON relations(case_id);
+        CREATE INDEX IF NOT EXISTS idx_relations_relation_code ON relations(relation_code);
+        CREATE INDEX IF NOT EXISTS idx_relations_source_object_id ON relations(source_object_id);
+        CREATE INDEX IF NOT EXISTS idx_relations_target_object_id ON relations(target_object_id);
+        CREATE INDEX IF NOT EXISTS idx_relations_relation_type ON relations(relation_type);
+        CREATE INDEX IF NOT EXISTS idx_relations_confidence_level ON relations(confidence_level);
+        CREATE INDEX IF NOT EXISTS idx_relations_supporting_material_id ON relations(supporting_material_id);
+        CREATE INDEX IF NOT EXISTS idx_relations_include_in_report ON relations(include_in_report);
+        CREATE INDEX IF NOT EXISTS idx_relations_archived_at ON relations(archived_at);
         "#,
     )
     .map_err(|err| AppErrorDto::database(err.to_string()))?;

@@ -5,3 +5,6 @@ pub mod material_type;
 pub mod materials;
 pub mod object_type;
 pub mod objects;
+pub mod relation_confidence;
+pub mod relation_type;
+pub mod relations;

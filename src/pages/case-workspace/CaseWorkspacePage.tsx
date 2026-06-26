@@ -8,6 +8,7 @@ import {
 } from "./CaseSidebar";
 import { MaterialsPage } from "../materials/MaterialsPage";
 import { ObjectsPage } from "./ObjectsPage";
+import { RelationsPage } from "./RelationsPage";
 
 type Props = {
   user: CurrentUserDto;
@@ -91,7 +92,14 @@ export function CaseWorkspacePage({
             <ObjectsPage caseItem={caseItem} />
           )}
 
-          {activeSection !== "overview" && activeSection !== "materials" && activeSection !== "objects" && (
+          {activeSection === "relations" && (
+            <RelationsPage
+              caseId={caseItem.id}
+              canEdit={user.role === "administrator" || user.role === "analyst"}
+            />
+          )}
+
+          {activeSection !== "overview" && activeSection !== "materials" && activeSection !== "objects" && activeSection !== "relations" && (
             <PlaceholderSection
               title={sectionTitles[activeSection]}
               caseItem={caseItem}

@@ -3,3 +3,4 @@ pub mod case_service;
 pub mod material_service;
 pub mod object_service;
 pub mod object_validation;
+pub mod relation_service;
