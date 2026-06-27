@@ -15,7 +15,7 @@ use crate::repositories::material_repository::{
     CreateMaterialRecord, MaterialRepository, MaterialRow, UpdateMaterialRecord,
 };
 use crate::security::session::SessionState;
-use crate::services::protected_service_context::require_protected_user;
+use crate::services::protected_service_context::require_protected_user_for;
 use crate::storage::material_file_storage::import_material_file;
 
 pub struct MaterialService;
@@ -26,7 +26,7 @@ impl MaterialService {
         session: &SessionState,
         payload: GetMaterialsPayload,
     ) -> Result<Vec<MaterialDto>, AppErrorDto> {
-        let context = require_protected_user(app, session)?;
+        let context = require_protected_user_for(app, session, "GET_MATERIALS")?;
         let conn = &context.conn;
 
         let case_id = payload.case_id.trim().to_string();
@@ -45,7 +45,7 @@ impl MaterialService {
         session: &SessionState,
         payload: CreateMaterialPayload,
     ) -> Result<CreateMaterialResponse, AppErrorDto> {
-        let context = require_protected_user(app, session)?;
+        let context = require_protected_user_for(app, session, "CREATE_MATERIAL")?;
         let current_user = &context.current_user;
         let conn = &context.conn;
 
@@ -142,7 +142,7 @@ impl MaterialService {
         session: &SessionState,
         payload: DeleteMaterialPayload,
     ) -> Result<DeleteMaterialResponse, AppErrorDto> {
-        let context = require_protected_user(app, session)?;
+        let context = require_protected_user_for(app, session, "DELETE_MATERIAL")?;
         let conn = &context.conn;
 
         let case_id = payload.case_id.trim().to_string();
@@ -170,7 +170,7 @@ impl MaterialService {
         session: &SessionState,
         payload: UpdateMaterialPayload,
     ) -> Result<UpdateMaterialResponse, AppErrorDto> {
-        let context = require_protected_user(app, session)?;
+        let context = require_protected_user_for(app, session, "UPDATE_MATERIAL")?;
         let conn = &context.conn;
 
         let case_id = payload.case_id.trim().to_string();

@@ -11,13 +11,13 @@ use crate::repositories::case_repository::{
     CaseRepository, CaseRow, CreateCaseRecord, UpdateCaseRecord,
 };
 use crate::security::session::SessionState;
-use crate::services::protected_service_context::require_protected_user;
+use crate::services::protected_service_context::require_protected_user_for;
 
 pub struct CaseService;
 
 impl CaseService {
     pub fn get_cases(app: &AppHandle, session: &SessionState) -> Result<Vec<CaseDto>, AppErrorDto> {
-        let context = require_protected_user(app, session)?;
+        let context = require_protected_user_for(app, session, "GET_CASES")?;
         let conn = &context.conn;
         let rows = CaseRepository::get_cases(conn)?;
 
@@ -29,7 +29,7 @@ impl CaseService {
         session: &SessionState,
         payload: CreateCasePayload,
     ) -> Result<CreateCaseResponse, AppErrorDto> {
-        let context = require_protected_user(app, session)?;
+        let context = require_protected_user_for(app, session, "CREATE_CASE")?;
         let current_user = &context.current_user;
         let conn = &context.conn;
 
@@ -79,7 +79,7 @@ impl CaseService {
         session: &SessionState,
         payload: GetCaseByIdPayload,
     ) -> Result<CaseDto, AppErrorDto> {
-        let context = require_protected_user(app, session)?;
+        let context = require_protected_user_for(app, session, "GET_CASE_BY_ID")?;
         let conn = &context.conn;
 
         let case_id = payload.case_id.trim();
@@ -103,7 +103,7 @@ impl CaseService {
         session: &SessionState,
         payload: UpdateCasePayload,
     ) -> Result<UpdateCaseResponse, AppErrorDto> {
-        let context = require_protected_user(app, session)?;
+        let context = require_protected_user_for(app, session, "UPDATE_CASE")?;
         let conn = &context.conn;
 
         let case_id = payload.case_id.trim().to_string();
@@ -156,7 +156,7 @@ impl CaseService {
         session: &SessionState,
         payload: UpdateCaseStatusPayload,
     ) -> Result<UpdateCaseStatusResponse, AppErrorDto> {
-        let context = require_protected_user(app, session)?;
+        let context = require_protected_user_for(app, session, "UPDATE_CASE_STATUS")?;
         let conn = &context.conn;
 
         let case_id = payload.case_id.trim().to_string();

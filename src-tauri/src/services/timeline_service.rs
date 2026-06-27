@@ -19,7 +19,7 @@ use crate::services::audit_service::{
     EVENT_REPORT_FLAG_CHANGED, EVENT_UPDATED,
 };
 use crate::services::protected_service_context::{
-    require_protected_analyst_or_admin, require_protected_user,
+    require_protected_analyst_or_admin_for, require_protected_user_for,
 };
 
 use super::timeline_validation::{
@@ -35,7 +35,7 @@ impl TimelineService {
         session: &SessionState,
         payload: GetTimelinePayload,
     ) -> Result<GetTimelineResponse, AppErrorDto> {
-        let context = require_protected_user(app, session)?;
+        let context = require_protected_user_for(app, session, "GET_TIMELINE")?;
         let conn = &context.conn;
 
         let case_id = normalize_required_id(
@@ -66,7 +66,7 @@ impl TimelineService {
         session: &SessionState,
         payload: CreateEventPayload,
     ) -> Result<CreateEventResponse, AppErrorDto> {
-        let mut context = require_protected_analyst_or_admin(app, session)?;
+        let mut context = require_protected_analyst_or_admin_for(app, session, "CREATE_EVENT")?;
         let current_user = context.current_user.clone();
 
         let normalized = normalize_create_event_payload(payload)?;
@@ -202,7 +202,7 @@ impl TimelineService {
         session: &SessionState,
         payload: GetEventByIdPayload,
     ) -> Result<GetEventByIdResponse, AppErrorDto> {
-        let context = require_protected_user(app, session)?;
+        let context = require_protected_user_for(app, session, "GET_EVENT_BY_ID")?;
         let conn = &context.conn;
 
         let case_id = normalize_required_id(
@@ -228,7 +228,7 @@ impl TimelineService {
         session: &SessionState,
         payload: UpdateEventPayload,
     ) -> Result<UpdateEventResponse, AppErrorDto> {
-        let mut context = require_protected_analyst_or_admin(app, session)?;
+        let mut context = require_protected_analyst_or_admin_for(app, session, "UPDATE_EVENT")?;
         let current_user = context.current_user.clone();
 
         let normalized = normalize_update_event_payload(payload)?;
@@ -369,7 +369,7 @@ impl TimelineService {
         session: &SessionState,
         payload: SoftDeleteEventPayload,
     ) -> Result<SoftDeleteEventResponse, AppErrorDto> {
-        let context = require_protected_analyst_or_admin(app, session)?;
+        let context = require_protected_analyst_or_admin_for(app, session, "SOFT_DELETE_EVENT")?;
         let current_user = &context.current_user;
         let conn = &context.conn;
 
@@ -418,7 +418,8 @@ impl TimelineService {
         session: &SessionState,
         payload: ToggleEventReportIncludePayload,
     ) -> Result<ToggleEventReportIncludeResponse, AppErrorDto> {
-        let context = require_protected_analyst_or_admin(app, session)?;
+        let context =
+            require_protected_analyst_or_admin_for(app, session, "TOGGLE_EVENT_REPORT_INCLUDE")?;
         let current_user = &context.current_user;
         let conn = &context.conn;
 

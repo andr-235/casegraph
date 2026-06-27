@@ -22,7 +22,7 @@ use crate::services::audit_guards::{
     audit_user_filter_for_reader, require_audit_admin, require_audit_reader,
     require_no_user_filter_for_analyst, require_own_audit_entry_or_admin,
 };
-use crate::services::protected_service_context::require_protected_user;
+use crate::services::protected_service_context::require_protected_user_for;
 
 pub const AUDIT_RESULT_SUCCESS: &str = "success";
 pub const AUDIT_SEVERITY_INFO: &str = "info";
@@ -137,7 +137,7 @@ impl AuditService {
         session: &SessionState,
         payload: GetAuditLogsPayload,
     ) -> Result<GetAuditLogsResponse, AppErrorDto> {
-        let context = require_protected_user(app, session)?;
+        let context = require_protected_user_for(app, session, "GET_AUDIT_LOGS")?;
         let current_user = &context.current_user;
         let conn = &context.conn;
 
@@ -185,7 +185,7 @@ impl AuditService {
         app: &AppHandle,
         session: &SessionState,
     ) -> Result<GetAuditActionsResponse, AppErrorDto> {
-        let context = require_protected_user(app, session)?;
+        let context = require_protected_user_for(app, session, "GET_AUDIT_ACTIONS")?;
         let current_user = &context.current_user;
         let conn = &context.conn;
 
@@ -206,7 +206,7 @@ impl AuditService {
         app: &AppHandle,
         session: &SessionState,
     ) -> Result<GetAuditUsersResponse, AppErrorDto> {
-        let context = require_protected_user(app, session)?;
+        let context = require_protected_user_for(app, session, "GET_AUDIT_USERS")?;
         let current_user = &context.current_user;
         let conn = &context.conn;
 
@@ -227,7 +227,7 @@ impl AuditService {
         session: &SessionState,
         payload: GetAuditLogByIdPayload,
     ) -> Result<GetAuditLogByIdResponse, AppErrorDto> {
-        let context = require_protected_user(app, session)?;
+        let context = require_protected_user_for(app, session, "GET_AUDIT_LOG_BY_ID")?;
         let current_user = &context.current_user;
         let conn = &context.conn;
 
@@ -283,7 +283,7 @@ impl AuditService {
         session: &SessionState,
         payload: ExportAuditLogPayload,
     ) -> Result<ExportAuditLogResponse, AppErrorDto> {
-        let context = require_protected_user(app, session)?;
+        let context = require_protected_user_for(app, session, "EXPORT_AUDIT_LOG")?;
         let current_user = &context.current_user;
         let conn = &context.conn;
 

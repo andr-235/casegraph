@@ -4,7 +4,7 @@ use crate::domain::graph::{GetGraphDataPayload, GetGraphDataResponse};
 use crate::errors::app_error::AppErrorDto;
 use crate::repositories::graph_repository::GraphRepository;
 use crate::security::session::SessionState;
-use crate::services::protected_service_context::require_protected_user;
+use crate::services::protected_service_context::require_protected_user_for;
 
 pub struct GraphService;
 
@@ -14,7 +14,7 @@ impl GraphService {
         session: &SessionState,
         payload: GetGraphDataPayload,
     ) -> Result<GetGraphDataResponse, AppErrorDto> {
-        let context = require_protected_user(app, session)?;
+        let context = require_protected_user_for(app, session, "GET_GRAPH_DATA")?;
         let conn = &context.conn;
 
         let case_id =

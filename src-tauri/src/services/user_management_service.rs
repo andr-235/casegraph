@@ -12,7 +12,7 @@ use crate::errors::app_error::AppErrorDto;
 use crate::repositories::user_management_repository::UserManagementRepository;
 use crate::security::password::{hash_password, verify_password};
 use crate::security::session::{CurrentUserDto, SessionState};
-use crate::services::protected_service_context::require_protected_administrator;
+use crate::services::protected_service_context::require_protected_administrator_for;
 use crate::services::user_management_validation::{
     normalize_block_user_payload, normalize_change_own_password_payload,
     normalize_create_user_payload, normalize_reset_user_password_payload,
@@ -30,7 +30,7 @@ impl UserManagementService {
         session: &SessionState,
         payload: GetUsersPayload,
     ) -> Result<GetUsersResponse, AppErrorDto> {
-        let context = require_protected_administrator(app, session)?;
+        let context = require_protected_administrator_for(app, session, "GET_USERS")?;
         let conn = &context.conn;
 
         let limit = normalize_limit(payload.limit);
@@ -62,7 +62,7 @@ impl UserManagementService {
         session: &SessionState,
         payload: CreateUserPayload,
     ) -> Result<CreateUserResponse, AppErrorDto> {
-        let context = require_protected_administrator(app, session)?;
+        let context = require_protected_administrator_for(app, session, "CREATE_USER")?;
         let current_user = &context.current_user;
         let conn = &context.conn;
         let input = normalize_create_user_payload(payload)?;
@@ -97,7 +97,7 @@ impl UserManagementService {
         session: &SessionState,
         payload: GetUserByIdPayload,
     ) -> Result<GetUserByIdResponse, AppErrorDto> {
-        let context = require_protected_administrator(app, session)?;
+        let context = require_protected_administrator_for(app, session, "GET_USER_BY_ID")?;
         let conn = &context.conn;
 
         let user_id = payload.user_id.trim();
@@ -116,7 +116,7 @@ impl UserManagementService {
         session: &SessionState,
         payload: UpdateUserPayload,
     ) -> Result<UpdateUserResponse, AppErrorDto> {
-        let context = require_protected_administrator(app, session)?;
+        let context = require_protected_administrator_for(app, session, "UPDATE_USER")?;
         let current_user = &context.current_user;
         let conn = &context.conn;
         let input = normalize_update_user_payload(payload)?;
@@ -161,7 +161,7 @@ impl UserManagementService {
         session: &SessionState,
         payload: BlockUserPayload,
     ) -> Result<BlockUserResponse, AppErrorDto> {
-        let context = require_protected_administrator(app, session)?;
+        let context = require_protected_administrator_for(app, session, "BLOCK_USER")?;
         let current_user = &context.current_user;
         let conn = &context.conn;
         let user_id = normalize_block_user_payload(payload)?;
@@ -202,7 +202,7 @@ impl UserManagementService {
         session: &SessionState,
         payload: UnblockUserPayload,
     ) -> Result<UnblockUserResponse, AppErrorDto> {
-        let context = require_protected_administrator(app, session)?;
+        let context = require_protected_administrator_for(app, session, "UNBLOCK_USER")?;
         let current_user = &context.current_user;
         let conn = &context.conn;
         let user_id = normalize_unblock_user_payload(payload)?;
@@ -281,7 +281,7 @@ impl UserManagementService {
         session: &SessionState,
         payload: ResetUserPasswordPayload,
     ) -> Result<ResetUserPasswordResponse, AppErrorDto> {
-        let context = require_protected_administrator(app, session)?;
+        let context = require_protected_administrator_for(app, session, "RESET_USER_PASSWORD")?;
         let current_user = &context.current_user;
         let conn = &context.conn;
         let input = normalize_reset_user_password_payload(payload)?;
@@ -307,7 +307,7 @@ impl UserManagementService {
         app: &AppHandle,
         session: &SessionState,
     ) -> Result<GetRolesResponse, AppErrorDto> {
-        let context = require_protected_administrator(app, session)?;
+        let context = require_protected_administrator_for(app, session, "GET_ROLES")?;
         let conn = &context.conn;
         let roles = UserManagementRepository::get_roles(conn)?;
 

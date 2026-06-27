@@ -19,7 +19,7 @@ use crate::services::object_validation::{
     normalize_unique_ids,
 };
 use crate::services::protected_service_context::{
-    require_protected_analyst_or_admin, require_protected_user,
+    require_protected_analyst_or_admin_for, require_protected_user_for,
 };
 
 pub struct ObjectService;
@@ -30,7 +30,7 @@ impl ObjectService {
         session: &SessionState,
         payload: CreateObjectPayload,
     ) -> Result<CreateObjectResponse, AppErrorDto> {
-        let context = require_protected_analyst_or_admin(app, session)?;
+        let context = require_protected_analyst_or_admin_for(app, session, "CREATE_OBJECT")?;
         let current_user = &context.current_user;
         let conn = &context.conn;
 
@@ -90,7 +90,7 @@ impl ObjectService {
         session: &SessionState,
         payload: GetObjectsPayload,
     ) -> Result<GetObjectsResponse, AppErrorDto> {
-        let context = require_protected_user(app, session)?;
+        let context = require_protected_user_for(app, session, "GET_OBJECTS")?;
         let conn = &context.conn;
 
         let case_id =
@@ -106,7 +106,7 @@ impl ObjectService {
         session: &SessionState,
         payload: GetObjectByIdPayload,
     ) -> Result<GetObjectByIdResponse, AppErrorDto> {
-        let context = require_protected_user(app, session)?;
+        let context = require_protected_user_for(app, session, "GET_OBJECT_BY_ID")?;
         let conn = &context.conn;
 
         let case_id =
@@ -129,7 +129,8 @@ impl ObjectService {
         session: &SessionState,
         payload: LinkObjectToMaterialsPayload,
     ) -> Result<LinkObjectToMaterialsResponse, AppErrorDto> {
-        let context = require_protected_analyst_or_admin(app, session)?;
+        let context =
+            require_protected_analyst_or_admin_for(app, session, "LINK_OBJECT_TO_MATERIALS")?;
         let current_user = &context.current_user;
         let conn = &context.conn;
 
@@ -176,7 +177,7 @@ impl ObjectService {
         session: &SessionState,
         payload: UpdateObjectPayload,
     ) -> Result<UpdateObjectResponse, AppErrorDto> {
-        let context = require_protected_analyst_or_admin(app, session)?;
+        let context = require_protected_analyst_or_admin_for(app, session, "UPDATE_OBJECT")?;
         let conn = &context.conn;
 
         let case_id =
@@ -224,7 +225,7 @@ impl ObjectService {
         session: &SessionState,
         payload: SoftDeleteObjectPayload,
     ) -> Result<SoftDeleteObjectResponse, AppErrorDto> {
-        let context = require_protected_analyst_or_admin(app, session)?;
+        let context = require_protected_analyst_or_admin_for(app, session, "SOFT_DELETE_OBJECT")?;
         let conn = &context.conn;
 
         let case_id =

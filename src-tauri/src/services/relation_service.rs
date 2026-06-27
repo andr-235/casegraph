@@ -13,7 +13,7 @@ use crate::repositories::relation_repository::{
 };
 use crate::security::session::SessionState;
 use crate::services::protected_service_context::{
-    require_protected_analyst_or_admin, require_protected_user,
+    require_protected_analyst_or_admin_for, require_protected_user_for,
 };
 use crate::services::relation_validation::{
     normalize_analyst_comment, normalize_confidence_level, normalize_optional_id,
@@ -29,7 +29,7 @@ impl RelationService {
         session: &SessionState,
         payload: CreateRelationPayload,
     ) -> Result<CreateRelationResponse, AppErrorDto> {
-        let context = require_protected_analyst_or_admin(app, session)?;
+        let context = require_protected_analyst_or_admin_for(app, session, "CREATE_RELATION")?;
         let current_user = &context.current_user;
         let conn = &context.conn;
 
@@ -126,7 +126,7 @@ impl RelationService {
         session: &SessionState,
         payload: GetRelationsPayload,
     ) -> Result<GetRelationsResponse, AppErrorDto> {
-        let context = require_protected_user(app, session)?;
+        let context = require_protected_user_for(app, session, "GET_RELATIONS")?;
         let conn = &context.conn;
 
         let case_id =
@@ -145,7 +145,7 @@ impl RelationService {
         session: &SessionState,
         payload: GetRelationByIdPayload,
     ) -> Result<GetRelationByIdResponse, AppErrorDto> {
-        let context = require_protected_user(app, session)?;
+        let context = require_protected_user_for(app, session, "GET_RELATION_BY_ID")?;
         let conn = &context.conn;
 
         let case_id =
@@ -168,7 +168,7 @@ impl RelationService {
         session: &SessionState,
         payload: UpdateRelationPayload,
     ) -> Result<UpdateRelationResponse, AppErrorDto> {
-        let context = require_protected_analyst_or_admin(app, session)?;
+        let context = require_protected_analyst_or_admin_for(app, session, "UPDATE_RELATION")?;
         let conn = &context.conn;
 
         let case_id =
@@ -231,7 +231,7 @@ impl RelationService {
         session: &SessionState,
         payload: SoftDeleteRelationPayload,
     ) -> Result<SoftDeleteRelationResponse, AppErrorDto> {
-        let context = require_protected_analyst_or_admin(app, session)?;
+        let context = require_protected_analyst_or_admin_for(app, session, "SOFT_DELETE_RELATION")?;
         let conn = &context.conn;
 
         let case_id =
