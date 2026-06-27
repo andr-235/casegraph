@@ -28,6 +28,14 @@ pub struct TimelineEventDto {
 #[serde(rename_all = "camelCase")]
 pub struct GetTimelinePayload {
     pub case_id: String,
+
+    pub query: Option<String>,
+    pub event_type: Option<String>,
+    pub object_id: Option<String>,
+    pub material_id: Option<String>,
+    pub date_from: Option<String>,
+    pub date_to: Option<String>,
+    pub include_in_report: Option<bool>,
 }
 
 #[derive(Debug, Serialize)]

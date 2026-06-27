@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { getMaterials } from "../../features/materials/api/materialsApi";
 import { getObjects } from "../../features/objects/api/objectsApi";
+import { TimelineFiltersPanel } from "../../features/timeline/ui/TimelineFiltersPanel";
 import { CreateEventModal } from "../../features/timeline/ui/CreateEventModal";
 import { EventCardModal } from "../../features/timeline/ui/EventCardModal";
 import { getTimeline } from "../../features/timeline/api/timelineApi";
@@ -10,6 +11,11 @@ import {
   getEventTypeLabel,
 } from "../../features/timeline/model/timelineOptions";
 import type { TimelineEventDto } from "../../features/timeline/model/timelineTypes";
+import {
+  buildGetTimelinePayload,
+  createEmptyTimelineFilters,
+  type TimelineFiltersState,
+} from "../../features/timeline/model/timelineFilterDefaults";
 
 type TimelinePageProps = {
   caseId: string;
@@ -25,18 +31,23 @@ export function TimelinePage({ caseId, readonly = false }: TimelinePageProps) {
   const [items, setItems] = useState<TimelineEventDto[]>([]);
   const [objectOptions, setObjectOptions] = useState<SelectOption[]>([]);
   const [materialOptions, setMaterialOptions] = useState<SelectOption[]>([]);
+  const [filters, setFilters] = useState<TimelineFiltersState>(() =>
+    createEmptyTimelineFilters(),
+  );
 
   const [isLoading, setIsLoading] = useState(true);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
 
-  async function loadTimeline() {
+  async function loadTimelineWithFilters(nextFilters: TimelineFiltersState) {
     setErrorMessage("");
     setIsLoading(true);
 
     try {
-      const result = await getTimeline({ caseId });
+      const result = await getTimeline(
+        buildGetTimelinePayload(caseId, nextFilters),
+      );
       setItems(result.items);
     } catch (unknownError) {
       setErrorMessage(
@@ -47,6 +58,20 @@ export function TimelinePage({ caseId, readonly = false }: TimelinePageProps) {
     } finally {
       setIsLoading(false);
     }
+  }
+
+  function loadTimeline() {
+    void loadTimelineWithFilters(filters);
+  }
+
+  function applyFilters() {
+    void loadTimeline();
+  }
+
+  function resetFilters() {
+    const emptyFilters = createEmptyTimelineFilters();
+    setFilters(emptyFilters);
+    void loadTimelineWithFilters(emptyFilters);
   }
 
   function closeEventModal() {
@@ -116,6 +141,15 @@ export function TimelinePage({ caseId, readonly = false }: TimelinePageProps) {
       </div>
 
       {errorMessage && <div className="error-box">{errorMessage}</div>}
+
+      <TimelineFiltersPanel
+        filters={filters}
+        objectOptions={objectOptions}
+        materialOptions={materialOptions}
+        onChange={setFilters}
+        onApply={applyFilters}
+        onReset={resetFilters}
+      />
 
       {isLoading ? (
         <p>Загрузка хронологии...</p>

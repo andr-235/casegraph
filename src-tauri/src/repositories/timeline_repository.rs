@@ -1,4 +1,4 @@
-use rusqlite::{params, Connection, Row};
+use rusqlite::{params, params_from_iter, Connection, Row, ToSql};
 use uuid::Uuid;
 
 use crate::domain::timeline::{
@@ -40,6 +40,17 @@ pub struct UpdateEventRecord {
     pub source_note: String,
     pub analyst_comment: String,
     pub include_in_report: bool,
+}
+
+#[derive(Debug)]
+pub struct TimelineFiltersRecord {
+    pub query: Option<String>,
+    pub event_type: Option<String>,
+    pub object_id: Option<String>,
+    pub material_id: Option<String>,
+    pub date_from: Option<String>,
+    pub date_to: Option<String>,
+    pub include_in_report: Option<bool>,
 }
 
 fn map_timeline_event_row(row: &Row<'_>) -> rusqlite::Result<TimelineEventDto> {
@@ -216,48 +227,136 @@ impl TimelineRepository {
     pub fn get_timeline(
         conn: &Connection,
         case_id: &str,
+        filters: &TimelineFiltersRecord,
     ) -> Result<Vec<TimelineEventDto>, AppErrorDto> {
+        let mut sql = String::from(
+            "
+            SELECT
+                e.id,
+                e.case_id,
+                e.event_code,
+                e.event_type,
+                e.title,
+                e.description,
+                e.event_date,
+                e.event_time,
+                e.date_precision,
+                e.period_start,
+                e.period_end,
+                e.source_note,
+                e.analyst_comment,
+                e.include_in_report,
+                (
+                    SELECT COUNT(*)
+                    FROM event_objects eo
+                    WHERE eo.event_id = e.id
+                ) AS linked_object_count,
+                (
+                    SELECT COUNT(*)
+                    FROM event_materials em
+                    WHERE em.event_id = e.id
+                ) AS linked_material_count,
+                e.created_by_user_id,
+                e.created_at,
+                e.updated_at
+            FROM events e
+            WHERE e.case_id = ?
+              AND e.archived_at IS NULL
+            ",
+        );
+
+        let mut query_params: Vec<Box<dyn ToSql>> = vec![Box::new(case_id.to_string())];
+
+        if let Some(query) = &filters.query {
+            sql.push_str(
+                "
+                AND (
+                    e.event_code LIKE ?
+                    OR e.title LIKE ?
+                    OR e.description LIKE ?
+                    OR e.source_note LIKE ?
+                    OR e.analyst_comment LIKE ?
+                )
+                ",
+            );
+
+            let like_query = format!("%{}%", query);
+            query_params.push(Box::new(like_query.clone()));
+            query_params.push(Box::new(like_query.clone()));
+            query_params.push(Box::new(like_query.clone()));
+            query_params.push(Box::new(like_query.clone()));
+            query_params.push(Box::new(like_query));
+        }
+
+        if let Some(event_type) = &filters.event_type {
+            sql.push_str(" AND e.event_type = ? ");
+            query_params.push(Box::new(event_type.clone()));
+        }
+
+        if let Some(object_id) = &filters.object_id {
+            sql.push_str(
+                "
+                AND EXISTS (
+                    SELECT 1
+                    FROM event_objects eo
+                    WHERE eo.event_id = e.id
+                      AND eo.object_id = ?
+                )
+                ",
+            );
+            query_params.push(Box::new(object_id.clone()));
+        }
+
+        if let Some(material_id) = &filters.material_id {
+            sql.push_str(
+                "
+                AND EXISTS (
+                    SELECT 1
+                    FROM event_materials em
+                    WHERE em.event_id = e.id
+                      AND em.material_id = ?
+                )
+                ",
+            );
+            query_params.push(Box::new(material_id.clone()));
+        }
+
+        if let Some(date_from) = &filters.date_from {
+            sql.push_str(" AND e.event_date >= ? ");
+            query_params.push(Box::new(date_from.clone()));
+        }
+
+        if let Some(date_to) = &filters.date_to {
+            sql.push_str(" AND e.event_date <= ? ");
+            query_params.push(Box::new(date_to.clone()));
+        }
+
+        if let Some(include_in_report) = filters.include_in_report {
+            sql.push_str(" AND e.include_in_report = ? ");
+            let value: i64 = if include_in_report { 1 } else { 0 };
+            query_params.push(Box::new(value));
+        }
+
+        sql.push_str(
+            "
+            ORDER BY
+                e.event_date ASC,
+                e.event_time ASC,
+                e.created_at ASC
+            ",
+        );
+
+        let params = query_params
+            .iter()
+            .map(|value| value.as_ref())
+            .collect::<Vec<&dyn ToSql>>();
+
         let mut stmt = conn
-            .prepare(
-                r#"
-                SELECT
-                    e.id,
-                    e.case_id,
-                    e.event_code,
-                    e.event_type,
-                    e.title,
-                    e.description,
-                    e.event_date,
-                    e.event_time,
-                    e.date_precision,
-                    e.period_start,
-                    e.period_end,
-                    e.source_note,
-                    e.analyst_comment,
-                    e.include_in_report,
-                    (
-                        SELECT COUNT(*)
-                        FROM event_objects eo
-                        WHERE eo.event_id = e.id
-                    ) AS linked_object_count,
-                    (
-                        SELECT COUNT(*)
-                        FROM event_materials em
-                        WHERE em.event_id = e.id
-                    ) AS linked_material_count,
-                    e.created_by_user_id,
-                    e.created_at,
-                    e.updated_at
-                FROM events e
-                WHERE e.case_id = ?1
-                  AND e.archived_at IS NULL
-                ORDER BY e.event_date ASC, e.event_time ASC, e.created_at ASC
-                "#,
-            )
+            .prepare(&sql)
             .map_err(|err| AppErrorDto::database(err.to_string()))?;
 
         let rows = stmt
-            .query_map(params![case_id], map_timeline_event_row)
+            .query_map(params_from_iter(params), map_timeline_event_row)
             .map_err(|err| AppErrorDto::database(err.to_string()))?;
 
         let mut items = Vec::new();
@@ -430,7 +529,19 @@ impl TimelineRepository {
         case_id: &str,
         event_id: &str,
     ) -> Result<Option<EventDetailsDto>, AppErrorDto> {
-        let items = Self::get_timeline(conn, case_id)?;
+        let items = Self::get_timeline(
+            conn,
+            case_id,
+            &TimelineFiltersRecord {
+                query: None,
+                event_type: None,
+                object_id: None,
+                material_id: None,
+                date_from: None,
+                date_to: None,
+                include_in_report: None,
+            },
+        )?;
         let Some(event_item) = items.into_iter().find(|item| item.id == event_id) else {
             return Ok(None);
         };

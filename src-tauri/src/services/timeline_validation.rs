@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use crate::domain::event_date_precision::{is_valid_date_precision, DATE_PRECISION_PERIOD};
 use crate::domain::event_type::is_valid_event_type;
-use crate::domain::timeline::{CreateEventPayload, UpdateEventPayload};
+use crate::domain::timeline::{CreateEventPayload, GetTimelinePayload, UpdateEventPayload};
 use crate::errors::app_error::AppErrorDto;
 
 const MAX_EVENT_TITLE_LEN: usize = 200;
@@ -48,6 +48,71 @@ pub struct NormalizedUpdateEventInput {
     pub object_ids: Vec<String>,
     pub material_ids: Vec<String>,
     pub link_note: String,
+}
+
+#[derive(Debug)]
+pub struct NormalizedTimelineFilters {
+    pub query: Option<String>,
+    pub event_type: Option<String>,
+    pub object_id: Option<String>,
+    pub material_id: Option<String>,
+    pub date_from: Option<String>,
+    pub date_to: Option<String>,
+    pub include_in_report: Option<bool>,
+}
+
+pub fn normalize_timeline_filters(
+    payload: &GetTimelinePayload,
+) -> Result<NormalizedTimelineFilters, AppErrorDto> {
+    let query =
+        normalize_optional_short_text(payload.query.clone(), 200, "ERR_INVALID_TIMELINE_QUERY")?;
+
+    let event_type = match payload
+        .event_type
+        .clone()
+        .map(|value| value.trim().to_string())
+    {
+        Some(value) if value.is_empty() => None,
+        Some(value) => {
+            if !is_valid_event_type(&value) {
+                return Err(AppErrorDto::new(
+                    "ERR_INVALID_EVENT_TYPE",
+                    "Некорректный тип события",
+                    None,
+                ));
+            }
+
+            Some(value)
+        }
+        None => None,
+    };
+
+    let object_id = normalize_optional_id(payload.object_id.clone(), "ERR_INVALID_OBJECT_ID")?;
+    let material_id =
+        normalize_optional_id(payload.material_id.clone(), "ERR_INVALID_MATERIAL_ID")?;
+    let date_from =
+        normalize_optional_date_filter(payload.date_from.clone(), "ERR_INVALID_DATE_FROM")?;
+    let date_to = normalize_optional_date_filter(payload.date_to.clone(), "ERR_INVALID_DATE_TO")?;
+
+    if let (Some(from), Some(to)) = (&date_from, &date_to) {
+        if from > to {
+            return Err(AppErrorDto::new(
+                "ERR_INVALID_DATE_PERIOD",
+                "Начальная дата периода не может быть позже конечной",
+                None,
+            ));
+        }
+    }
+
+    Ok(NormalizedTimelineFilters {
+        query,
+        event_type,
+        object_id,
+        material_id,
+        date_from,
+        date_to,
+        include_in_report: payload.include_in_report,
+    })
 }
 
 pub fn normalize_update_event_payload(
@@ -359,6 +424,77 @@ fn normalize_required_text(
     }
 
     Ok(normalized)
+}
+
+fn normalize_optional_short_text(
+    value: Option<String>,
+    max_len: usize,
+    code: &str,
+) -> Result<Option<String>, AppErrorDto> {
+    match value {
+        Some(value) => {
+            let trimmed = value.trim().to_string();
+
+            if trimmed.is_empty() {
+                return Ok(None);
+            }
+
+            if trimmed.chars().count() > max_len {
+                return Err(AppErrorDto::new(
+                    code,
+                    "Значение фильтра слишком длинное",
+                    None,
+                ));
+            }
+
+            Ok(Some(trimmed))
+        }
+        None => Ok(None),
+    }
+}
+
+fn normalize_optional_id(
+    value: Option<String>,
+    _code: &str,
+) -> Result<Option<String>, AppErrorDto> {
+    match value {
+        Some(value) => {
+            let trimmed = value.trim().to_string();
+
+            if trimmed.is_empty() {
+                return Ok(None);
+            }
+
+            Ok(Some(trimmed))
+        }
+        None => Ok(None),
+    }
+}
+
+fn normalize_optional_date_filter(
+    value: Option<String>,
+    code: &str,
+) -> Result<Option<String>, AppErrorDto> {
+    match value {
+        Some(value) => {
+            let trimmed = value.trim().to_string();
+
+            if trimmed.is_empty() {
+                return Ok(None);
+            }
+
+            if trimmed.len() != 10 {
+                return Err(AppErrorDto::new(
+                    code,
+                    "Дата должна быть в формате YYYY-MM-DD",
+                    None,
+                ));
+            }
+
+            Ok(Some(trimmed))
+        }
+        None => Ok(None),
+    }
 }
 
 fn normalize_optional_text(

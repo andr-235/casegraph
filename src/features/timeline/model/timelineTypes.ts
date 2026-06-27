@@ -38,6 +38,13 @@ export type TimelineEventDto = {
 
 export type GetTimelinePayload = {
   caseId: string;
+  query?: string;
+  eventType?: string;
+  objectId?: string;
+  materialId?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  includeInReport?: boolean;
 };
 
 export type GetTimelineResponse = {

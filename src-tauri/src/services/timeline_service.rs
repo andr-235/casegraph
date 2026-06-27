@@ -9,12 +9,13 @@ use crate::domain::timeline::{
 };
 use crate::errors::app_error::AppErrorDto;
 use crate::repositories::timeline_repository::{
-    CreateEventRecord, TimelineRepository, UpdateEventRecord,
+    CreateEventRecord, TimelineFiltersRecord, TimelineRepository, UpdateEventRecord,
 };
 use crate::security::session::SessionState;
 
 use super::timeline_validation::{
-    normalize_create_event_payload, normalize_required_id, normalize_update_event_payload,
+    normalize_create_event_payload, normalize_required_id, normalize_timeline_filters,
+    normalize_update_event_payload,
 };
 
 pub struct TimelineService;
@@ -35,8 +36,20 @@ impl TimelineService {
             "ID дела обязателен",
         )?;
 
+        let filters = normalize_timeline_filters(&payload)?;
+
+        let filters_record = TimelineFiltersRecord {
+            query: filters.query,
+            event_type: filters.event_type,
+            object_id: filters.object_id,
+            material_id: filters.material_id,
+            date_from: filters.date_from,
+            date_to: filters.date_to,
+            include_in_report: filters.include_in_report,
+        };
+
         let conn = open_connection(app)?;
-        let items = TimelineRepository::get_timeline(&conn, &case_id)?;
+        let items = TimelineRepository::get_timeline(&conn, &case_id, &filters_record)?;
 
         Ok(GetTimelineResponse { items })
     }
@@ -139,7 +152,19 @@ impl TimelineService {
             .map_err(|err| AppErrorDto::database(err.to_string()))?;
 
         let conn = open_connection(app)?;
-        let items = TimelineRepository::get_timeline(&conn, &normalized.case_id)?;
+        let items = TimelineRepository::get_timeline(
+            &conn,
+            &normalized.case_id,
+            &TimelineFiltersRecord {
+                query: None,
+                event_type: None,
+                object_id: None,
+                material_id: None,
+                date_from: None,
+                date_to: None,
+                include_in_report: None,
+            },
+        )?;
         let event_item = items
             .into_iter()
             .find(|item| item.id == event_id)
