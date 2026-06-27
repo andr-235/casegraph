@@ -333,7 +333,7 @@ fn write_user_created_audit_best_effort(
     created_user: &UserListItemDto,
 ) {
     use crate::audit::audit_metadata;
-    use crate::services::audit_service::{AuditService, AuditWriteInput};
+    use crate::audit::audit_service::{AuditService, AuditWriteInput};
 
     let result = (|| {
         let technical_details = audit_metadata::user_created(
@@ -372,7 +372,7 @@ fn write_user_updated_audit_best_effort(
     new_user: &UserListItemDto,
 ) {
     use crate::audit::audit_metadata;
-    use crate::services::audit_service::{AuditService, AuditWriteInput};
+    use crate::audit::audit_service::{AuditService, AuditWriteInput};
 
     let result = (|| {
         let mut changed = Vec::new();
@@ -449,7 +449,7 @@ fn write_user_activity_audit_best_effort(
     new_user: &UserListItemDto,
 ) {
     use crate::audit::audit_metadata;
-    use crate::services::audit_service::{AuditService, AuditWriteInput};
+    use crate::audit::audit_service::{AuditService, AuditWriteInput};
 
     let result = (|| {
         let technical_details = if action == audit_action::user::BLOCKED {
@@ -496,7 +496,7 @@ fn write_own_password_changed_audit_best_effort(
     new_user: &UserListItemDto,
 ) {
     use crate::audit::audit_metadata;
-    use crate::services::audit_service::{AuditService, AuditWriteInput};
+    use crate::audit::audit_service::{AuditService, AuditWriteInput};
 
     let result = (|| {
         let technical_details =
@@ -543,7 +543,7 @@ fn write_user_password_reset_audit_best_effort(
     new_user: &UserListItemDto,
 ) {
     use crate::audit::audit_metadata;
-    use crate::services::audit_service::{AuditService, AuditWriteInput};
+    use crate::audit::audit_service::{AuditService, AuditWriteInput};
 
     let result = (|| {
         let technical_details = audit_metadata::user_password_reset(

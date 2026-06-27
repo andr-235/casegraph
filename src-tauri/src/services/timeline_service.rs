@@ -15,7 +15,7 @@ use crate::repositories::timeline_repository::{
     CreateEventRecord, TimelineFiltersRecord, TimelineRepository, UpdateEventRecord,
 };
 use crate::security::session::SessionState;
-use crate::services::audit_service::{
+use crate::audit::audit_service::{
     AuditService, AuditWriteInput, ENTITY_TYPE_EVENT, EVENT_CREATED, EVENT_DELETED,
     EVENT_REPORT_FLAG_CHANGED, EVENT_UPDATED,
 };

@@ -122,9 +122,9 @@ impl SettingsService {
             let technical_details =
                 crate::audit::audit_metadata::settings_updated(&changed_keys, &categories)?;
 
-            crate::services::audit_service::AuditService::write_best_effort(
+            crate::audit::audit_service::AuditService::write_best_effort(
                 app,
-                crate::services::audit_service::AuditWriteInput::success(
+                crate::audit::audit_service::AuditWriteInput::success(
                     &context.current_user,
                     crate::domain::audit_action::settings::UPDATED,
                 )
@@ -209,9 +209,9 @@ impl SettingsService {
             let technical_details =
                 crate::audit::audit_metadata::settings_reset_to_default(&changed_keys)?;
 
-            crate::services::audit_service::AuditService::write_best_effort(
+            crate::audit::audit_service::AuditService::write_best_effort(
                 app,
-                crate::services::audit_service::AuditWriteInput::success(
+                crate::audit::audit_service::AuditWriteInput::success(
                     &context.current_user,
                     crate::domain::audit_action::settings::RESET_TO_DEFAULT,
                 )

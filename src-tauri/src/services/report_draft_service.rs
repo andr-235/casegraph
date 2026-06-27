@@ -152,9 +152,9 @@ impl ReportDraftService {
             &created_draft.report_type,
         )?;
 
-        crate::services::audit_service::AuditService::write_best_effort(
+        crate::audit::audit_service::AuditService::write_best_effort(
             app,
-            crate::services::audit_service::AuditWriteInput::success(
+            crate::audit::audit_service::AuditWriteInput::success(
                 &context.current_user,
                 crate::domain::audit_action::report::DRAFT_GENERATED,
             )
@@ -257,9 +257,9 @@ impl ReportDraftService {
             &changed_fields,
         )?;
 
-        crate::services::audit_service::AuditService::write_best_effort(
+        crate::audit::audit_service::AuditService::write_best_effort(
             app,
-            crate::services::audit_service::AuditWriteInput::success(
+            crate::audit::audit_service::AuditWriteInput::success(
                 &context.current_user,
                 crate::domain::audit_action::report::DRAFT_UPDATED,
             )
@@ -296,9 +296,9 @@ impl ReportDraftService {
             validation_result.errors.len(),
         )?;
 
-        crate::services::audit_service::AuditService::write_best_effort(
+        crate::audit::audit_service::AuditService::write_best_effort(
             app,
-            crate::services::audit_service::AuditWriteInput::success(
+            crate::audit::audit_service::AuditWriteInput::success(
                 &context.current_user,
                 crate::domain::audit_action::report::DRAFT_VALIDATED,
             )
@@ -341,9 +341,9 @@ impl ReportDraftService {
         let technical_details =
             crate::audit::audit_metadata::report_draft_deleted(&old_draft.id, &old_draft.case_id)?;
 
-        crate::services::audit_service::AuditService::write_best_effort(
+        crate::audit::audit_service::AuditService::write_best_effort(
             app,
-            crate::services::audit_service::AuditWriteInput::success(
+            crate::audit::audit_service::AuditWriteInput::success(
                 &context.current_user,
                 crate::domain::audit_action::report::DRAFT_DELETED,
             )

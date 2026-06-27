@@ -6,7 +6,7 @@ use crate::domain::audit::{
 };
 use crate::errors::app_error::CommandResult;
 use crate::security::session::SessionState;
-use crate::services::audit_service::AuditService;
+use crate::audit::audit_service::AuditService;
 
 #[tauri::command]
 pub fn get_audit_logs(

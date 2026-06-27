@@ -268,7 +268,7 @@ fn write_relation_created_audit_best_effort(
 ) {
     use crate::audit::audit_metadata;
     use crate::domain::audit_action;
-    use crate::services::audit_service::{AuditService, AuditWriteInput};
+    use crate::audit::audit_service::{AuditService, AuditWriteInput};
 
     let result = (|| {
         let technical_details = audit_metadata::relation_created(
@@ -319,7 +319,7 @@ fn write_relation_updated_audit_best_effort(
 ) {
     use crate::audit::audit_metadata;
     use crate::domain::audit_action;
-    use crate::services::audit_service::{AuditService, AuditWriteInput};
+    use crate::audit::audit_service::{AuditService, AuditWriteInput};
 
     let result = (|| {
         let mut changed = Vec::new();
@@ -452,7 +452,7 @@ fn write_relation_deleted_audit_best_effort(
 ) {
     use crate::audit::audit_metadata;
     use crate::domain::audit_action;
-    use crate::services::audit_service::{AuditService, AuditWriteInput};
+    use crate::audit::audit_service::{AuditService, AuditWriteInput};
 
     let result = (|| {
         let technical_details =

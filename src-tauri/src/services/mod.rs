@@ -1,6 +1,5 @@
 pub mod audit_access_denied;
 pub mod audit_guards;
-pub mod audit_service;
 pub mod auth_service;
 pub mod case_service;
 pub mod graph_service;

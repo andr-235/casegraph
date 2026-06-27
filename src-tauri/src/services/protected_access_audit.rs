@@ -3,7 +3,7 @@ use tauri::AppHandle;
 use crate::audit::audit_metadata;
 use crate::errors::app_error::AppErrorDto;
 use crate::security::session::CurrentUserDto;
-use crate::services::audit_service::{AuditService, AuditWriteInput};
+use crate::audit::audit_service::{AuditService, AuditWriteInput};
 
 #[derive(Debug, Clone)]
 pub struct ProtectedAccessDeniedAudit<'a> {
