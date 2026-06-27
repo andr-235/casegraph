@@ -185,3 +185,61 @@
   color: #667085;
   background: #ffffff;
 }
+
+.graph-filters-panel {
+  border: 1px solid #d9dee8;
+  border-radius: 10px;
+  padding: 16px;
+  margin: 16px 0;
+  background: #ffffff;
+}
+
+.graph-filters-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.graph-filters-header h2 {
+  margin: 0;
+}
+
+.graph-filters-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(180px, 1fr));
+  gap: 12px;
+  align-items: end;
+}
+
+.graph-filters-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.graph-filters-grid label span {
+  color: #475467;
+  font-size: 13px;
+}
+
+.graph-filters-grid select {
+  min-height: 36px;
+}
+
+.graph-filter-checkbox {
+  flex-direction: row !important;
+  align-items: center;
+  min-height: 36px;
+}
+
+.graph-filter-checkbox input {
+  margin: 0;
+}
+
+@media (max-width: 1200px) {
+  .graph-filters-grid {
+    grid-template-columns: repeat(2, minmax(180px, 1fr));
+  }
+}

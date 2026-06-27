@@ -8,6 +8,12 @@ import {
   getRelationConfidenceLabel,
   getRelationTypeLabel,
 } from "../../features/relations/model/relationConstants";
+import {
+  defaultGraphFilters,
+  filterGraphData,
+  type GraphFilters,
+} from "../../features/graph/lib/filterGraphData";
+import { GraphFiltersPanel } from "../../features/graph/ui/GraphFiltersPanel";
 
 type GraphPageProps = {
   caseId: string;
@@ -18,6 +24,7 @@ export function GraphPage({ caseId }: GraphPageProps) {
   const [edges, setEdges] = useState<GraphEdge[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [errorText, setErrorText] = useState<string | null>(null);
+  const [filters, setFilters] = useState<GraphFilters>(defaultGraphFilters);
 
   async function loadGraphData() {
     setIsLoading(true);
@@ -39,9 +46,13 @@ export function GraphPage({ caseId }: GraphPageProps) {
     void loadGraphData();
   }, [caseId]);
 
-  const nodeById = useMemo(() => {
-    return new Map(nodes.map((node) => [node.id, node]));
-  }, [nodes]);
+  const filteredGraphData = useMemo(() => {
+    return filterGraphData(nodes, edges, filters);
+  }, [nodes, edges, filters]);
+
+  const filteredNodeById = useMemo(() => {
+    return new Map(filteredGraphData.nodes.map((node) => [node.id, node]));
+  }, [filteredGraphData.nodes]);
 
   return (
     <section className="case-section">
@@ -67,27 +78,40 @@ export function GraphPage({ caseId }: GraphPageProps) {
         <>
           <div className="graph-summary">
             <div className="summary-card">
-              <span>Узлы</span>
-              <strong>{nodes.length}</strong>
+              <span>Узлы после фильтра</span>
+              <strong>{filteredGraphData.nodes.length}</strong>
             </div>
 
             <div className="summary-card">
-              <span>Связи</span>
-              <strong>{edges.length}</strong>
+              <span>Связи после фильтра</span>
+              <strong>{filteredGraphData.edges.length}</strong>
             </div>
 
             <div className="summary-card">
-              <span>Ключевые объекты</span>
-              <strong>{nodes.filter((node) => node.isKey).length}</strong>
+              <span>Ключевые после фильтра</span>
+              <strong>{filteredGraphData.nodes.filter((node) => node.isKey).length}</strong>
             </div>
           </div>
 
-          <GraphVisualPreview nodes={nodes} edges={edges} />
+          <GraphFiltersPanel
+            filters={filters}
+            onChange={setFilters}
+            onReset={() => setFilters(defaultGraphFilters)}
+          />
+
+          <GraphVisualPreview
+            nodes={filteredGraphData.nodes}
+            edges={filteredGraphData.edges}
+          />
 
           {nodes.length === 0 ? (
             <div className="empty-state">
               В деле пока нет объектов. Создай объекты в разделе «Объекты»,
               затем добавь связи.
+            </div>
+          ) : filteredGraphData.nodes.length === 0 ? (
+            <div className="empty-state">
+              По выбранным фильтрам нет объектов или связей. Сбрось фильтры или измени условия.
             </div>
           ) : (
             <div className="graph-foundation-layout">
@@ -105,7 +129,7 @@ export function GraphPage({ caseId }: GraphPageProps) {
                   </thead>
 
                   <tbody>
-                    {nodes.map((node) => (
+                    {filteredGraphData.nodes.map((node) => (
                       <tr key={node.id}>
                         <td>{node.objectCode}</td>
                         <td>{getObjectTypeLabel(node.objectType)}</td>
@@ -123,7 +147,7 @@ export function GraphPage({ caseId }: GraphPageProps) {
               <section className="graph-panel">
                 <h2>Связи</h2>
 
-                {edges.length === 0 ? (
+                {filteredGraphData.edges.length === 0 ? (
                   <div className="empty-state">
                     Связи ещё не созданы. Создай связь в разделе «Связи».
                   </div>
@@ -139,9 +163,9 @@ export function GraphPage({ caseId }: GraphPageProps) {
                     </thead>
 
                     <tbody>
-                      {edges.map((edge) => {
-                        const sourceNode = nodeById.get(edge.sourceObjectId);
-                        const targetNode = nodeById.get(edge.targetObjectId);
+                      {filteredGraphData.edges.map((edge) => {
+                        const sourceNode = filteredNodeById.get(edge.sourceObjectId);
+                        const targetNode = filteredNodeById.get(edge.targetObjectId);
 
                         return (
                           <tr key={edge.id}>
