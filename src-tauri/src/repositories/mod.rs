@@ -1,4 +1,3 @@
-pub mod audit_repository;
 pub mod case_repository;
 pub mod graph_repository;
 pub mod material_repository;

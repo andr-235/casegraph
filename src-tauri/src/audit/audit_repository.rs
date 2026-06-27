@@ -6,7 +6,7 @@ use crate::domain::audit_action_label::normalize_legacy_action;
 use crate::errors::app_error::AppErrorDto;
 
 #[derive(Debug)]
-pub struct CreateAuditLogRecord {
+pub(super) struct AuditInsertRow {
     pub user_id: Option<String>,
     pub username: String,
     pub user_role: String,
@@ -26,10 +26,10 @@ pub struct CreateAuditLogRecord {
     pub app_version: String,
 }
 
-pub struct AuditRepository;
+pub(super) struct AuditRepository;
 
 impl AuditRepository {
-    pub fn insert(conn: &Connection, record: CreateAuditLogRecord) -> Result<(), AppErrorDto> {
+    pub(super) fn insert(conn: &Connection, record: AuditInsertRow) -> Result<(), AppErrorDto> {
         let id = Uuid::new_v4().to_string();
 
         conn.execute(
@@ -74,7 +74,7 @@ impl AuditRepository {
         Ok(())
     }
 
-    pub fn get_audit_logs(
+    pub(super) fn get_audit_logs(
         conn: &Connection,
         filters: &AuditLogFilters,
     ) -> Result<Vec<AuditLogDto>, AppErrorDto> {
@@ -158,7 +158,7 @@ impl AuditRepository {
         Ok(items)
     }
 
-    pub fn get_audit_log_by_id(
+    pub(super) fn get_audit_log_by_id(
         conn: &Connection,
         audit_log_id: &str,
     ) -> Result<Option<AuditLogDto>, AppErrorDto> {
@@ -209,7 +209,7 @@ impl AuditRepository {
         .map_err(|err| AppErrorDto::database(err.to_string()))
     }
 
-    pub fn get_audit_actions(
+    pub(super) fn get_audit_actions(
         conn: &Connection,
         restricted_user_id: Option<&str>,
     ) -> Result<Vec<AuditActionOptionDto>, AppErrorDto> {
@@ -243,7 +243,9 @@ impl AuditRepository {
         Ok(items)
     }
 
-    pub fn get_audit_users(conn: &Connection) -> Result<Vec<AuditUserOptionDto>, AppErrorDto> {
+    pub(super) fn get_audit_users(
+        conn: &Connection,
+    ) -> Result<Vec<AuditUserOptionDto>, AppErrorDto> {
         let mut stmt = conn
             .prepare(
                 "
@@ -280,7 +282,7 @@ impl AuditRepository {
         Ok(items)
     }
 
-    pub fn export_audit_logs(
+    pub(super) fn export_audit_logs(
         conn: &Connection,
         filters: &AuditLogFilters,
     ) -> Result<Vec<AuditLogDto>, AppErrorDto> {
@@ -361,7 +363,7 @@ impl AuditRepository {
         Ok(items)
     }
 
-    pub fn count_audit_logs(
+    pub(super) fn count_audit_logs(
         conn: &Connection,
         filters: &AuditLogFilters,
     ) -> Result<i64, AppErrorDto> {
@@ -396,7 +398,7 @@ impl AuditRepository {
 }
 
 #[derive(Debug)]
-pub struct AuditLogFilters {
+pub(super) struct AuditLogFilters {
     pub action: Option<String>,
     pub result: Option<String>,
     pub severity: Option<String>,
