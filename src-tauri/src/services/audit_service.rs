@@ -17,12 +17,12 @@ use crate::errors::app_error::AppErrorDto;
 use crate::repositories::audit_repository::{
     AuditLogFilters, AuditRepository, CreateAuditLogRecord,
 };
-use crate::security::session::CurrentUserDto;
+use crate::security::session::{CurrentUserDto, SessionState};
 use crate::services::audit_guards::{
     audit_user_filter_for_reader, require_audit_admin, require_audit_reader,
     require_no_user_filter_for_analyst, require_own_audit_entry_or_admin,
 };
-use crate::services::protected_service_guard::ProtectedServiceGuard;
+use crate::services::protected_service_context::require_protected_user;
 
 pub const AUDIT_RESULT_SUCCESS: &str = "success";
 pub const AUDIT_SEVERITY_INFO: &str = "info";
@@ -134,11 +134,12 @@ impl AuditService {
 
     pub fn get_audit_logs(
         app: &AppHandle,
-        conn: &Connection,
-        current_user: &CurrentUserDto,
+        session: &SessionState,
         payload: GetAuditLogsPayload,
     ) -> Result<GetAuditLogsResponse, AppErrorDto> {
-        ProtectedServiceGuard::require_password_change_resolved(conn, current_user)?;
+        let context = require_protected_user(app, session)?;
+        let current_user = &context.current_user;
+        let conn = &context.conn;
 
         require_audit_reader(
             app,
@@ -182,10 +183,11 @@ impl AuditService {
 
     pub fn get_audit_actions(
         app: &AppHandle,
-        conn: &Connection,
-        current_user: &CurrentUserDto,
+        session: &SessionState,
     ) -> Result<GetAuditActionsResponse, AppErrorDto> {
-        ProtectedServiceGuard::require_password_change_resolved(conn, current_user)?;
+        let context = require_protected_user(app, session)?;
+        let current_user = &context.current_user;
+        let conn = &context.conn;
 
         require_audit_reader(
             app,
@@ -202,10 +204,11 @@ impl AuditService {
 
     pub fn get_audit_users(
         app: &AppHandle,
-        conn: &Connection,
-        current_user: &CurrentUserDto,
+        session: &SessionState,
     ) -> Result<GetAuditUsersResponse, AppErrorDto> {
-        ProtectedServiceGuard::require_password_change_resolved(conn, current_user)?;
+        let context = require_protected_user(app, session)?;
+        let current_user = &context.current_user;
+        let conn = &context.conn;
 
         require_audit_admin(
             app,
@@ -221,11 +224,12 @@ impl AuditService {
 
     pub fn get_audit_log_by_id(
         app: &AppHandle,
-        conn: &Connection,
-        current_user: &CurrentUserDto,
+        session: &SessionState,
         payload: GetAuditLogByIdPayload,
     ) -> Result<GetAuditLogByIdResponse, AppErrorDto> {
-        ProtectedServiceGuard::require_password_change_resolved(conn, current_user)?;
+        let context = require_protected_user(app, session)?;
+        let current_user = &context.current_user;
+        let conn = &context.conn;
 
         require_audit_reader(
             app,
@@ -276,11 +280,12 @@ impl AuditService {
 
     pub fn export_audit_log(
         app: &AppHandle,
-        current_user: &CurrentUserDto,
+        session: &SessionState,
         payload: ExportAuditLogPayload,
     ) -> Result<ExportAuditLogResponse, AppErrorDto> {
-        let conn = open_connection(app)?;
-        ProtectedServiceGuard::require_password_change_resolved(&conn, current_user)?;
+        let context = require_protected_user(app, session)?;
+        let current_user = &context.current_user;
+        let conn = &context.conn;
 
         require_audit_admin(
             app,

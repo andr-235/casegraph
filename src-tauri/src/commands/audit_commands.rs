@@ -1,6 +1,5 @@
 use tauri::{AppHandle, State};
 
-use crate::db::connection::open_connection;
 use crate::domain::audit::{
     ExportAuditLogPayload, ExportAuditLogResponse, GetAuditActionsResponse, GetAuditLogByIdPayload,
     GetAuditLogByIdResponse, GetAuditLogsPayload, GetAuditLogsResponse, GetAuditUsersResponse,
@@ -12,24 +11,10 @@ use crate::services::audit_service::AuditService;
 #[tauri::command]
 pub fn get_audit_logs(
     app: AppHandle,
-    session: State<SessionState>,
+    session: State<'_, SessionState>,
     payload: GetAuditLogsPayload,
 ) -> CommandResult<GetAuditLogsResponse> {
-    let current_user = match session.get_current_user() {
-        Some(user) => user,
-        None => {
-            return CommandResult::err(crate::errors::app_error::AppErrorDto::unauthorized(
-                "Необходимо войти в систему.",
-            ));
-        }
-    };
-
-    let conn = match open_connection(&app) {
-        Ok(conn) => conn,
-        Err(error) => return CommandResult::err(error),
-    };
-
-    match AuditService::get_audit_logs(&app, &conn, &current_user, payload) {
+    match AuditService::get_audit_logs(&app, &session, payload) {
         Ok(response) => CommandResult::ok(response),
         Err(error) => CommandResult::err(error),
     }
@@ -38,24 +23,10 @@ pub fn get_audit_logs(
 #[tauri::command]
 pub fn get_audit_log_by_id(
     app: AppHandle,
-    session: State<SessionState>,
+    session: State<'_, SessionState>,
     payload: GetAuditLogByIdPayload,
 ) -> CommandResult<GetAuditLogByIdResponse> {
-    let current_user = match session.get_current_user() {
-        Some(user) => user,
-        None => {
-            return CommandResult::err(crate::errors::app_error::AppErrorDto::unauthorized(
-                "Необходимо войти в систему.",
-            ));
-        }
-    };
-
-    let conn = match open_connection(&app) {
-        Ok(conn) => conn,
-        Err(error) => return CommandResult::err(error),
-    };
-
-    match AuditService::get_audit_log_by_id(&app, &conn, &current_user, payload) {
+    match AuditService::get_audit_log_by_id(&app, &session, payload) {
         Ok(response) => CommandResult::ok(response),
         Err(error) => CommandResult::err(error),
     }
@@ -64,23 +35,9 @@ pub fn get_audit_log_by_id(
 #[tauri::command]
 pub fn get_audit_actions(
     app: AppHandle,
-    session: State<SessionState>,
+    session: State<'_, SessionState>,
 ) -> CommandResult<GetAuditActionsResponse> {
-    let current_user = match session.get_current_user() {
-        Some(user) => user,
-        None => {
-            return CommandResult::err(crate::errors::app_error::AppErrorDto::unauthorized(
-                "Необходимо войти в систему.",
-            ));
-        }
-    };
-
-    let conn = match open_connection(&app) {
-        Ok(conn) => conn,
-        Err(error) => return CommandResult::err(error),
-    };
-
-    match AuditService::get_audit_actions(&app, &conn, &current_user) {
+    match AuditService::get_audit_actions(&app, &session) {
         Ok(response) => CommandResult::ok(response),
         Err(error) => CommandResult::err(error),
     }
@@ -89,23 +46,9 @@ pub fn get_audit_actions(
 #[tauri::command]
 pub fn get_audit_users(
     app: AppHandle,
-    session: State<SessionState>,
+    session: State<'_, SessionState>,
 ) -> CommandResult<GetAuditUsersResponse> {
-    let current_user = match session.get_current_user() {
-        Some(user) => user,
-        None => {
-            return CommandResult::err(crate::errors::app_error::AppErrorDto::unauthorized(
-                "Необходимо войти в систему.",
-            ));
-        }
-    };
-
-    let conn = match open_connection(&app) {
-        Ok(conn) => conn,
-        Err(error) => return CommandResult::err(error),
-    };
-
-    match AuditService::get_audit_users(&app, &conn, &current_user) {
+    match AuditService::get_audit_users(&app, &session) {
         Ok(response) => CommandResult::ok(response),
         Err(error) => CommandResult::err(error),
     }
@@ -114,19 +57,10 @@ pub fn get_audit_users(
 #[tauri::command]
 pub fn export_audit_log(
     app: AppHandle,
-    session: State<SessionState>,
+    session: State<'_, SessionState>,
     payload: ExportAuditLogPayload,
 ) -> CommandResult<ExportAuditLogResponse> {
-    let current_user = match session.get_current_user() {
-        Some(user) => user,
-        None => {
-            return CommandResult::err(crate::errors::app_error::AppErrorDto::unauthorized(
-                "Необходимо войти в систему.",
-            ));
-        }
-    };
-
-    match AuditService::export_audit_log(&app, &current_user, payload) {
+    match AuditService::export_audit_log(&app, &session, payload) {
         Ok(response) => CommandResult::ok(response),
         Err(error) => CommandResult::err(error),
     }

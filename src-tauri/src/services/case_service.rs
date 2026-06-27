@@ -1,7 +1,6 @@
 use tauri::AppHandle;
 use uuid::Uuid;
 
-use crate::db::connection::open_connection;
 use crate::domain::case_status::is_editable_case_status;
 use crate::domain::cases::{
     CaseDto, CreateCasePayload, CreateCaseResponse, GetCaseByIdPayload, UpdateCasePayload,
@@ -11,18 +10,16 @@ use crate::errors::app_error::AppErrorDto;
 use crate::repositories::case_repository::{
     CaseRepository, CaseRow, CreateCaseRecord, UpdateCaseRecord,
 };
-use crate::security::session::{CurrentUserDto, SessionState};
-use crate::services::protected_service_guard::ProtectedServiceGuard;
+use crate::security::session::SessionState;
+use crate::services::protected_service_context::require_protected_user;
 
 pub struct CaseService;
 
 impl CaseService {
     pub fn get_cases(app: &AppHandle, session: &SessionState) -> Result<Vec<CaseDto>, AppErrorDto> {
-        let current_user = require_current_user(session)?;
-
-        let conn = open_connection(app)?;
-        ProtectedServiceGuard::require_password_change_resolved(&conn, &current_user)?;
-        let rows = CaseRepository::get_cases(&conn)?;
+        let context = require_protected_user(app, session)?;
+        let conn = &context.conn;
+        let rows = CaseRepository::get_cases(conn)?;
 
         Ok(rows.into_iter().map(case_row_to_dto).collect())
     }
@@ -32,7 +29,9 @@ impl CaseService {
         session: &SessionState,
         payload: CreateCasePayload,
     ) -> Result<CreateCaseResponse, AppErrorDto> {
-        let current_user = require_current_user(session)?;
+        let context = require_protected_user(app, session)?;
+        let current_user = &context.current_user;
+        let conn = &context.conn;
 
         let title = payload.title.trim().to_string();
         let subject = payload.subject.trim().to_string();
@@ -45,13 +44,11 @@ impl CaseService {
             payload.period_end.as_deref(),
         )?;
 
-        let conn = open_connection(app)?;
-        ProtectedServiceGuard::require_password_change_resolved(&conn, &current_user)?;
-        let case_code = CaseRepository::get_next_case_code(&conn)?;
+        let case_code = CaseRepository::get_next_case_code(conn)?;
         let case_id = Uuid::new_v4().to_string();
 
         CaseRepository::create_case(
-            &conn,
+            conn,
             CreateCaseRecord {
                 id: case_id.clone(),
                 case_code: case_code.clone(),
@@ -60,11 +57,11 @@ impl CaseService {
                 description,
                 period_start: payload.period_start,
                 period_end: payload.period_end,
-                created_by_user_id: current_user.user_id,
+                created_by_user_id: current_user.user_id.clone(),
             },
         )?;
 
-        let created_case = CaseRepository::get_case_by_id(&conn, &case_id)?.ok_or_else(|| {
+        let created_case = CaseRepository::get_case_by_id(conn, &case_id)?.ok_or_else(|| {
             AppErrorDto::new(
                 "ERR_CASE_NOT_FOUND_AFTER_CREATE",
                 "Дело создано, но не найдено после сохранения.",
@@ -82,7 +79,8 @@ impl CaseService {
         session: &SessionState,
         payload: GetCaseByIdPayload,
     ) -> Result<CaseDto, AppErrorDto> {
-        let current_user = require_current_user(session)?;
+        let context = require_protected_user(app, session)?;
+        let conn = &context.conn;
 
         let case_id = payload.case_id.trim();
 
@@ -94,10 +92,7 @@ impl CaseService {
             ));
         }
 
-        let conn = open_connection(app)?;
-        ProtectedServiceGuard::require_password_change_resolved(&conn, &current_user)?;
-
-        let case_row = CaseRepository::get_case_by_id(&conn, case_id)?
+        let case_row = CaseRepository::get_case_by_id(conn, case_id)?
             .ok_or_else(|| AppErrorDto::new("ERR_CASE_NOT_FOUND", "Дело не найдено.", None))?;
 
         Ok(case_row_to_dto(case_row))
@@ -108,7 +103,8 @@ impl CaseService {
         session: &SessionState,
         payload: UpdateCasePayload,
     ) -> Result<UpdateCaseResponse, AppErrorDto> {
-        let current_user = require_current_user(session)?;
+        let context = require_protected_user(app, session)?;
+        let conn = &context.conn;
 
         let case_id = payload.case_id.trim().to_string();
         let title = payload.title.trim().to_string();
@@ -130,11 +126,8 @@ impl CaseService {
             payload.period_end.as_deref(),
         )?;
 
-        let conn = open_connection(app)?;
-        ProtectedServiceGuard::require_password_change_resolved(&conn, &current_user)?;
-
         CaseRepository::update_case(
-            &conn,
+            conn,
             UpdateCaseRecord {
                 case_id: case_id.clone(),
                 title,
@@ -145,7 +138,7 @@ impl CaseService {
             },
         )?;
 
-        let updated_case = CaseRepository::get_case_by_id(&conn, &case_id)?.ok_or_else(|| {
+        let updated_case = CaseRepository::get_case_by_id(conn, &case_id)?.ok_or_else(|| {
             AppErrorDto::new(
                 "ERR_CASE_NOT_FOUND_AFTER_UPDATE",
                 "Дело обновлено, но не найдено после сохранения.",
@@ -163,7 +156,8 @@ impl CaseService {
         session: &SessionState,
         payload: UpdateCaseStatusPayload,
     ) -> Result<UpdateCaseStatusResponse, AppErrorDto> {
-        let current_user = require_current_user(session)?;
+        let context = require_protected_user(app, session)?;
+        let conn = &context.conn;
 
         let case_id = payload.case_id.trim().to_string();
         let status = payload.status.trim().to_string();
@@ -178,12 +172,9 @@ impl CaseService {
 
         validate_case_status(&status)?;
 
-        let conn = open_connection(app)?;
-        ProtectedServiceGuard::require_password_change_resolved(&conn, &current_user)?;
+        CaseRepository::update_case_status(conn, &case_id, &status)?;
 
-        CaseRepository::update_case_status(&conn, &case_id, &status)?;
-
-        let updated_case = CaseRepository::get_case_by_id(&conn, &case_id)?.ok_or_else(|| {
+        let updated_case = CaseRepository::get_case_by_id(conn, &case_id)?.ok_or_else(|| {
             AppErrorDto::new(
                 "ERR_CASE_NOT_FOUND_AFTER_UPDATE",
                 "Дело обновлено, но не найдено после сохранения.",
@@ -195,12 +186,6 @@ impl CaseService {
             case_item: case_row_to_dto(updated_case),
         })
     }
-}
-
-fn require_current_user(session: &SessionState) -> Result<CurrentUserDto, AppErrorDto> {
-    session
-        .get_current_user()
-        .ok_or_else(|| AppErrorDto::new("ERR_UNAUTHORIZED", "Требуется вход в систему.", None))
 }
 
 fn validate_create_case_payload(

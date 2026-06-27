@@ -12,7 +12,7 @@ use crate::errors::app_error::AppErrorDto;
 use crate::repositories::user_management_repository::UserManagementRepository;
 use crate::security::password::{hash_password, verify_password};
 use crate::security::session::{CurrentUserDto, SessionState};
-use crate::services::protected_service_guard::ProtectedServiceGuard;
+use crate::services::protected_service_context::require_protected_administrator;
 use crate::services::user_management_validation::{
     normalize_block_user_payload, normalize_change_own_password_payload,
     normalize_create_user_payload, normalize_reset_user_password_payload,
@@ -30,7 +30,8 @@ impl UserManagementService {
         session: &SessionState,
         payload: GetUsersPayload,
     ) -> Result<GetUsersResponse, AppErrorDto> {
-        let current_user = require_user_management_admin(session)?;
+        let context = require_protected_administrator(app, session)?;
+        let conn = &context.conn;
 
         let limit = normalize_limit(payload.limit);
         let offset = payload.offset.unwrap_or(0).max(0);
@@ -42,11 +43,8 @@ impl UserManagementService {
         validate_role_filter(role.as_deref())?;
         validate_status_filter(status.as_deref())?;
 
-        let conn = open_connection(app)?;
-        ProtectedServiceGuard::require_password_change_resolved(&conn, &current_user)?;
-
         let users = UserManagementRepository::get_users(
-            &conn,
+            conn,
             query.clone(),
             role.clone(),
             status.clone(),
@@ -54,7 +52,7 @@ impl UserManagementService {
             offset,
         )?;
 
-        let total = UserManagementRepository::count_users(&conn, query, role, status)?;
+        let total = UserManagementRepository::count_users(conn, query, role, status)?;
 
         Ok(GetUsersResponse { users, total })
     }
@@ -64,23 +62,22 @@ impl UserManagementService {
         session: &SessionState,
         payload: CreateUserPayload,
     ) -> Result<CreateUserResponse, AppErrorDto> {
-        let current_user = require_user_management_admin(session)?;
+        let context = require_protected_administrator(app, session)?;
+        let current_user = &context.current_user;
+        let conn = &context.conn;
         let input = normalize_create_user_payload(payload)?;
 
-        let conn = open_connection(app)?;
-        ProtectedServiceGuard::require_password_change_resolved(&conn, &current_user)?;
-
-        if UserManagementRepository::username_exists(&conn, &input.username)? {
+        if UserManagementRepository::username_exists(conn, &input.username)? {
             return Err(AppErrorDto::validation(
                 "Пользователь с таким логином уже существует",
             ));
         }
 
-        let role_id = UserManagementRepository::get_role_id_by_code(&conn, &input.role_code)?;
+        let role_id = UserManagementRepository::get_role_id_by_code(conn, &input.role_code)?;
         let password_hash = hash_password(&input.password)?;
 
         let user_id = UserManagementRepository::create_user(
-            &conn,
+            conn,
             &input.username,
             input.display_name.as_deref(),
             &role_id,
@@ -88,9 +85,9 @@ impl UserManagementService {
             input.must_change_password,
         )?;
 
-        let user = UserManagementRepository::get_user_by_id(&conn, &user_id)?;
+        let user = UserManagementRepository::get_user_by_id(conn, &user_id)?;
 
-        write_user_created_audit_best_effort(app, &current_user, &user);
+        write_user_created_audit_best_effort(app, current_user, &user);
 
         Ok(CreateUserResponse { user })
     }
@@ -100,7 +97,8 @@ impl UserManagementService {
         session: &SessionState,
         payload: GetUserByIdPayload,
     ) -> Result<GetUserByIdResponse, AppErrorDto> {
-        let current_user = require_user_management_admin(session)?;
+        let context = require_protected_administrator(app, session)?;
+        let conn = &context.conn;
 
         let user_id = payload.user_id.trim();
 
@@ -108,9 +106,7 @@ impl UserManagementService {
             return Err(AppErrorDto::validation("Не указан пользователь"));
         }
 
-        let conn = open_connection(app)?;
-        ProtectedServiceGuard::require_password_change_resolved(&conn, &current_user)?;
-        let user = UserManagementRepository::get_user_by_id(&conn, user_id)?;
+        let user = UserManagementRepository::get_user_by_id(conn, user_id)?;
 
         Ok(GetUserByIdResponse { user })
     }
@@ -120,22 +116,21 @@ impl UserManagementService {
         session: &SessionState,
         payload: UpdateUserPayload,
     ) -> Result<UpdateUserResponse, AppErrorDto> {
-        let current_user = require_user_management_admin(session)?;
+        let context = require_protected_administrator(app, session)?;
+        let current_user = &context.current_user;
+        let conn = &context.conn;
         let input = normalize_update_user_payload(payload)?;
 
-        let conn = open_connection(app)?;
-        ProtectedServiceGuard::require_password_change_resolved(&conn, &current_user)?;
-
-        if !UserManagementRepository::user_exists(&conn, &input.user_id)? {
+        if !UserManagementRepository::user_exists(conn, &input.user_id)? {
             return Err(AppErrorDto::validation("Пользователь не найден"));
         }
 
-        let old_user = UserManagementRepository::get_user_by_id(&conn, &input.user_id)?;
+        let old_user = UserManagementRepository::get_user_by_id(conn, &input.user_id)?;
         let old_role_code =
-            UserManagementRepository::get_user_role_code_by_id(&conn, &input.user_id)?;
+            UserManagementRepository::get_user_role_code_by_id(conn, &input.user_id)?;
 
         if old_role_code == "administrator" && input.role_code != "administrator" {
-            let active_admin_count = UserManagementRepository::count_active_administrators(&conn)?;
+            let active_admin_count = UserManagementRepository::count_active_administrators(conn)?;
 
             if active_admin_count <= 1 {
                 return Err(AppErrorDto::validation(
@@ -144,19 +139,19 @@ impl UserManagementService {
             }
         }
 
-        let role_id = UserManagementRepository::get_role_id_by_code(&conn, &input.role_code)?;
+        let role_id = UserManagementRepository::get_role_id_by_code(conn, &input.role_code)?;
 
         UserManagementRepository::update_user(
-            &conn,
+            conn,
             &input.user_id,
             input.display_name.as_deref(),
             &role_id,
             input.must_change_password,
         )?;
 
-        let user = UserManagementRepository::get_user_by_id(&conn, &input.user_id)?;
+        let user = UserManagementRepository::get_user_by_id(conn, &input.user_id)?;
 
-        write_user_updated_audit_best_effort(app, &current_user, &old_user, &user);
+        write_user_updated_audit_best_effort(app, current_user, &old_user, &user);
 
         Ok(UpdateUserResponse { user })
     }
@@ -166,7 +161,9 @@ impl UserManagementService {
         session: &SessionState,
         payload: BlockUserPayload,
     ) -> Result<BlockUserResponse, AppErrorDto> {
-        let current_user = require_user_management_admin(session)?;
+        let context = require_protected_administrator(app, session)?;
+        let current_user = &context.current_user;
+        let conn = &context.conn;
         let user_id = normalize_block_user_payload(payload)?;
 
         if user_id == current_user.user_id {
@@ -175,17 +172,14 @@ impl UserManagementService {
             ));
         }
 
-        let conn = open_connection(app)?;
-        ProtectedServiceGuard::require_password_change_resolved(&conn, &current_user)?;
-
-        if !UserManagementRepository::user_exists(&conn, &user_id)? {
+        if !UserManagementRepository::user_exists(conn, &user_id)? {
             return Err(AppErrorDto::validation("Пользователь не найден"));
         }
 
-        let old_user = UserManagementRepository::get_user_by_id(&conn, &user_id)?;
+        let old_user = UserManagementRepository::get_user_by_id(conn, &user_id)?;
 
         if old_user.role_code == "administrator" && old_user.is_active {
-            let active_admin_count = UserManagementRepository::count_active_administrators(&conn)?;
+            let active_admin_count = UserManagementRepository::count_active_administrators(conn)?;
 
             if active_admin_count <= 1 {
                 return Err(AppErrorDto::validation(
@@ -194,11 +188,11 @@ impl UserManagementService {
             }
         }
 
-        UserManagementRepository::set_user_active(&conn, &user_id, false)?;
+        UserManagementRepository::set_user_active(conn, &user_id, false)?;
 
-        let user = UserManagementRepository::get_user_by_id(&conn, &user_id)?;
+        let user = UserManagementRepository::get_user_by_id(conn, &user_id)?;
 
-        write_user_activity_audit_best_effort(app, &current_user, "USER_BLOCKED", &old_user, &user);
+        write_user_activity_audit_best_effort(app, current_user, "USER_BLOCKED", &old_user, &user);
 
         Ok(BlockUserResponse { user })
     }
@@ -208,25 +202,24 @@ impl UserManagementService {
         session: &SessionState,
         payload: UnblockUserPayload,
     ) -> Result<UnblockUserResponse, AppErrorDto> {
-        let current_user = require_user_management_admin(session)?;
+        let context = require_protected_administrator(app, session)?;
+        let current_user = &context.current_user;
+        let conn = &context.conn;
         let user_id = normalize_unblock_user_payload(payload)?;
 
-        let conn = open_connection(app)?;
-        ProtectedServiceGuard::require_password_change_resolved(&conn, &current_user)?;
-
-        if !UserManagementRepository::user_exists(&conn, &user_id)? {
+        if !UserManagementRepository::user_exists(conn, &user_id)? {
             return Err(AppErrorDto::validation("Пользователь не найден"));
         }
 
-        let old_user = UserManagementRepository::get_user_by_id(&conn, &user_id)?;
+        let old_user = UserManagementRepository::get_user_by_id(conn, &user_id)?;
 
-        UserManagementRepository::set_user_active(&conn, &user_id, true)?;
+        UserManagementRepository::set_user_active(conn, &user_id, true)?;
 
-        let user = UserManagementRepository::get_user_by_id(&conn, &user_id)?;
+        let user = UserManagementRepository::get_user_by_id(conn, &user_id)?;
 
         write_user_activity_audit_best_effort(
             app,
-            &current_user,
+            current_user,
             "USER_UNBLOCKED",
             &old_user,
             &user,
@@ -240,7 +233,7 @@ impl UserManagementService {
         session: &SessionState,
         payload: ChangeOwnPasswordPayload,
     ) -> Result<ChangeOwnPasswordResponse, AppErrorDto> {
-        let current_user = require_authenticated_user(session)?;
+        let current_user = session.require_current_user()?;
         let input = normalize_change_own_password_payload(payload)?;
 
         let conn = open_connection(app)?;
@@ -288,25 +281,24 @@ impl UserManagementService {
         session: &SessionState,
         payload: ResetUserPasswordPayload,
     ) -> Result<ResetUserPasswordResponse, AppErrorDto> {
-        let current_user = require_user_management_admin(session)?;
+        let context = require_protected_administrator(app, session)?;
+        let current_user = &context.current_user;
+        let conn = &context.conn;
         let input = normalize_reset_user_password_payload(payload)?;
 
-        let conn = open_connection(app)?;
-        ProtectedServiceGuard::require_password_change_resolved(&conn, &current_user)?;
-
-        if !UserManagementRepository::user_exists(&conn, &input.user_id)? {
+        if !UserManagementRepository::user_exists(conn, &input.user_id)? {
             return Err(AppErrorDto::validation("Пользователь не найден"));
         }
 
-        let old_user = UserManagementRepository::get_user_by_id(&conn, &input.user_id)?;
+        let old_user = UserManagementRepository::get_user_by_id(conn, &input.user_id)?;
 
         let password_hash = hash_password(&input.temporary_password)?;
 
-        UserManagementRepository::update_user_password_hash(&conn, &input.user_id, &password_hash)?;
+        UserManagementRepository::update_user_password_hash(conn, &input.user_id, &password_hash)?;
 
-        let user = UserManagementRepository::get_user_by_id(&conn, &input.user_id)?;
+        let user = UserManagementRepository::get_user_by_id(conn, &input.user_id)?;
 
-        write_user_password_reset_audit_best_effort(app, &current_user, &old_user, &user);
+        write_user_password_reset_audit_best_effort(app, current_user, &old_user, &user);
 
         Ok(ResetUserPasswordResponse { user })
     }
@@ -315,34 +307,12 @@ impl UserManagementService {
         app: &AppHandle,
         session: &SessionState,
     ) -> Result<GetRolesResponse, AppErrorDto> {
-        let current_user = require_user_management_admin(session)?;
-
-        let conn = open_connection(app)?;
-        ProtectedServiceGuard::require_password_change_resolved(&conn, &current_user)?;
-        let roles = UserManagementRepository::get_roles(&conn)?;
+        let context = require_protected_administrator(app, session)?;
+        let conn = &context.conn;
+        let roles = UserManagementRepository::get_roles(conn)?;
 
         Ok(GetRolesResponse { roles })
     }
-}
-
-fn require_authenticated_user(session: &SessionState) -> Result<CurrentUserDto, AppErrorDto> {
-    session
-        .get_current_user()
-        .ok_or_else(|| AppErrorDto::unauthorized("Требуется аутентификация"))
-}
-
-fn require_user_management_admin(session: &SessionState) -> Result<CurrentUserDto, AppErrorDto> {
-    let current_user = session
-        .get_current_user()
-        .ok_or_else(|| AppErrorDto::unauthorized("Требуется аутентификация"))?;
-
-    if current_user.role != "administrator" {
-        return Err(AppErrorDto::access_denied(
-            "Доступ запрещён. Требуется роль администратора.",
-        ));
-    }
-
-    Ok(current_user)
 }
 
 fn write_user_created_audit_best_effort(

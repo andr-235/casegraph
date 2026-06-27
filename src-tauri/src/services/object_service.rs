@@ -1,7 +1,6 @@
 use tauri::AppHandle;
 use uuid::Uuid;
 
-use crate::db::connection::open_connection;
 use crate::domain::objects::{
     CreateObjectPayload, CreateObjectResponse, GetObjectByIdPayload, GetObjectByIdResponse,
     GetObjectsPayload, GetObjectsResponse, LinkObjectToMaterialsPayload,
@@ -19,7 +18,9 @@ use crate::services::object_validation::{
     normalize_object_title, normalize_object_type, normalize_optional_value, normalize_required_id,
     normalize_unique_ids,
 };
-use crate::services::protected_service_guard::ProtectedServiceGuard;
+use crate::services::protected_service_context::{
+    require_protected_analyst_or_admin, require_protected_user,
+};
 
 pub struct ObjectService;
 
@@ -29,17 +30,9 @@ impl ObjectService {
         session: &SessionState,
         payload: CreateObjectPayload,
     ) -> Result<CreateObjectResponse, AppErrorDto> {
-        let current_user = session.get_current_user().ok_or_else(|| {
-            AppErrorDto::new("ERR_UNAUTHORIZED", "Пользователь не авторизован.", None)
-        })?;
-
-        if current_user.role != "administrator" && current_user.role != "analyst" {
-            return Err(AppErrorDto::new(
-                "ERR_ACCESS_DENIED",
-                "Недостаточно прав для создания объекта.",
-                None,
-            ));
-        }
+        let context = require_protected_analyst_or_admin(app, session)?;
+        let current_user = &context.current_user;
+        let conn = &context.conn;
 
         let case_id =
             normalize_required_id(&payload.case_id, "ERR_CASE_REQUIRED", "Не выбрано дело.")?;
@@ -50,10 +43,7 @@ impl ObjectService {
         let description = normalize_object_description(payload.description)?;
         let confidence_note = normalize_confidence_note(payload.confidence_note)?;
 
-        let conn = open_connection(app)?;
-        ProtectedServiceGuard::require_password_change_resolved(&conn, &current_user)?;
-
-        let case_item = CaseRepository::get_case_by_id(&conn, &case_id)?;
+        let case_item = CaseRepository::get_case_by_id(conn, &case_id)?;
 
         if case_item.is_none() {
             return Err(AppErrorDto::new(
@@ -65,10 +55,10 @@ impl ObjectService {
 
         let object_id = Uuid::new_v4().to_string();
         let object_code =
-            ObjectRepository::generate_next_object_code(&conn, &case_id, &object_type)?;
+            ObjectRepository::generate_next_object_code(conn, &case_id, &object_type)?;
 
         ObjectRepository::create(
-            &conn,
+            conn,
             CreateObjectRecord {
                 id: object_id.clone(),
                 case_id: case_id.clone(),
@@ -80,11 +70,11 @@ impl ObjectService {
                 is_key: payload.is_key.unwrap_or(false),
                 confidence_note,
                 include_in_report: payload.include_in_report.unwrap_or(true),
-                created_by_user_id: current_user.user_id,
+                created_by_user_id: current_user.user_id.clone(),
             },
         )?;
 
-        let items = ObjectRepository::list_by_case(&conn, &case_id)?;
+        let items = ObjectRepository::list_by_case(conn, &case_id)?;
         let object_item = items
             .into_iter()
             .find(|item| item.id == object_id)
@@ -100,28 +90,13 @@ impl ObjectService {
         session: &SessionState,
         payload: GetObjectsPayload,
     ) -> Result<GetObjectsResponse, AppErrorDto> {
-        let current_user = session.get_current_user().ok_or_else(|| {
-            AppErrorDto::new("ERR_UNAUTHORIZED", "Пользователь не авторизован.", None)
-        })?;
-
-        if current_user.role != "administrator"
-            && current_user.role != "analyst"
-            && current_user.role != "viewer"
-        {
-            return Err(AppErrorDto::new(
-                "ERR_ACCESS_DENIED",
-                "Недостаточно прав для просмотра объектов.",
-                None,
-            ));
-        }
+        let context = require_protected_user(app, session)?;
+        let conn = &context.conn;
 
         let case_id =
             normalize_required_id(&payload.case_id, "ERR_CASE_REQUIRED", "Не выбрано дело.")?;
 
-        let conn = open_connection(app)?;
-        ProtectedServiceGuard::require_password_change_resolved(&conn, &current_user)?;
-
-        let items = ObjectRepository::list_by_case(&conn, &case_id)?;
+        let items = ObjectRepository::list_by_case(conn, &case_id)?;
 
         Ok(GetObjectsResponse { items })
     }
@@ -131,20 +106,8 @@ impl ObjectService {
         session: &SessionState,
         payload: GetObjectByIdPayload,
     ) -> Result<GetObjectByIdResponse, AppErrorDto> {
-        let current_user = session.get_current_user().ok_or_else(|| {
-            AppErrorDto::new("ERR_UNAUTHORIZED", "Пользователь не авторизован.", None)
-        })?;
-
-        if current_user.role != "administrator"
-            && current_user.role != "analyst"
-            && current_user.role != "viewer"
-        {
-            return Err(AppErrorDto::new(
-                "ERR_ACCESS_DENIED",
-                "Недостаточно прав для просмотра объекта.",
-                None,
-            ));
-        }
+        let context = require_protected_user(app, session)?;
+        let conn = &context.conn;
 
         let case_id =
             normalize_required_id(&payload.case_id, "ERR_CASE_REQUIRED", "Не выбрано дело.")?;
@@ -155,10 +118,7 @@ impl ObjectService {
             "Не выбран объект.",
         )?;
 
-        let conn = open_connection(app)?;
-        ProtectedServiceGuard::require_password_change_resolved(&conn, &current_user)?;
-
-        let object_item = ObjectRepository::find_by_id(&conn, &case_id, &object_id)?
+        let object_item = ObjectRepository::find_by_id(conn, &case_id, &object_id)?
             .ok_or_else(|| AppErrorDto::new("ERR_OBJECT_NOT_FOUND", "Объект не найден.", None))?;
 
         Ok(GetObjectByIdResponse { object_item })
@@ -169,17 +129,9 @@ impl ObjectService {
         session: &SessionState,
         payload: LinkObjectToMaterialsPayload,
     ) -> Result<LinkObjectToMaterialsResponse, AppErrorDto> {
-        let current_user = session.get_current_user().ok_or_else(|| {
-            AppErrorDto::new("ERR_UNAUTHORIZED", "Пользователь не авторизован.", None)
-        })?;
-
-        if current_user.role != "administrator" && current_user.role != "analyst" {
-            return Err(AppErrorDto::new(
-                "ERR_ACCESS_DENIED",
-                "Недостаточно прав для связывания объекта с материалами.",
-                None,
-            ));
-        }
+        let context = require_protected_analyst_or_admin(app, session)?;
+        let current_user = &context.current_user;
+        let conn = &context.conn;
 
         let case_id =
             normalize_required_id(&payload.case_id, "ERR_CASE_REQUIRED", "Не выбрано дело.")?;
@@ -193,10 +145,7 @@ impl ObjectService {
         let material_ids = normalize_unique_ids(payload.material_ids);
         let link_reason = normalize_link_reason(payload.link_reason)?;
 
-        let conn = open_connection(app)?;
-        ProtectedServiceGuard::require_password_change_resolved(&conn, &current_user)?;
-
-        ObjectRepository::validate_materials_belong_to_case(&conn, &case_id, &material_ids)?;
+        ObjectRepository::validate_materials_belong_to_case(conn, &case_id, &material_ids)?;
 
         let records = material_ids
             .into_iter()
@@ -208,13 +157,13 @@ impl ObjectService {
             })
             .collect();
 
-        ObjectRepository::replace_material_links(&conn, &case_id, &object_id, records)?;
+        ObjectRepository::replace_material_links(conn, &case_id, &object_id, records)?;
 
         let object_item =
-            ObjectRepository::find_by_id(&conn, &case_id, &object_id)?.ok_or_else(|| {
+            ObjectRepository::find_by_id(conn, &case_id, &object_id)?.ok_or_else(|| {
                 AppErrorDto::new(
                     "ERR_OBJECT_NOT_FOUND",
-                    "Объект не найден после обновления связей.",
+                    "Объект найден но не найден после обновления связей.",
                     None,
                 )
             })?;
@@ -227,17 +176,8 @@ impl ObjectService {
         session: &SessionState,
         payload: UpdateObjectPayload,
     ) -> Result<UpdateObjectResponse, AppErrorDto> {
-        let current_user = session.get_current_user().ok_or_else(|| {
-            AppErrorDto::new("ERR_UNAUTHORIZED", "Пользователь не авторизован.", None)
-        })?;
-
-        if current_user.role != "administrator" && current_user.role != "analyst" {
-            return Err(AppErrorDto::new(
-                "ERR_ACCESS_DENIED",
-                "Недостаточно прав для изменения объекта.",
-                None,
-            ));
-        }
+        let context = require_protected_analyst_or_admin(app, session)?;
+        let conn = &context.conn;
 
         let case_id =
             normalize_required_id(&payload.case_id, "ERR_CASE_REQUIRED", "Не выбрано дело.")?;
@@ -253,11 +193,8 @@ impl ObjectService {
         let description = normalize_object_description(payload.description)?;
         let confidence_note = normalize_confidence_note(payload.confidence_note)?;
 
-        let conn = open_connection(app)?;
-        ProtectedServiceGuard::require_password_change_resolved(&conn, &current_user)?;
-
         ObjectRepository::update_object(
-            &conn,
+            conn,
             UpdateObjectRecord {
                 case_id: case_id.clone(),
                 object_id: object_id.clone(),
@@ -271,7 +208,7 @@ impl ObjectService {
         )?;
 
         let object_item =
-            ObjectRepository::find_by_id(&conn, &case_id, &object_id)?.ok_or_else(|| {
+            ObjectRepository::find_by_id(conn, &case_id, &object_id)?.ok_or_else(|| {
                 AppErrorDto::new(
                     "ERR_OBJECT_NOT_FOUND",
                     "Объект не найден после обновления.",
@@ -287,17 +224,8 @@ impl ObjectService {
         session: &SessionState,
         payload: SoftDeleteObjectPayload,
     ) -> Result<SoftDeleteObjectResponse, AppErrorDto> {
-        let current_user = session.get_current_user().ok_or_else(|| {
-            AppErrorDto::new("ERR_UNAUTHORIZED", "Пользователь не авторизован.", None)
-        })?;
-
-        if current_user.role != "administrator" && current_user.role != "analyst" {
-            return Err(AppErrorDto::new(
-                "ERR_ACCESS_DENIED",
-                "Недостаточно прав для удаления объекта.",
-                None,
-            ));
-        }
+        let context = require_protected_analyst_or_admin(app, session)?;
+        let conn = &context.conn;
 
         let case_id =
             normalize_required_id(&payload.case_id, "ERR_CASE_REQUIRED", "Не выбрано дело.")?;
@@ -308,10 +236,7 @@ impl ObjectService {
             "Не выбран объект.",
         )?;
 
-        let conn = open_connection(app)?;
-        ProtectedServiceGuard::require_password_change_resolved(&conn, &current_user)?;
-
-        ObjectRepository::soft_delete_object(&conn, &case_id, &object_id)?;
+        ObjectRepository::soft_delete_object(conn, &case_id, &object_id)?;
 
         Ok(SoftDeleteObjectResponse { object_id })
     }

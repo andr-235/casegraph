@@ -7,6 +7,7 @@ pub mod graph_service;
 pub mod material_service;
 pub mod object_service;
 pub mod object_validation;
+pub mod protected_service_context;
 pub mod protected_service_guard;
 pub mod relation_service;
 pub mod relation_validation;

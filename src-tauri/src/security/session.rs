@@ -2,6 +2,8 @@ use std::sync::Mutex;
 
 use serde::Serialize;
 
+use crate::errors::app_error::AppErrorDto;
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CurrentUserDto {
@@ -24,6 +26,11 @@ impl SessionState {
             .lock()
             .ok()
             .and_then(|guard| guard.clone())
+    }
+
+    pub fn require_current_user(&self) -> Result<CurrentUserDto, AppErrorDto> {
+        self.get_current_user()
+            .ok_or_else(|| AppErrorDto::unauthorized("Требуется вход в систему."))
     }
 
     pub fn set_current_user(&self, user: CurrentUserDto) {

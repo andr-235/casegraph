@@ -18,7 +18,9 @@ use crate::services::audit_service::{
     AuditService, AuditSuccessInput, ENTITY_TYPE_EVENT, EVENT_CREATED, EVENT_DELETED,
     EVENT_REPORT_FLAG_CHANGED, EVENT_UPDATED,
 };
-use crate::services::protected_service_guard::ProtectedServiceGuard;
+use crate::services::protected_service_context::{
+    require_protected_analyst_or_admin, require_protected_user,
+};
 
 use super::timeline_validation::{
     normalize_create_event_payload, normalize_required_id, normalize_timeline_filters,
@@ -33,9 +35,8 @@ impl TimelineService {
         session: &SessionState,
         payload: GetTimelinePayload,
     ) -> Result<GetTimelineResponse, AppErrorDto> {
-        let current_user = session.get_current_user().ok_or_else(|| {
-            AppErrorDto::new("ERR_UNAUTHORIZED", "Требуется вход в систему.", None)
-        })?;
+        let context = require_protected_user(app, session)?;
+        let conn = &context.conn;
 
         let case_id = normalize_required_id(
             &payload.case_id,
@@ -55,9 +56,7 @@ impl TimelineService {
             include_in_report: filters.include_in_report,
         };
 
-        let conn = open_connection(app)?;
-        ProtectedServiceGuard::require_password_change_resolved(&conn, &current_user)?;
-        let items = TimelineRepository::get_timeline(&conn, &case_id, &filters_record)?;
+        let items = TimelineRepository::get_timeline(conn, &case_id, &filters_record)?;
 
         Ok(GetTimelineResponse { items })
     }
@@ -67,23 +66,13 @@ impl TimelineService {
         session: &SessionState,
         payload: CreateEventPayload,
     ) -> Result<CreateEventResponse, AppErrorDto> {
-        let current_user = session.get_current_user().ok_or_else(|| {
-            AppErrorDto::new("ERR_UNAUTHORIZED", "Требуется вход в систему.", None)
-        })?;
-
-        if current_user.role == "viewer" {
-            return Err(AppErrorDto::new(
-                "ERR_ACCESS_DENIED",
-                "Недостаточно прав для создания события",
-                None,
-            ));
-        }
+        let mut context = require_protected_analyst_or_admin(app, session)?;
+        let current_user = context.current_user.clone();
 
         let normalized = normalize_create_event_payload(payload)?;
 
-        let mut conn = open_connection(app)?;
-        ProtectedServiceGuard::require_password_change_resolved(&conn, &current_user)?;
-        let tx = conn
+        let tx = context
+            .conn
             .transaction()
             .map_err(|err| AppErrorDto::database(err.to_string()))?;
 
@@ -213,9 +202,8 @@ impl TimelineService {
         session: &SessionState,
         payload: GetEventByIdPayload,
     ) -> Result<GetEventByIdResponse, AppErrorDto> {
-        let current_user = session.get_current_user().ok_or_else(|| {
-            AppErrorDto::new("ERR_UNAUTHORIZED", "Требуется вход в систему.", None)
-        })?;
+        let context = require_protected_user(app, session)?;
+        let conn = &context.conn;
 
         let case_id = normalize_required_id(
             &payload.case_id,
@@ -229,9 +217,7 @@ impl TimelineService {
             "ID события обязателен",
         )?;
 
-        let conn = open_connection(app)?;
-        ProtectedServiceGuard::require_password_change_resolved(&conn, &current_user)?;
-        let event_details = TimelineRepository::get_event_by_id(&conn, &case_id, &event_id)?
+        let event_details = TimelineRepository::get_event_by_id(conn, &case_id, &event_id)?
             .ok_or_else(|| AppErrorDto::new("ERR_EVENT_NOT_FOUND", "Событие не найдено", None))?;
 
         Ok(GetEventByIdResponse { event_details })
@@ -242,23 +228,13 @@ impl TimelineService {
         session: &SessionState,
         payload: UpdateEventPayload,
     ) -> Result<UpdateEventResponse, AppErrorDto> {
-        let current_user = session.get_current_user().ok_or_else(|| {
-            AppErrorDto::new("ERR_UNAUTHORIZED", "Требуется вход в систему.", None)
-        })?;
-
-        if current_user.role == "viewer" {
-            return Err(AppErrorDto::new(
-                "ERR_ACCESS_DENIED",
-                "Недостаточно прав для изменения события",
-                None,
-            ));
-        }
+        let mut context = require_protected_analyst_or_admin(app, session)?;
+        let current_user = context.current_user.clone();
 
         let normalized = normalize_update_event_payload(payload)?;
 
-        let mut conn = open_connection(app)?;
-        ProtectedServiceGuard::require_password_change_resolved(&conn, &current_user)?;
-        let tx = conn
+        let tx = context
+            .conn
             .transaction()
             .map_err(|err| AppErrorDto::database(err.to_string()))?;
 
@@ -393,17 +369,9 @@ impl TimelineService {
         session: &SessionState,
         payload: SoftDeleteEventPayload,
     ) -> Result<SoftDeleteEventResponse, AppErrorDto> {
-        let current_user = session.get_current_user().ok_or_else(|| {
-            AppErrorDto::new("ERR_UNAUTHORIZED", "Требуется вход в систему.", None)
-        })?;
-
-        if current_user.role == "viewer" {
-            return Err(AppErrorDto::new(
-                "ERR_ACCESS_DENIED",
-                "Недостаточно прав для удаления события",
-                None,
-            ));
-        }
+        let context = require_protected_analyst_or_admin(app, session)?;
+        let current_user = &context.current_user;
+        let conn = &context.conn;
 
         let case_id = normalize_required_id(
             &payload.case_id,
@@ -417,13 +385,10 @@ impl TimelineService {
             "ID события обязателен",
         )?;
 
-        let conn = open_connection(app)?;
-        ProtectedServiceGuard::require_password_change_resolved(&conn, &current_user)?;
-
         let old_event_item =
-            TimelineRepository::get_event_list_item_by_id(&conn, &case_id, &event_id)?;
+            TimelineRepository::get_event_list_item_by_id(conn, &case_id, &event_id)?;
 
-        TimelineRepository::soft_delete_event(&conn, &case_id, &event_id)?;
+        TimelineRepository::soft_delete_event(conn, &case_id, &event_id)?;
 
         AuditService::write_success_non_blocking(
             app.clone(),
@@ -453,31 +418,20 @@ impl TimelineService {
         session: &SessionState,
         payload: ToggleEventReportIncludePayload,
     ) -> Result<ToggleEventReportIncludeResponse, AppErrorDto> {
-        let current_user = session.get_current_user().ok_or_else(|| {
-            AppErrorDto::new("ERR_UNAUTHORIZED", "Пользователь не авторизован", None)
-        })?;
-
-        if current_user.role != "administrator" && current_user.role != "analyst" {
-            return Err(AppErrorDto::new(
-                "ERR_ACCESS_DENIED",
-                "Недостаточно прав для изменения признака включения события в справку",
-                None,
-            ));
-        }
+        let context = require_protected_analyst_or_admin(app, session)?;
+        let current_user = &context.current_user;
+        let conn = &context.conn;
 
         let normalized = normalize_toggle_event_report_include_payload(payload)?;
 
-        let conn = open_connection(app)?;
-        ProtectedServiceGuard::require_password_change_resolved(&conn, &current_user)?;
-
         let old_event_item = TimelineRepository::get_event_list_item_by_id(
-            &conn,
+            conn,
             &normalized.case_id,
             &normalized.event_id,
         )?;
 
         let event_item = TimelineRepository::set_event_report_include(
-            &conn,
+            conn,
             &normalized.case_id,
             &normalized.event_id,
             normalized.include_in_report,

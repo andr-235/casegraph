@@ -1,7 +1,6 @@
 use tauri::AppHandle;
 use uuid::Uuid;
 
-use crate::db::connection::open_connection;
 use crate::domain::relations::{
     CreateRelationPayload, CreateRelationResponse, GetRelationByIdPayload, GetRelationByIdResponse,
     GetRelationsPayload, GetRelationsResponse, SoftDeleteRelationPayload,
@@ -13,7 +12,9 @@ use crate::repositories::relation_repository::{
     CreateRelationRecord, RelationRepository, UpdateRelationRecord,
 };
 use crate::security::session::SessionState;
-use crate::services::protected_service_guard::ProtectedServiceGuard;
+use crate::services::protected_service_context::{
+    require_protected_analyst_or_admin, require_protected_user,
+};
 use crate::services::relation_validation::{
     normalize_analyst_comment, normalize_confidence_level, normalize_optional_id,
     normalize_relation_basis, normalize_relation_title, normalize_relation_type,
@@ -28,17 +29,9 @@ impl RelationService {
         session: &SessionState,
         payload: CreateRelationPayload,
     ) -> Result<CreateRelationResponse, AppErrorDto> {
-        let current_user = session.get_current_user().ok_or_else(|| {
-            AppErrorDto::new("ERR_UNAUTHORIZED", "Пользователь не авторизован.", None)
-        })?;
-
-        if current_user.role != "administrator" && current_user.role != "analyst" {
-            return Err(AppErrorDto::new(
-                "ERR_ACCESS_DENIED",
-                "Недостаточно прав для создания связи.",
-                None,
-            ));
-        }
+        let context = require_protected_analyst_or_admin(app, session)?;
+        let current_user = &context.current_user;
+        let conn = &context.conn;
 
         let case_id =
             normalize_required_id(&payload.case_id, "ERR_CASE_REQUIRED", "Не выбрано дело.")?;
@@ -64,18 +57,15 @@ impl RelationService {
         let supporting_material_id = normalize_optional_id(&payload.supporting_material_id);
         let analyst_comment = normalize_analyst_comment(&payload.analyst_comment)?;
 
-        let conn = open_connection(app)?;
-        ProtectedServiceGuard::require_password_change_resolved(&conn, &current_user)?;
-
-        CaseRepository::get_case_by_id(&conn, &case_id)?
+        CaseRepository::get_case_by_id(conn, &case_id)?
             .ok_or_else(|| AppErrorDto::new("ERR_CASE_NOT_FOUND", "Дело не найдено.", None))?;
 
-        let source_object = RelationRepository::find_object_case_info(&conn, &source_object_id)?
+        let source_object = RelationRepository::find_object_case_info(conn, &source_object_id)?
             .ok_or_else(|| {
                 AppErrorDto::new("ERR_OBJECT_NOT_FOUND", "Первый объект не найден.", None)
             })?;
 
-        let target_object = RelationRepository::find_object_case_info(&conn, &target_object_id)?
+        let target_object = RelationRepository::find_object_case_info(conn, &target_object_id)?
             .ok_or_else(|| {
                 AppErrorDto::new("ERR_OBJECT_NOT_FOUND", "Второй объект не найден.", None)
             })?;
@@ -89,7 +79,7 @@ impl RelationService {
         }
 
         if let Some(material_id) = supporting_material_id.as_deref() {
-            let material = RelationRepository::find_material_case_info(&conn, material_id)?
+            let material = RelationRepository::find_material_case_info(conn, material_id)?
                 .ok_or_else(|| {
                     AppErrorDto::new("ERR_MATERIAL_NOT_FOUND", "Материал не найден.", None)
                 })?;
@@ -104,10 +94,10 @@ impl RelationService {
         }
 
         let relation_id = Uuid::new_v4().to_string();
-        let relation_code = RelationRepository::generate_next_relation_code(&conn, &case_id)?;
+        let relation_code = RelationRepository::generate_next_relation_code(conn, &case_id)?;
 
         RelationRepository::create(
-            &conn,
+            conn,
             CreateRelationRecord {
                 id: relation_id.clone(),
                 case_id,
@@ -121,11 +111,11 @@ impl RelationService {
                 supporting_material_id,
                 analyst_comment,
                 include_in_report: payload.include_in_report.unwrap_or(true),
-                created_by_user_id: current_user.user_id,
+                created_by_user_id: current_user.user_id.clone(),
             },
         )?;
 
-        let relation_item = RelationRepository::get_by_id(&conn, &relation_id)?
+        let relation_item = RelationRepository::get_by_id(conn, &relation_id)?
             .ok_or_else(|| AppErrorDto::new("ERR_RELATION_NOT_FOUND", "Связь не найдена.", None))?;
 
         Ok(CreateRelationResponse { relation_item })
@@ -136,19 +126,16 @@ impl RelationService {
         session: &SessionState,
         payload: GetRelationsPayload,
     ) -> Result<GetRelationsResponse, AppErrorDto> {
-        let current_user = session.get_current_user().ok_or_else(|| {
-            AppErrorDto::new("ERR_UNAUTHORIZED", "Пользователь не авторизован.", None)
-        })?;
+        let context = require_protected_user(app, session)?;
+        let conn = &context.conn;
 
         let case_id =
             normalize_required_id(&payload.case_id, "ERR_CASE_REQUIRED", "Не выбрано дело.")?;
-        let conn = open_connection(app)?;
-        ProtectedServiceGuard::require_password_change_resolved(&conn, &current_user)?;
 
-        CaseRepository::get_case_by_id(&conn, &case_id)?
+        CaseRepository::get_case_by_id(conn, &case_id)?
             .ok_or_else(|| AppErrorDto::new("ERR_CASE_NOT_FOUND", "Дело не найдено.", None))?;
 
-        let items = RelationRepository::list_by_case(&conn, &case_id)?;
+        let items = RelationRepository::list_by_case(conn, &case_id)?;
 
         Ok(GetRelationsResponse { items })
     }
@@ -158,9 +145,8 @@ impl RelationService {
         session: &SessionState,
         payload: GetRelationByIdPayload,
     ) -> Result<GetRelationByIdResponse, AppErrorDto> {
-        let current_user = session.get_current_user().ok_or_else(|| {
-            AppErrorDto::new("ERR_UNAUTHORIZED", "Пользователь не авторизован.", None)
-        })?;
+        let context = require_protected_user(app, session)?;
+        let conn = &context.conn;
 
         let case_id =
             normalize_required_id(&payload.case_id, "ERR_CASE_REQUIRED", "Не выбрано дело.")?;
@@ -171,10 +157,7 @@ impl RelationService {
             "Не выбрана связь.",
         )?;
 
-        let conn = open_connection(app)?;
-        ProtectedServiceGuard::require_password_change_resolved(&conn, &current_user)?;
-
-        let relation = RelationRepository::get_details_by_id(&conn, &case_id, &relation_id)?
+        let relation = RelationRepository::get_details_by_id(conn, &case_id, &relation_id)?
             .ok_or_else(|| AppErrorDto::new("ERR_RELATION_NOT_FOUND", "Связь не найдена.", None))?;
 
         Ok(GetRelationByIdResponse { relation })
@@ -185,17 +168,8 @@ impl RelationService {
         session: &SessionState,
         payload: UpdateRelationPayload,
     ) -> Result<UpdateRelationResponse, AppErrorDto> {
-        let current_user = session.get_current_user().ok_or_else(|| {
-            AppErrorDto::new("ERR_UNAUTHORIZED", "Пользователь не авторизован.", None)
-        })?;
-
-        if current_user.role != "administrator" && current_user.role != "analyst" {
-            return Err(AppErrorDto::new(
-                "ERR_ACCESS_DENIED",
-                "Недостаточно прав для редактирования связи.",
-                None,
-            ));
-        }
+        let context = require_protected_analyst_or_admin(app, session)?;
+        let conn = &context.conn;
 
         let case_id =
             normalize_required_id(&payload.case_id, "ERR_CASE_REQUIRED", "Не выбрано дело.")?;
@@ -213,14 +187,11 @@ impl RelationService {
         let supporting_material_id = normalize_optional_id(&payload.supporting_material_id);
         let analyst_comment = normalize_analyst_comment(&payload.analyst_comment)?;
 
-        let conn = open_connection(app)?;
-        ProtectedServiceGuard::require_password_change_resolved(&conn, &current_user)?;
-
-        RelationRepository::get_details_by_id(&conn, &case_id, &relation_id)?
+        RelationRepository::get_details_by_id(conn, &case_id, &relation_id)?
             .ok_or_else(|| AppErrorDto::new("ERR_RELATION_NOT_FOUND", "Связь не найдена.", None))?;
 
         if let Some(material_id) = supporting_material_id.as_deref() {
-            let material = RelationRepository::find_material_case_info(&conn, material_id)?
+            let material = RelationRepository::find_material_case_info(conn, material_id)?
                 .ok_or_else(|| {
                     AppErrorDto::new("ERR_MATERIAL_NOT_FOUND", "Материал не найден.", None)
                 })?;
@@ -235,7 +206,7 @@ impl RelationService {
         }
 
         RelationRepository::update_relation(
-            &conn,
+            conn,
             UpdateRelationRecord {
                 case_id: case_id.clone(),
                 relation_id: relation_id.clone(),
@@ -249,27 +220,19 @@ impl RelationService {
             },
         )?;
 
-        let relation = RelationRepository::get_details_by_id(&conn, &case_id, &relation_id)?
+        let relation = RelationRepository::get_details_by_id(conn, &case_id, &relation_id)?
             .ok_or_else(|| AppErrorDto::new("ERR_RELATION_NOT_FOUND", "Связь не найдена.", None))?;
 
         Ok(UpdateRelationResponse { relation })
     }
+
     pub fn soft_delete_relation(
         app: &AppHandle,
         session: &SessionState,
         payload: SoftDeleteRelationPayload,
     ) -> Result<SoftDeleteRelationResponse, AppErrorDto> {
-        let current_user = session.get_current_user().ok_or_else(|| {
-            AppErrorDto::new("ERR_UNAUTHORIZED", "Пользователь не авторизован.", None)
-        })?;
-
-        if current_user.role != "administrator" && current_user.role != "analyst" {
-            return Err(AppErrorDto::new(
-                "ERR_ACCESS_DENIED",
-                "Недостаточно прав для удаления связи.",
-                None,
-            ));
-        }
+        let context = require_protected_analyst_or_admin(app, session)?;
+        let conn = &context.conn;
 
         let case_id =
             normalize_required_id(&payload.case_id, "ERR_CASE_REQUIRED", "Не выбрано дело.")?;
@@ -280,13 +243,10 @@ impl RelationService {
             "Не выбрана связь.",
         )?;
 
-        let conn = open_connection(app)?;
-        ProtectedServiceGuard::require_password_change_resolved(&conn, &current_user)?;
-
-        let _existing = RelationRepository::get_details_by_id(&conn, &case_id, &relation_id)?
+        let _existing = RelationRepository::get_details_by_id(conn, &case_id, &relation_id)?
             .ok_or_else(|| AppErrorDto::new("ERR_RELATION_NOT_FOUND", "Связь не найдена.", None))?;
 
-        RelationRepository::soft_delete_relation(&conn, &case_id, &relation_id)?;
+        RelationRepository::soft_delete_relation(conn, &case_id, &relation_id)?;
 
         Ok(SoftDeleteRelationResponse { relation_id })
     }
