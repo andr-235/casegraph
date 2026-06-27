@@ -51,10 +51,7 @@ impl TimelineRepository {
         Ok(format!("EVT-{next_number:03}"))
     }
 
-    pub fn create_event(
-        conn: &Connection,
-        record: &CreateEventRecord,
-    ) -> Result<(), AppErrorDto> {
+    pub fn create_event(conn: &Connection, record: &CreateEventRecord) -> Result<(), AppErrorDto> {
         conn.execute(
             r#"
             INSERT INTO events (

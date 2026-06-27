@@ -1,15 +1,13 @@
 import { FormEvent, useState } from "react";
 
 import { createEvent } from "../api/timelineApi";
+import { createEmptyEventPayload } from "../model/createEventDefaults";
+import { toggleSelectedId } from "../lib/toggleSelectedId";
 import {
   datePrecisionOptions,
   eventTypeOptions,
 } from "../model/timelineOptions";
-import type {
-  DatePrecision,
-  EventType,
-  TimelineEventDto,
-} from "../model/timelineTypes";
+import type { TimelineEventDto } from "../model/timelineTypes";
 
 type SelectOption = {
   id: string;
@@ -31,35 +29,15 @@ export function CreateEventModal({
   onClose,
   onCreated,
 }: CreateEventModalProps) {
-  const [eventType, setEventType] = useState<EventType>("fact");
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [eventDate, setEventDate] = useState("");
-  const [eventTime, setEventTime] = useState("");
-  const [datePrecision, setDatePrecision] = useState<DatePrecision>("day");
-  const [periodStart, setPeriodStart] = useState("");
-  const [periodEnd, setPeriodEnd] = useState("");
-  const [sourceNote, setSourceNote] = useState("");
-  const [analystComment, setAnalystComment] = useState("");
-  const [includeInReport, setIncludeInReport] = useState(true);
-  const [objectIds, setObjectIds] = useState<string[]>([]);
-  const [materialIds, setMaterialIds] = useState<string[]>([]);
-  const [linkNote, setLinkNote] = useState("");
-
+  const [form, setForm] = useState(() => createEmptyEventPayload(caseId));
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
-  function toggleSelected(
-    current: string[],
-    value: string,
-    setter: (next: string[]) => void,
-  ) {
-    if (current.includes(value)) {
-      setter(current.filter((item) => item !== value));
-      return;
-    }
-
-    setter([...current, value]);
+  function updateForm<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
+    setForm((current) => ({
+      ...current,
+      [key]: value,
+    }));
   }
 
   async function handleSubmit(event: FormEvent) {
@@ -69,21 +47,10 @@ export function CreateEventModal({
 
     try {
       const result = await createEvent({
-        caseId,
-        eventType,
-        title,
-        description,
-        eventDate,
-        eventTime: eventTime || undefined,
-        datePrecision,
-        periodStart: periodStart || undefined,
-        periodEnd: periodEnd || undefined,
-        sourceNote,
-        analystComment,
-        includeInReport,
-        objectIds,
-        materialIds,
-        linkNote,
+        ...form,
+        eventTime: form.eventTime || undefined,
+        periodStart: form.periodStart || undefined,
+        periodEnd: form.periodEnd || undefined,
       });
 
       onCreated(result.eventItem);
@@ -114,8 +81,8 @@ export function CreateEventModal({
           <label>
             Тип события
             <select
-              value={eventType}
-              onChange={(event) => setEventType(event.target.value as EventType)}
+              value={form.eventType}
+              onChange={(event) => updateForm("eventType", event.target.value as typeof form.eventType)}
             >
               {eventTypeOptions.map((option) => (
                 <option key={option.value} value={option.value}>
@@ -128,8 +95,8 @@ export function CreateEventModal({
           <label>
             Название
             <input
-              value={title}
-              onChange={(event) => setTitle(event.target.value)}
+              value={form.title}
+              onChange={(event) => updateForm("title", event.target.value)}
               required
             />
           </label>
@@ -138,8 +105,8 @@ export function CreateEventModal({
             Дата события
             <input
               type="date"
-              value={eventDate}
-              onChange={(event) => setEventDate(event.target.value)}
+              value={form.eventDate}
+              onChange={(event) => updateForm("eventDate", event.target.value)}
               required
             />
           </label>
@@ -148,17 +115,17 @@ export function CreateEventModal({
             Время
             <input
               type="time"
-              value={eventTime}
-              onChange={(event) => setEventTime(event.target.value)}
+              value={form.eventTime ?? ""}
+              onChange={(event) => updateForm("eventTime", event.target.value || undefined)}
             />
           </label>
 
           <label>
             Точность даты
             <select
-              value={datePrecision}
+              value={form.datePrecision}
               onChange={(event) =>
-                setDatePrecision(event.target.value as DatePrecision)
+                updateForm("datePrecision", event.target.value as typeof form.datePrecision)
               }
             >
               {datePrecisionOptions.map((option) => (
@@ -169,14 +136,14 @@ export function CreateEventModal({
             </select>
           </label>
 
-          {datePrecision === "period" && (
+          {form.datePrecision === "period" && (
             <>
               <label>
                 Начало периода
                 <input
                   type="date"
-                  value={periodStart}
-                  onChange={(event) => setPeriodStart(event.target.value)}
+                  value={form.periodStart ?? ""}
+                  onChange={(event) => updateForm("periodStart", event.target.value || undefined)}
                 />
               </label>
 
@@ -184,8 +151,8 @@ export function CreateEventModal({
                 Конец периода
                 <input
                   type="date"
-                  value={periodEnd}
-                  onChange={(event) => setPeriodEnd(event.target.value)}
+                  value={form.periodEnd ?? ""}
+                  onChange={(event) => updateForm("periodEnd", event.target.value || undefined)}
                 />
               </label>
             </>
@@ -194,8 +161,8 @@ export function CreateEventModal({
           <label>
             Описание
             <textarea
-              value={description}
-              onChange={(event) => setDescription(event.target.value)}
+              value={form.description}
+              onChange={(event) => updateForm("description", event.target.value)}
               rows={4}
             />
           </label>
@@ -203,8 +170,8 @@ export function CreateEventModal({
           <label>
             Основание / источник
             <textarea
-              value={sourceNote}
-              onChange={(event) => setSourceNote(event.target.value)}
+              value={form.sourceNote}
+              onChange={(event) => updateForm("sourceNote", event.target.value)}
               rows={3}
             />
           </label>
@@ -212,8 +179,8 @@ export function CreateEventModal({
           <label>
             Комментарий аналитика
             <textarea
-              value={analystComment}
-              onChange={(event) => setAnalystComment(event.target.value)}
+              value={form.analystComment}
+              onChange={(event) => updateForm("analystComment", event.target.value)}
               rows={3}
             />
           </label>
@@ -221,8 +188,8 @@ export function CreateEventModal({
           <label>
             Общий комментарий к связям
             <input
-              value={linkNote}
-              onChange={(event) => setLinkNote(event.target.value)}
+              value={form.linkNote}
+              onChange={(event) => updateForm("linkNote", event.target.value)}
             />
           </label>
 
@@ -235,9 +202,9 @@ export function CreateEventModal({
                 <label key={object.id}>
                   <input
                     type="checkbox"
-                    checked={objectIds.includes(object.id)}
+                    checked={form.objectIds.includes(object.id)}
                     onChange={() =>
-                      toggleSelected(objectIds, object.id, setObjectIds)
+                      updateForm("objectIds", toggleSelectedId(form.objectIds, object.id))
                     }
                   />
                   {object.label}
@@ -255,9 +222,9 @@ export function CreateEventModal({
                 <label key={material.id}>
                   <input
                     type="checkbox"
-                    checked={materialIds.includes(material.id)}
+                    checked={form.materialIds.includes(material.id)}
                     onChange={() =>
-                      toggleSelected(materialIds, material.id, setMaterialIds)
+                      updateForm("materialIds", toggleSelectedId(form.materialIds, material.id))
                     }
                   />
                   {material.label}
@@ -269,8 +236,8 @@ export function CreateEventModal({
           <label>
             <input
               type="checkbox"
-              checked={includeInReport}
-              onChange={(event) => setIncludeInReport(event.target.checked)}
+              checked={form.includeInReport}
+              onChange={(event) => updateForm("includeInReport", event.target.checked)}
             />
             Включить в справку
           </label>

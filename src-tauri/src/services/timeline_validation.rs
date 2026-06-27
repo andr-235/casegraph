@@ -1,7 +1,8 @@
-use crate::domain::event_date_precision::{
-    is_valid_date_precision, DATE_PRECISION_PERIOD,
-};
+use std::collections::HashSet;
+
+use crate::domain::event_date_precision::{is_valid_date_precision, DATE_PRECISION_PERIOD};
 use crate::domain::event_type::is_valid_event_type;
+use crate::domain::timeline::CreateEventPayload;
 use crate::errors::app_error::AppErrorDto;
 
 const MAX_EVENT_TITLE_LEN: usize = 200;
@@ -9,6 +10,72 @@ const MAX_EVENT_DESCRIPTION_LEN: usize = 5_000;
 const MAX_EVENT_SOURCE_NOTE_LEN: usize = 2_000;
 const MAX_EVENT_ANALYST_COMMENT_LEN: usize = 2_000;
 const MAX_EVENT_LINK_NOTE_LEN: usize = 2_000;
+
+#[derive(Debug)]
+pub struct NormalizedCreateEventInput {
+    pub case_id: String,
+    pub event_type: String,
+    pub title: String,
+    pub description: String,
+    pub event_date: String,
+    pub event_time: Option<String>,
+    pub date_precision: String,
+    pub period_start: Option<String>,
+    pub period_end: Option<String>,
+    pub source_note: String,
+    pub analyst_comment: String,
+    pub include_in_report: bool,
+    pub object_ids: Vec<String>,
+    pub material_ids: Vec<String>,
+    pub link_note: String,
+}
+
+pub fn normalize_create_event_payload(
+    payload: CreateEventPayload,
+) -> Result<NormalizedCreateEventInput, AppErrorDto> {
+    let case_id = normalize_required_id(
+        &payload.case_id,
+        "ERR_INVALID_CASE_ID",
+        "ID дела обязателен",
+    )?;
+
+    let event_type = normalize_event_type(&payload.event_type)?;
+    let title = normalize_event_title(&payload.title)?;
+    let description = normalize_event_description(&payload.description)?;
+    let event_date = normalize_event_date(&payload.event_date)?;
+    let event_time = normalize_event_time(payload.event_time)?;
+    let date_precision = normalize_date_precision(&payload.date_precision)?;
+
+    let period_start = normalize_optional_date(payload.period_start);
+    let period_end = normalize_optional_date(payload.period_end);
+
+    validate_period(&date_precision, &period_start, &period_end)?;
+
+    let source_note = normalize_event_source_note(&payload.source_note)?;
+    let analyst_comment = normalize_event_analyst_comment(&payload.analyst_comment)?;
+    let link_note = normalize_event_link_note(&payload.link_note)?;
+
+    let object_ids = normalize_id_list(payload.object_ids);
+    let material_ids = normalize_id_list(payload.material_ids);
+
+    Ok(NormalizedCreateEventInput {
+        case_id,
+        event_type,
+        title,
+        description,
+        event_date,
+        event_time,
+        date_precision,
+        period_start,
+        period_end,
+        source_note,
+        analyst_comment,
+        include_in_report: payload.include_in_report,
+        object_ids,
+        material_ids,
+        link_note,
+    })
+}
 
 pub fn normalize_required_id(
     value: &str,
@@ -24,7 +91,26 @@ pub fn normalize_required_id(
     Ok(normalized)
 }
 
-pub fn normalize_event_type(value: &str) -> Result<String, AppErrorDto> {
+fn normalize_id_list(values: Vec<String>) -> Vec<String> {
+    let mut seen = HashSet::new();
+    let mut normalized = Vec::new();
+
+    for value in values {
+        let trimmed = value.trim().to_string();
+
+        if trimmed.is_empty() {
+            continue;
+        }
+
+        if seen.insert(trimmed.clone()) {
+            normalized.push(trimmed);
+        }
+    }
+
+    normalized
+}
+
+fn normalize_event_type(value: &str) -> Result<String, AppErrorDto> {
     let normalized = value.trim().to_string();
 
     if !is_valid_event_type(&normalized) {
@@ -38,7 +124,7 @@ pub fn normalize_event_type(value: &str) -> Result<String, AppErrorDto> {
     Ok(normalized)
 }
 
-pub fn normalize_date_precision(value: &str) -> Result<String, AppErrorDto> {
+fn normalize_date_precision(value: &str) -> Result<String, AppErrorDto> {
     let normalized = value.trim().to_string();
 
     if !is_valid_date_precision(&normalized) {
@@ -52,7 +138,136 @@ pub fn normalize_date_precision(value: &str) -> Result<String, AppErrorDto> {
     Ok(normalized)
 }
 
-pub fn normalize_required_text(
+fn normalize_event_title(value: &str) -> Result<String, AppErrorDto> {
+    normalize_required_text(
+        value,
+        MAX_EVENT_TITLE_LEN,
+        "ERR_INVALID_EVENT_TITLE",
+        "Название события обязательно",
+        "Название события слишком длинное",
+    )
+}
+
+fn normalize_event_description(value: &str) -> Result<String, AppErrorDto> {
+    normalize_optional_text(
+        value,
+        MAX_EVENT_DESCRIPTION_LEN,
+        "ERR_INVALID_EVENT_DESCRIPTION",
+        "Описание события слишком длинное",
+    )
+}
+
+fn normalize_event_source_note(value: &str) -> Result<String, AppErrorDto> {
+    normalize_optional_text(
+        value,
+        MAX_EVENT_SOURCE_NOTE_LEN,
+        "ERR_INVALID_EVENT_SOURCE_NOTE",
+        "Основание события слишком длинное",
+    )
+}
+
+fn normalize_event_analyst_comment(value: &str) -> Result<String, AppErrorDto> {
+    normalize_optional_text(
+        value,
+        MAX_EVENT_ANALYST_COMMENT_LEN,
+        "ERR_INVALID_EVENT_ANALYST_COMMENT",
+        "Комментарий аналитика слишком длинный",
+    )
+}
+
+fn normalize_event_link_note(value: &str) -> Result<String, AppErrorDto> {
+    normalize_optional_text(
+        value,
+        MAX_EVENT_LINK_NOTE_LEN,
+        "ERR_INVALID_EVENT_LINK_NOTE",
+        "Комментарий связи события слишком длинный",
+    )
+}
+
+fn normalize_event_date(value: &str) -> Result<String, AppErrorDto> {
+    let normalized = value.trim().to_string();
+
+    if normalized.is_empty() {
+        return Err(AppErrorDto::new(
+            "ERR_INVALID_EVENT_DATE",
+            "Дата события обязательна",
+            None,
+        ));
+    }
+
+    Ok(normalized)
+}
+
+fn normalize_event_time(value: Option<String>) -> Result<Option<String>, AppErrorDto> {
+    let Some(raw) = value else {
+        return Ok(None);
+    };
+
+    let normalized = raw.trim().to_string();
+
+    if normalized.is_empty() {
+        return Ok(None);
+    }
+
+    let is_valid_hh_mm = normalized.len() == 5
+        && normalized.as_bytes()[2] == b':'
+        && normalized[0..2].chars().all(|ch| ch.is_ascii_digit())
+        && normalized[3..5].chars().all(|ch| ch.is_ascii_digit());
+
+    if !is_valid_hh_mm {
+        return Err(AppErrorDto::new(
+            "ERR_INVALID_EVENT_TIME",
+            "Время события должно быть в формате HH:MM",
+            None,
+        ));
+    }
+
+    Ok(Some(normalized))
+}
+
+fn normalize_optional_date(value: Option<String>) -> Option<String> {
+    value
+        .map(|item| item.trim().to_string())
+        .filter(|item| !item.is_empty())
+}
+
+fn validate_period(
+    date_precision: &str,
+    period_start: &Option<String>,
+    period_end: &Option<String>,
+) -> Result<(), AppErrorDto> {
+    if date_precision != DATE_PRECISION_PERIOD {
+        return Ok(());
+    }
+
+    let Some(start) = period_start else {
+        return Err(AppErrorDto::new(
+            "ERR_INVALID_EVENT_PERIOD",
+            "Для периода нужно указать начало и конец",
+            None,
+        ));
+    };
+
+    let Some(end) = period_end else {
+        return Err(AppErrorDto::new(
+            "ERR_INVALID_EVENT_PERIOD",
+            "Для периода нужно указать начало и конец",
+            None,
+        ));
+    };
+
+    if start > end {
+        return Err(AppErrorDto::new(
+            "ERR_INVALID_EVENT_PERIOD",
+            "Начало периода не может быть позже конца периода",
+            None,
+        ));
+    }
+
+    Ok(())
+}
+
+fn normalize_required_text(
     value: &str,
     max_len: usize,
     code: &str,
@@ -72,7 +287,7 @@ pub fn normalize_required_text(
     Ok(normalized)
 }
 
-pub fn normalize_optional_text(
+fn normalize_optional_text(
     value: &str,
     max_len: usize,
     code: &str,
@@ -85,95 +300,4 @@ pub fn normalize_optional_text(
     }
 
     Ok(normalized)
-}
-
-pub fn normalize_event_title(value: &str) -> Result<String, AppErrorDto> {
-    normalize_required_text(
-        value,
-        MAX_EVENT_TITLE_LEN,
-        "ERR_INVALID_EVENT_TITLE",
-        "Название события обязательно",
-        "Название события слишком длинное",
-    )
-}
-
-pub fn normalize_event_description(value: &str) -> Result<String, AppErrorDto> {
-    normalize_optional_text(
-        value,
-        MAX_EVENT_DESCRIPTION_LEN,
-        "ERR_INVALID_EVENT_DESCRIPTION",
-        "Описание события слишком длинное",
-    )
-}
-
-pub fn normalize_event_source_note(value: &str) -> Result<String, AppErrorDto> {
-    normalize_optional_text(
-        value,
-        MAX_EVENT_SOURCE_NOTE_LEN,
-        "ERR_INVALID_EVENT_SOURCE_NOTE",
-        "Основание события слишком длинное",
-    )
-}
-
-pub fn normalize_event_analyst_comment(value: &str) -> Result<String, AppErrorDto> {
-    normalize_optional_text(
-        value,
-        MAX_EVENT_ANALYST_COMMENT_LEN,
-        "ERR_INVALID_EVENT_ANALYST_COMMENT",
-        "Комментарий аналитика слишком длинный",
-    )
-}
-
-pub fn normalize_event_link_note(value: &str) -> Result<String, AppErrorDto> {
-    normalize_optional_text(
-        value,
-        MAX_EVENT_LINK_NOTE_LEN,
-        "ERR_INVALID_EVENT_LINK_NOTE",
-        "Комментарий связи события слишком длинный",
-    )
-}
-
-pub fn normalize_event_date(value: &str) -> Result<String, AppErrorDto> {
-    let normalized = value.trim().to_string();
-
-    if normalized.is_empty() {
-        return Err(AppErrorDto::new(
-            "ERR_INVALID_EVENT_DATE",
-            "Дата события обязательна",
-            None,
-        ));
-    }
-
-    Ok(normalized)
-}
-
-pub fn validate_period(
-    date_precision: &str,
-    period_start: &Option<String>,
-    period_end: &Option<String>,
-) -> Result<(), AppErrorDto> {
-    if date_precision != DATE_PRECISION_PERIOD {
-        return Ok(());
-    }
-
-    let start = period_start.as_deref().unwrap_or("").trim();
-    let end = period_end.as_deref().unwrap_or("").trim();
-
-    if start.is_empty() || end.is_empty() {
-        return Err(AppErrorDto::new(
-            "ERR_INVALID_EVENT_PERIOD",
-            "Для периода нужно указать начало и конец",
-            None,
-        ));
-    }
-
-    if start > end {
-        return Err(AppErrorDto::new(
-            "ERR_INVALID_EVENT_PERIOD",
-            "Начало периода не может быть позже конца периода",
-            None,
-        ));
-    }
-
-    Ok(())
 }
