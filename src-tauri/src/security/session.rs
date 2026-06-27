@@ -15,6 +15,20 @@ pub struct CurrentUserDto {
     pub must_change_password: bool,
 }
 
+impl CurrentUserDto {
+    pub fn is_administrator(&self) -> bool {
+        self.role == "administrator"
+    }
+
+    pub fn is_analyst(&self) -> bool {
+        self.role == "analyst"
+    }
+
+    pub fn is_viewer(&self) -> bool {
+        self.role == "viewer"
+    }
+}
+
 #[derive(Default)]
 pub struct SessionState {
     current_user: Mutex<Option<CurrentUserDto>>,

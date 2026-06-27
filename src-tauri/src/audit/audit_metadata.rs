@@ -1208,6 +1208,19 @@ pub fn role_denied(
     access_denied("role_denied", command, actual_role, Some(required_role))
 }
 
+pub fn policy_denied(
+    command: &str,
+    actual_role: &str,
+    policy: &str,
+) -> Result<AuditSafeDetails, AppErrorDto> {
+    build_details(json!({
+        "reason": "policy_denied",
+        "command": command,
+        "actualRole": actual_role,
+        "policy": policy
+    }))
+}
+
 pub fn audit_log_exported(
     exported_rows: usize,
     format: &str,
