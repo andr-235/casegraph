@@ -341,15 +341,15 @@ mod tests {
     fn technical_details_builders_are_safe() {
         let values: Vec<serde_json::Value> = vec![
             // case_updated takes (case_id, case_code, &[&str])
-            case_updated("case-1", "CASE-1", &["title", "status"]).unwrap(),
+            case_updated("case-1", "CASE-1", &["title", "status"]).unwrap().into_value(),
             // relation_updated takes (relation_id, relation_code, &[&str])
-            relation_updated("relation-1", "REL-1", &["confidenceLevel"]).unwrap(),
+            relation_updated("relation-1", "REL-1", &["confidenceLevel"]).unwrap().into_value(),
             // report_draft_updated takes (draft_id, case_id, &[&str])
-            report_draft_updated("draft-1", "case-1", &["title"]).unwrap(),
+            report_draft_updated("draft-1", "case-1", &["title"]).unwrap().into_value(),
             // backup_created
-            backup_created("backup-1", "full", None, Some(1024)).unwrap(),
+            backup_created("backup-1", "full", None, Some(1024)).unwrap().into_value(),
             // integrity_check_completed
-            integrity_check_completed("run-1", "case", Some("case-1"), 10, 2).unwrap(),
+            integrity_check_completed("run-1", "case", Some("case-1"), 10, 2).unwrap().into_value(),
         ];
 
         for value in &values {

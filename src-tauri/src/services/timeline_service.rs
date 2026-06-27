@@ -16,7 +16,7 @@ use crate::repositories::timeline_repository::{
 };
 use crate::security::session::SessionState;
 use crate::services::audit_service::{
-    AuditService, AuditSuccessInput, ENTITY_TYPE_EVENT, EVENT_CREATED, EVENT_DELETED,
+    AuditService, AuditWriteInput, ENTITY_TYPE_EVENT, EVENT_CREATED, EVENT_DELETED,
     EVENT_REPORT_FLAG_CHANGED, EVENT_UPDATED,
 };
 use crate::services::protected_service_context::{
@@ -179,28 +179,23 @@ impl TimelineService {
             &event_item.id,
             &event_item.event_code,
             &normalized.case_id,
-        );
+        )?;
 
-        let new_value = audit_metadata::snapshot(audit_metadata::timeline_event_snapshot(
+        let new_value = audit_metadata::safe_timeline_event_snapshot(
             &event_item.event_code,
             &event_item.title,
             Some(event_item.description.as_str()),
             &event_item.event_date,
             event_item.include_in_report,
-        ));
+        )?;
 
-        AuditService::write_success_non_blocking(
-            app.clone(),
-            AuditSuccessInput::new(
-                &current_user,
-                EVENT_CREATED,
-                ENTITY_TYPE_EVENT,
-                Some(&event_item.id),
-                Some(&normalized.case_id),
-                None,
-                new_value,
-                Some(technical_details),
-            ),
+        AuditService::write_best_effort(
+            app,
+            AuditWriteInput::success(&current_user, EVENT_CREATED)
+                .with_case_id(normalized.case_id.clone())
+                .with_entity(ENTITY_TYPE_EVENT, event_item.id.clone())
+                .with_snapshots(None, Some(new_value))
+                .with_details(technical_details),
         );
 
         Ok(CreateEventResponse { event_item })
@@ -376,37 +371,31 @@ impl TimelineService {
             &normalized.event_id,
             &event_details.event_item.event_code,
             &changed,
-        );
+        )?;
 
-        let (old_val, new_val) = audit_metadata::old_new(
-            audit_metadata::timeline_event_snapshot(
-                &old_event.event_code,
-                &old_event.title,
-                Some(old_event.description.as_str()),
-                &old_event.event_date,
-                old_event.include_in_report,
-            ),
-            audit_metadata::timeline_event_snapshot(
-                &event_details.event_item.event_code,
-                &event_details.event_item.title,
-                Some(event_details.event_item.description.as_str()),
-                &event_details.event_item.event_date,
-                event_details.event_item.include_in_report,
-            ),
-        );
+        let old_val = audit_metadata::safe_timeline_event_snapshot(
+            &old_event.event_code,
+            &old_event.title,
+            Some(old_event.description.as_str()),
+            &old_event.event_date,
+            old_event.include_in_report,
+        )?;
 
-        AuditService::write_success_non_blocking(
-            app.clone(),
-            AuditSuccessInput::new(
-                &current_user,
-                EVENT_UPDATED,
-                ENTITY_TYPE_EVENT,
-                Some(&normalized.event_id),
-                Some(&normalized.case_id),
-                old_val,
-                new_val,
-                Some(technical_details),
-            ),
+        let new_val = audit_metadata::safe_timeline_event_snapshot(
+            &event_details.event_item.event_code,
+            &event_details.event_item.title,
+            Some(event_details.event_item.description.as_str()),
+            &event_details.event_item.event_date,
+            event_details.event_item.include_in_report,
+        )?;
+
+        AuditService::write_best_effort(
+            app,
+            AuditWriteInput::success(&current_user, EVENT_UPDATED)
+                .with_case_id(normalized.case_id.clone())
+                .with_entity(ENTITY_TYPE_EVENT, normalized.event_id.clone())
+                .with_snapshots(Some(old_val), Some(new_val))
+                .with_details(technical_details),
         );
 
         Ok(UpdateEventResponse { event_details })
@@ -439,28 +428,23 @@ impl TimelineService {
         TimelineRepository::soft_delete_event(conn, &case_id, &event_id)?;
 
         let technical_details =
-            audit_metadata::timeline_event_deleted(&event_id, &old_event_item.event_code);
+            audit_metadata::timeline_event_deleted(&event_id, &old_event_item.event_code)?;
 
-        let old_value = audit_metadata::snapshot(audit_metadata::timeline_event_snapshot(
+        let old_value = audit_metadata::safe_timeline_event_snapshot(
             &old_event_item.event_code,
             &old_event_item.title,
             Some(old_event_item.description.as_str()),
             &old_event_item.event_date,
             old_event_item.include_in_report,
-        ));
+        )?;
 
-        AuditService::write_success_non_blocking(
-            app.clone(),
-            AuditSuccessInput::new(
-                &current_user,
-                EVENT_DELETED,
-                ENTITY_TYPE_EVENT,
-                Some(&event_id),
-                Some(&case_id),
-                old_value,
-                None,
-                Some(technical_details),
-            ),
+        AuditService::write_best_effort(
+            app,
+            AuditWriteInput::success(current_user, EVENT_DELETED)
+                .with_case_id(case_id.clone())
+                .with_entity(ENTITY_TYPE_EVENT, event_id.clone())
+                .with_snapshots(Some(old_value), None)
+                .with_details(technical_details),
         );
 
         Ok(SoftDeleteEventResponse { event_id })
@@ -495,37 +479,31 @@ impl TimelineService {
             &event_item.id,
             &event_item.event_code,
             event_item.include_in_report,
-        );
+        )?;
 
-        let (old_value, new_value) = audit_metadata::old_new(
-            audit_metadata::timeline_event_snapshot(
-                &old_event_item.event_code,
-                &old_event_item.title,
-                Some(old_event_item.description.as_str()),
-                &old_event_item.event_date,
-                old_event_item.include_in_report,
-            ),
-            audit_metadata::timeline_event_snapshot(
-                &event_item.event_code,
-                &event_item.title,
-                Some(event_item.description.as_str()),
-                &event_item.event_date,
-                event_item.include_in_report,
-            ),
-        );
+        let old_value = audit_metadata::safe_timeline_event_snapshot(
+            &old_event_item.event_code,
+            &old_event_item.title,
+            Some(old_event_item.description.as_str()),
+            &old_event_item.event_date,
+            old_event_item.include_in_report,
+        )?;
 
-        AuditService::write_success_non_blocking(
-            app.clone(),
-            AuditSuccessInput::new(
-                &current_user,
-                EVENT_REPORT_FLAG_CHANGED,
-                ENTITY_TYPE_EVENT,
-                Some(&event_item.id),
-                Some(&normalized.case_id),
-                old_value,
-                new_value,
-                Some(technical_details),
-            ),
+        let new_value = audit_metadata::safe_timeline_event_snapshot(
+            &event_item.event_code,
+            &event_item.title,
+            Some(event_item.description.as_str()),
+            &event_item.event_date,
+            event_item.include_in_report,
+        )?;
+
+        AuditService::write_best_effort(
+            app,
+            AuditWriteInput::success(current_user, EVENT_REPORT_FLAG_CHANGED)
+                .with_case_id(normalized.case_id.clone())
+                .with_entity(ENTITY_TYPE_EVENT, event_item.id.clone())
+                .with_snapshots(Some(old_value), Some(new_value))
+                .with_details(technical_details),
         );
 
         Ok(ToggleEventReportIncludeResponse { event_item })

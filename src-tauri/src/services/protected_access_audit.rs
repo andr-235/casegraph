@@ -1,8 +1,8 @@
 use tauri::AppHandle;
 
-use crate::db::connection::open_connection;
-use crate::domain::audit::AuditAccessDeniedInput;
-use crate::repositories::audit_repository::AuditRepository;
+use crate::audit::audit_metadata;
+use crate::errors::app_error::AppErrorDto;
+use crate::services::audit_service::{AuditService, AuditWriteInput};
 use crate::security::session::CurrentUserDto;
 
 #[derive(Debug, Clone)]
@@ -50,29 +50,41 @@ pub fn write_protected_access_denied_best_effort(
     audit: ProtectedAccessDeniedAudit<'_>,
 ) {
     let result = (|| {
-        let conn = open_connection(app)?;
-
         let required_role_str = audit.required_role.unwrap_or("");
         let entity_type_str = audit.entity_type.unwrap_or("generic");
-        let entity_id_str = audit.entity_id.map(|s| s.to_string());
 
         let description = format!(
             "Access denied for action '{}'. Reason: {}.",
             audit.command_name, audit.reason
         );
 
-        let input = AuditAccessDeniedInput {
-            command_name: audit.command_name.to_string(),
-            entity_type: entity_type_str.to_string(),
-            entity_id: entity_id_str,
-            description,
-            required_role: required_role_str.to_string(),
-        };
+        let technical_details = audit_metadata::access_denied(
+            &description,
+            audit.command_name,
+            Some(&current_user.role),
+            Some(required_role_str),
+        )?;
 
-        AuditRepository::insert_access_denied(&conn, current_user, &input)
+        let mut input = AuditWriteInput::failure(current_user, crate::domain::audit_action::audit::ACCESS_DENIED)
+            .with_entity_type(entity_type_str)
+            .with_details(technical_details);
+
+        input.result = "denied".to_string(); // Keep EXACT compatibility
+        input.severity = "warning".to_string();
+
+        if let Some(case_id) = audit.case_id {
+            input = input.with_case_id(case_id);
+        }
+
+        if let Some(id) = audit.entity_id {
+            input.entity_id = Some(id.to_string());
+        }
+
+        AuditService::write_best_effort(app, input);
+        Ok::<(), AppErrorDto>(())
     })();
 
     if let Err(err) = result {
-        eprintln!("audit access denied write failed: {:?}", err);
+        eprintln!("[audit] write_protected_access_denied failed: {}", err.message);
     }
 }

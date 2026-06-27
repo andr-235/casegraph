@@ -303,3 +303,31 @@ fn audit_error_details_omits_none_optional_fields() {
     assert!(!obj.contains_key("materialCode"));
     assert!(!obj.contains_key("backupCode"));
 }
+
+// ── safe_audit_error_details builder ─────────────────────────────────────
+
+#[test]
+fn safe_audit_error_details_returns_sanitized_safe_details() {
+    use crate::audit::audit_metadata::safe_audit_error_details;
+
+    let details = safe_audit_error_details(
+        "restoreBackup",
+        "ERR_RESTORE_FAILED",
+        "Не удалось восстановить данные из backup C:\\\\Users\\\\Ivan\\\\Desktop\\\\backup.zip",
+        Some("backup"),
+        Some("backup-id"),
+        None,
+        None,
+        Some("BCK-001"),
+    )
+    .unwrap();
+
+    let text = details.into_value().to_string();
+
+    assert!(text.contains("restoreBackup"));
+    assert!(text.contains("ERR_RESTORE_FAILED"));
+    assert!(text.contains("BCK-001"));
+    assert!(!text.contains("C:\\\\Users"));
+    assert!(!text.contains("Desktop"));
+    assert!(!text.contains("backup.zip"));
+}

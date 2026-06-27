@@ -113,28 +113,18 @@ impl SettingsService {
                 )
                 .collect();
 
-            let old_value = crate::audit::audit_metadata::snapshot(
-                crate::audit::audit_metadata::settings_snapshot(old_snapshot_changes),
-            );
+            let old_value = crate::audit::audit_metadata::safe_settings_snapshot(old_snapshot_changes)?;
 
-            let new_value = crate::audit::audit_metadata::snapshot(
-                crate::audit::audit_metadata::settings_snapshot(new_snapshot_changes),
-            );
+            let new_value = crate::audit::audit_metadata::safe_settings_snapshot(new_snapshot_changes)?;
 
-            let input = crate::services::audit_service::AuditSuccessInput::new(
-                &context.current_user,
-                crate::domain::audit_action::settings::UPDATED,
-                "settings",
-                None,
-                None,
-                old_value,
-                new_value,
-                crate::audit::audit_metadata::settings_updated(&changed_keys, &categories),
-            );
+            let technical_details = crate::audit::audit_metadata::settings_updated(&changed_keys, &categories)?;
 
-            crate::services::audit_service::AuditService::write_success_non_blocking(
-                app.clone(),
-                input,
+            crate::services::audit_service::AuditService::write_best_effort(
+                app,
+                crate::services::audit_service::AuditWriteInput::success(&context.current_user, crate::domain::audit_action::settings::UPDATED)
+                    .with_entity_type("settings")
+                    .with_snapshots(Some(old_value), Some(new_value))
+                    .with_details(technical_details),
             );
         }
 
@@ -204,28 +194,18 @@ impl SettingsService {
                 )
                 .collect();
 
-            let old_value = crate::audit::audit_metadata::snapshot(
-                crate::audit::audit_metadata::settings_snapshot(old_snapshot_changes),
-            );
+            let old_value = crate::audit::audit_metadata::safe_settings_snapshot(old_snapshot_changes)?;
 
-            let new_value = crate::audit::audit_metadata::snapshot(
-                crate::audit::audit_metadata::settings_snapshot(new_snapshot_changes),
-            );
+            let new_value = crate::audit::audit_metadata::safe_settings_snapshot(new_snapshot_changes)?;
 
-            let input = crate::services::audit_service::AuditSuccessInput::new(
-                &context.current_user,
-                crate::domain::audit_action::settings::RESET_TO_DEFAULT,
-                "settings",
-                None,
-                None,
-                old_value,
-                new_value,
-                crate::audit::audit_metadata::settings_reset_to_default(&changed_keys),
-            );
+            let technical_details = crate::audit::audit_metadata::settings_reset_to_default(&changed_keys)?;
 
-            crate::services::audit_service::AuditService::write_success_non_blocking(
-                app.clone(),
-                input,
+            crate::services::audit_service::AuditService::write_best_effort(
+                app,
+                crate::services::audit_service::AuditWriteInput::success(&context.current_user, crate::domain::audit_action::settings::RESET_TO_DEFAULT)
+                    .with_entity_type("settings")
+                    .with_snapshots(Some(old_value), Some(new_value))
+                    .with_details(technical_details),
             );
         }
 

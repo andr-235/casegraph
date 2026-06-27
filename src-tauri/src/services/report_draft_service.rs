@@ -132,40 +132,33 @@ impl ReportDraftService {
         let metrics =
             crate::audit::audit_metadata::report_draft_metrics_from_content(&created_draft.content);
 
-        let new_value = crate::audit::audit_metadata::snapshot(
-            crate::audit::audit_metadata::report_draft_snapshot(
-                created_draft.draft_code.as_deref(),
-                &created_draft.title,
-                &created_draft.report_type,
-                created_draft.status.as_deref(),
-                metrics.section_count,
-                metrics.character_count,
-                metrics.included_materials_count,
-                metrics.included_objects_count,
-                metrics.included_relations_count,
-                metrics.included_events_count,
-                created_draft.exported_at.as_deref(),
-            ),
-        );
+        let new_value = crate::audit::audit_metadata::safe_report_draft_snapshot(
+            created_draft.draft_code.as_deref(),
+            &created_draft.title,
+            &created_draft.report_type,
+            created_draft.status.as_deref(),
+            metrics.section_count,
+            metrics.character_count,
+            metrics.included_materials_count,
+            metrics.included_objects_count,
+            metrics.included_relations_count,
+            metrics.included_events_count,
+            created_draft.exported_at.as_deref(),
+        )?;
 
-        let input = crate::services::audit_service::AuditSuccessInput::new(
-            &context.current_user,
-            crate::domain::audit_action::report::DRAFT_GENERATED,
-            "report_draft",
-            Some(&created_draft.id),
-            Some(&created_draft.case_id),
-            None,
-            new_value,
-            crate::audit::audit_metadata::report_draft_generated(
-                &created_draft.id,
-                &created_draft.case_id,
-                &created_draft.report_type,
-            ),
-        );
+        let technical_details = crate::audit::audit_metadata::report_draft_generated(
+            &created_draft.id,
+            &created_draft.case_id,
+            &created_draft.report_type,
+        )?;
 
-        crate::services::audit_service::AuditService::write_success_non_blocking(
-            app.clone(),
-            input,
+        crate::services::audit_service::AuditService::write_best_effort(
+            app,
+            crate::services::audit_service::AuditWriteInput::success(&context.current_user, crate::domain::audit_action::report::DRAFT_GENERATED)
+                .with_case_id(created_draft.case_id.clone())
+                .with_entity("report_draft", created_draft.id.clone())
+                .with_snapshots(None, Some(new_value))
+                .with_details(technical_details),
         );
 
         Ok(created_draft)
@@ -195,34 +188,33 @@ impl ReportDraftService {
         let updated_metrics =
             crate::audit::audit_metadata::report_draft_metrics_from_content(&updated_draft.content);
 
-        let (old_value, new_value) = crate::audit::audit_metadata::old_new(
-            crate::audit::audit_metadata::report_draft_snapshot(
-                old_draft.draft_code.as_deref(),
-                &old_draft.title,
-                &old_draft.report_type,
-                old_draft.status.as_deref(),
-                old_metrics.section_count,
-                old_metrics.character_count,
-                old_metrics.included_materials_count,
-                old_metrics.included_objects_count,
-                old_metrics.included_relations_count,
-                old_metrics.included_events_count,
-                old_draft.exported_at.as_deref(),
-            ),
-            crate::audit::audit_metadata::report_draft_snapshot(
-                updated_draft.draft_code.as_deref(),
-                &updated_draft.title,
-                &updated_draft.report_type,
-                updated_draft.status.as_deref(),
-                updated_metrics.section_count,
-                updated_metrics.character_count,
-                updated_metrics.included_materials_count,
-                updated_metrics.included_objects_count,
-                updated_metrics.included_relations_count,
-                updated_metrics.included_events_count,
-                updated_draft.exported_at.as_deref(),
-            ),
-        );
+        let old_value = crate::audit::audit_metadata::safe_report_draft_snapshot(
+            old_draft.draft_code.as_deref(),
+            &old_draft.title,
+            &old_draft.report_type,
+            old_draft.status.as_deref(),
+            old_metrics.section_count,
+            old_metrics.character_count,
+            old_metrics.included_materials_count,
+            old_metrics.included_objects_count,
+            old_metrics.included_relations_count,
+            old_metrics.included_events_count,
+            old_draft.exported_at.as_deref(),
+        )?;
+
+        let new_value = crate::audit::audit_metadata::safe_report_draft_snapshot(
+            updated_draft.draft_code.as_deref(),
+            &updated_draft.title,
+            &updated_draft.report_type,
+            updated_draft.status.as_deref(),
+            updated_metrics.section_count,
+            updated_metrics.character_count,
+            updated_metrics.included_materials_count,
+            updated_metrics.included_objects_count,
+            updated_metrics.included_relations_count,
+            updated_metrics.included_events_count,
+            updated_draft.exported_at.as_deref(),
+        )?;
 
         let mut changed_fields = Vec::new();
         crate::audit::audit_metadata::push_changed(
@@ -256,24 +248,19 @@ impl ReportDraftService {
             &updated_metrics.character_count,
         );
 
-        let input = crate::services::audit_service::AuditSuccessInput::new(
-            &context.current_user,
-            crate::domain::audit_action::report::DRAFT_UPDATED,
-            "report_draft",
-            Some(&updated_draft.id),
-            Some(&updated_draft.case_id),
-            old_value,
-            new_value,
-            crate::audit::audit_metadata::report_draft_updated(
-                &updated_draft.id,
-                &updated_draft.case_id,
-                &changed_fields,
-            ),
-        );
+        let technical_details = crate::audit::audit_metadata::report_draft_updated(
+            &updated_draft.id,
+            &updated_draft.case_id,
+            &changed_fields,
+        )?;
 
-        crate::services::audit_service::AuditService::write_success_non_blocking(
-            app.clone(),
-            input,
+        crate::services::audit_service::AuditService::write_best_effort(
+            app,
+            crate::services::audit_service::AuditWriteInput::success(&context.current_user, crate::domain::audit_action::report::DRAFT_UPDATED)
+                .with_case_id(updated_draft.case_id.clone())
+                .with_entity("report_draft", updated_draft.id.clone())
+                .with_snapshots(Some(old_value), Some(new_value))
+                .with_details(technical_details),
         );
 
         Ok(updated_draft)
@@ -295,26 +282,20 @@ impl ReportDraftService {
             errors: vec![],
         };
 
-        let input = crate::services::audit_service::AuditSuccessInput::new(
-            &context.current_user,
-            crate::domain::audit_action::report::DRAFT_VALIDATED,
-            "report_draft",
-            Some(&draft.id),
-            Some(&draft.case_id),
-            None,
-            None,
-            crate::audit::audit_metadata::report_draft_validated(
-                &draft.id,
-                &draft.case_id,
-                validation_result.is_valid,
-                validation_result.warnings.len(),
-                validation_result.errors.len(),
-            ),
-        );
+        let technical_details = crate::audit::audit_metadata::report_draft_validated(
+            &draft.id,
+            &draft.case_id,
+            validation_result.is_valid,
+            validation_result.warnings.len(),
+            validation_result.errors.len(),
+        )?;
 
-        crate::services::audit_service::AuditService::write_success_non_blocking(
-            app.clone(),
-            input,
+        crate::services::audit_service::AuditService::write_best_effort(
+            app,
+            crate::services::audit_service::AuditWriteInput::success(&context.current_user, crate::domain::audit_action::report::DRAFT_VALIDATED)
+                .with_case_id(draft.case_id.clone())
+                .with_entity("report_draft", draft.id.clone())
+                .with_details(technical_details),
         );
 
         Ok(validation_result)
@@ -332,38 +313,31 @@ impl ReportDraftService {
         let metrics =
             crate::audit::audit_metadata::report_draft_metrics_from_content(&old_draft.content);
 
-        let old_value = crate::audit::audit_metadata::snapshot(
-            crate::audit::audit_metadata::report_draft_snapshot(
-                old_draft.draft_code.as_deref(),
-                &old_draft.title,
-                &old_draft.report_type,
-                old_draft.status.as_deref(),
-                metrics.section_count,
-                metrics.character_count,
-                metrics.included_materials_count,
-                metrics.included_objects_count,
-                metrics.included_relations_count,
-                metrics.included_events_count,
-                old_draft.exported_at.as_deref(),
-            ),
-        );
+        let old_value = crate::audit::audit_metadata::safe_report_draft_snapshot(
+            old_draft.draft_code.as_deref(),
+            &old_draft.title,
+            &old_draft.report_type,
+            old_draft.status.as_deref(),
+            metrics.section_count,
+            metrics.character_count,
+            metrics.included_materials_count,
+            metrics.included_objects_count,
+            metrics.included_relations_count,
+            metrics.included_events_count,
+            old_draft.exported_at.as_deref(),
+        )?;
 
         ReportRepository::delete_draft(conn, &payload.draft_id)?;
 
-        let input = crate::services::audit_service::AuditSuccessInput::new(
-            &context.current_user,
-            crate::domain::audit_action::report::DRAFT_DELETED,
-            "report_draft",
-            Some(&old_draft.id),
-            Some(&old_draft.case_id),
-            old_value,
-            None,
-            crate::audit::audit_metadata::report_draft_deleted(&old_draft.id, &old_draft.case_id),
-        );
+        let technical_details = crate::audit::audit_metadata::report_draft_deleted(&old_draft.id, &old_draft.case_id)?;
 
-        crate::services::audit_service::AuditService::write_success_non_blocking(
-            app.clone(),
-            input,
+        crate::services::audit_service::AuditService::write_best_effort(
+            app,
+            crate::services::audit_service::AuditWriteInput::success(&context.current_user, crate::domain::audit_action::report::DRAFT_DELETED)
+                .with_case_id(old_draft.case_id.clone())
+                .with_entity("report_draft", old_draft.id.clone())
+                .with_snapshots(Some(old_value), None)
+                .with_details(technical_details),
         );
 
         Ok(())

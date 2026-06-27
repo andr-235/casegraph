@@ -8,6 +8,7 @@ use serde_json::Value;
 use tauri::{AppHandle, Manager};
 
 use crate::audit::audit_error_sanitizer::sanitize_audit_details;
+use crate::audit::audit_safe_value::{AuditSafeDetails, AuditSafeSnapshot};
 use crate::db::connection::open_connection;
 use crate::domain::audit::{
     AuditLogDetailsDto, AuditLogDto, ExportAuditLogPayload, ExportAuditLogResponse,
@@ -38,7 +39,150 @@ pub const EVENT_REPORT_FLAG_CHANGED: &str = audit_action::timeline::EVENT_REPORT
 
 pub struct AuditService;
 
+// ── New typed audit write API ─────────────────────────────────────────────
+//
+// Services must use `AuditWriteInput` instead of passing raw `serde_json::Value`.
+// The safe wrapper types enforce at compile time that only `crate::audit`
+// builders can produce values that enter the audit log.
+
+#[derive(Debug)]
+pub struct AuditWriteInput {
+    pub action: String,
+    pub result: String,
+    pub severity: String,
+
+    pub user_id: String,
+    pub username: String,
+    pub user_role: String,
+
+    pub case_id: Option<String>,
+    pub entity_type: String,
+    pub entity_id: Option<String>,
+
+    pub old_value: Option<AuditSafeSnapshot>,
+    pub new_value: Option<AuditSafeSnapshot>,
+    pub technical_details: Option<AuditSafeDetails>,
+}
+
+impl AuditWriteInput {
+    pub fn success(user: &CurrentUserDto, action: impl Into<String>) -> Self {
+        Self {
+            action: action.into(),
+            result: AUDIT_RESULT_SUCCESS.to_string(),
+            severity: AUDIT_SEVERITY_INFO.to_string(),
+            user_id: user.user_id.clone(),
+            username: user.username.clone(),
+            user_role: user.role.clone(),
+            case_id: None,
+            entity_type: String::new(),
+            entity_id: None,
+            old_value: None,
+            new_value: None,
+            technical_details: None,
+        }
+    }
+
+    pub fn failure(user: &CurrentUserDto, action: impl Into<String>) -> Self {
+        Self {
+            action: action.into(),
+            result: "failure".to_string(),
+            severity: "warning".to_string(),
+            user_id: user.user_id.clone(),
+            username: user.username.clone(),
+            user_role: user.role.clone(),
+            case_id: None,
+            entity_type: String::new(),
+            entity_id: None,
+            old_value: None,
+            new_value: None,
+            technical_details: None,
+        }
+    }
+
+    pub fn with_case_id(mut self, case_id: impl Into<String>) -> Self {
+        self.case_id = Some(case_id.into());
+        self
+    }
+
+    pub fn with_entity(
+        mut self,
+        entity_type: impl Into<String>,
+        entity_id: impl Into<String>,
+    ) -> Self {
+        self.entity_type = entity_type.into();
+        self.entity_id = Some(entity_id.into());
+        self
+    }
+
+    pub fn with_entity_type(mut self, entity_type: impl Into<String>) -> Self {
+        self.entity_type = entity_type.into();
+        self
+    }
+
+    pub fn with_snapshots(
+        mut self,
+        old_value: Option<AuditSafeSnapshot>,
+        new_value: Option<AuditSafeSnapshot>,
+    ) -> Self {
+        self.old_value = old_value;
+        self.new_value = new_value;
+        self
+    }
+
+    pub fn with_details(mut self, details: AuditSafeDetails) -> Self {
+        self.technical_details = Some(details);
+        self
+    }
+}
+
 impl AuditService {
+    /// Write an audit record in a best-effort, non-blocking way.
+    ///
+    /// Accepts the new typed `AuditWriteInput`.  Safe wrappers are converted
+    /// to `Value` only here — this is the only place in the codebase allowed
+    /// to call `into_value()` on them.
+    pub fn write_best_effort(app: &AppHandle, input: AuditWriteInput) {
+        let app = app.clone();
+
+        let old_value = input.old_value.map(|v| v.into_value());
+        let new_value = input.new_value.map(|v| v.into_value());
+        let technical_details = input
+            .technical_details
+            .map(|v| sanitize_audit_details(v.into_value()));
+
+        let record = CreateAuditLogRecord {
+            user_id: Some(input.user_id),
+            username: input.username,
+            user_role: input.user_role,
+            action: input.action,
+            entity_type: input.entity_type,
+            entity_id: input.entity_id,
+            case_id: input.case_id,
+            result: input.result,
+            severity: input.severity,
+            old_value: old_value
+                .map(|v| serde_json::to_string(&v).unwrap_or_default()),
+            new_value: new_value
+                .map(|v| serde_json::to_string(&v).unwrap_or_default()),
+            technical_details: technical_details
+                .map(|v| serde_json::to_string(&v).unwrap_or_default()),
+            app_version: env!("CARGO_PKG_VERSION").to_string(),
+        };
+
+        tauri::async_runtime::spawn(async move {
+            let conn = match open_connection(&app) {
+                Ok(conn) => conn,
+                Err(_) => {
+                    eprintln!("[audit] write_best_effort: failed to open db");
+                    return;
+                }
+            };
+            if let Err(err) = AuditRepository::insert(&conn, record) {
+                eprintln!("[audit] write_best_effort failed: {}", err.message);
+            }
+        });
+    }
+
     pub fn write_success(
         conn: &Connection,
         user: &CurrentUserDto,
@@ -112,29 +256,6 @@ impl AuditService {
         AuditRepository::insert(&conn, record)
     }
 
-    pub fn write_success_non_blocking(app: AppHandle, input: AuditSuccessInput) {
-        let record = match Self::build_success_record(input) {
-            Ok(record) => record,
-            Err(_) => {
-                eprintln!("[audit] failed to build audit record");
-                return;
-            }
-        };
-
-        tauri::async_runtime::spawn(async move {
-            let conn = match open_connection(&app) {
-                Ok(conn) => conn,
-                Err(_) => {
-                    eprintln!("[audit] failed to open database connection");
-                    return;
-                }
-            };
-
-            if AuditRepository::insert(&conn, record).is_err() {
-                eprintln!("[audit] failed to insert audit log record");
-            }
-        });
-    }
 
     pub fn get_audit_logs(
         app: &AppHandle,
@@ -344,85 +465,24 @@ impl AuditService {
         user: &CurrentUserDto,
         exported_count: i64,
     ) {
-        let input = AuditSuccessInput::new(
-            user,
-            audit_action::audit::LOG_EXPORTED,
-            "audit",
-            None,
-            None,
-            None,
-            to_json_value(&serde_json::json!({ "exported_count": exported_count })).ok(),
-            None,
-        );
+        let result = (|| {
+            let technical_details = crate::audit::audit_metadata::audit_log_exported(
+                exported_count as usize,
+                "csv",
+                false,
+            )?;
 
-        Self::write_success_non_blocking(app, input);
-    }
+            Self::write_best_effort(
+                &app,
+                AuditWriteInput::success(user, audit_action::audit::LOG_EXPORTED)
+                    .with_entity_type("audit")
+                    .with_details(technical_details),
+            );
+            Ok::<(), AppErrorDto>(())
+        })();
 
-    fn build_success_record(input: AuditSuccessInput) -> Result<CreateAuditLogRecord, AppErrorDto> {
-        Ok(CreateAuditLogRecord {
-            user_id: Some(input.user_id),
-            username: input.username,
-            user_role: input.user_role,
-
-            action: input.action,
-            entity_type: input.entity_type,
-            entity_id: input.entity_id,
-            case_id: input.case_id,
-
-            result: AUDIT_RESULT_SUCCESS.to_string(),
-            severity: AUDIT_SEVERITY_INFO.to_string(),
-
-            old_value: serialize_optional_json(input.old_value)?,
-            new_value: serialize_optional_json(input.new_value)?,
-            technical_details: serialize_optional_json(
-                input.technical_details.map(sanitize_audit_details),
-            )?,
-
-            app_version: env!("CARGO_PKG_VERSION").to_string(),
-        })
-    }
-}
-
-#[derive(Debug)]
-pub struct AuditSuccessInput {
-    pub user_id: String,
-    pub username: String,
-    pub user_role: String,
-
-    pub action: String,
-    pub entity_type: String,
-    pub entity_id: Option<String>,
-    pub case_id: Option<String>,
-
-    pub old_value: Option<Value>,
-    pub new_value: Option<Value>,
-    pub technical_details: Option<Value>,
-}
-
-impl AuditSuccessInput {
-    pub fn new(
-        user: &CurrentUserDto,
-        action: &str,
-        entity_type: &str,
-        entity_id: Option<&str>,
-        case_id: Option<&str>,
-        old_value: Option<Value>,
-        new_value: Option<Value>,
-        technical_details: Option<Value>,
-    ) -> Self {
-        Self {
-            user_id: user.user_id.clone(),
-            username: user.username.clone(),
-            user_role: user.role.clone(),
-
-            action: action.to_string(),
-            entity_type: entity_type.to_string(),
-            entity_id: entity_id.map(str::to_string),
-            case_id: case_id.map(str::to_string),
-
-            old_value,
-            new_value,
-            technical_details,
+        if let Err(err) = result {
+            eprintln!("[audit] write_audit_export_event failed: {}", err.message);
         }
     }
 }

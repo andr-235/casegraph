@@ -330,38 +330,41 @@ fn write_material_imported_audit_best_effort(
 ) {
     use crate::audit::audit_metadata;
     use crate::domain::audit_action;
-    use crate::services::audit_service::{AuditService, AuditSuccessInput};
+    use crate::services::audit_service::{AuditService, AuditWriteInput};
 
-    let technical_details = audit_metadata::material_imported(
-        &created_material.id,
-        &created_material.material_code,
-        created_material.original_file_name.as_deref().unwrap_or(""),
-    );
+    let result = (|| {
+        let technical_details = audit_metadata::material_imported(
+            &created_material.id,
+            &created_material.material_code,
+            created_material.original_file_name.as_deref().unwrap_or(""),
+        )?;
 
-    let new_value = audit_metadata::snapshot(audit_metadata::material_snapshot(
-        &created_material.material_code,
-        created_material.original_file_name.as_deref().unwrap_or(""),
-        &created_material.material_type,
-        created_material.file_size,
-        created_material.sha256.as_deref(),
-        Some(created_material.integrity_status.as_str()),
-        Some(created_material.description.as_str()),
-        created_material.captured_at.as_deref(),
-        created_material.include_in_report == 1,
-    ));
+        let new_value = audit_metadata::safe_material_snapshot(
+            &created_material.material_code,
+            created_material.original_file_name.as_deref().unwrap_or(""),
+            &created_material.material_type,
+            created_material.file_size,
+            created_material.sha256.as_deref(),
+            Some(created_material.integrity_status.as_str()),
+            Some(created_material.description.as_str()),
+            created_material.captured_at.as_deref(),
+            created_material.include_in_report == 1,
+        )?;
 
-    let input = AuditSuccessInput::new(
-        current_user,
-        audit_action::material::IMPORTED,
-        "material",
-        Some(&created_material.id),
-        Some(&created_material.case_id),
-        None,
-        new_value,
-        technical_details,
-    );
+        AuditService::write_best_effort(
+            app,
+            AuditWriteInput::success(current_user, audit_action::material::IMPORTED)
+                .with_case_id(created_material.case_id.clone())
+                .with_entity("material", created_material.id.clone())
+                .with_snapshots(None, Some(new_value))
+                .with_details(technical_details),
+        );
+        Ok::<(), crate::errors::app_error::AppErrorDto>(())
+    })();
 
-    AuditService::write_success_non_blocking(app.clone(), input);
+    if let Err(err) = result {
+        eprintln!("[audit] write_material_imported_audit failed: {}", err.message);
+    }
 }
 
 fn write_material_updated_audit_best_effort(
@@ -372,69 +375,69 @@ fn write_material_updated_audit_best_effort(
 ) {
     use crate::audit::audit_metadata;
     use crate::domain::audit_action;
-    use crate::services::audit_service::{AuditService, AuditSuccessInput};
+    use crate::services::audit_service::{AuditService, AuditWriteInput};
 
-    let mut changed = Vec::new();
-    audit_metadata::push_changed(
-        &mut changed,
-        "title",
-        &old_material.title,
-        &new_material.title,
-    );
-    audit_metadata::push_changed(
-        &mut changed,
-        "materialType",
-        &old_material.material_type,
-        &new_material.material_type,
-    );
-    audit_metadata::push_changed(
-        &mut changed,
-        "sourceName",
-        &old_material.source_name,
-        &new_material.source_name,
-    );
-    audit_metadata::push_changed(
-        &mut changed,
-        "description",
-        &old_material.description,
-        &new_material.description,
-    );
-    audit_metadata::push_changed(
-        &mut changed,
-        "capturedAt",
-        &old_material.captured_at,
-        &new_material.captured_at,
-    );
-    audit_metadata::push_changed(
-        &mut changed,
-        "includeInReport",
-        &old_material.include_in_report,
-        &new_material.include_in_report,
-    );
+    let result = (|| {
+        let mut changed = Vec::new();
+        audit_metadata::push_changed(
+            &mut changed,
+            "title",
+            &old_material.title,
+            &new_material.title,
+        );
+        audit_metadata::push_changed(
+            &mut changed,
+            "materialType",
+            &old_material.material_type,
+            &new_material.material_type,
+        );
+        audit_metadata::push_changed(
+            &mut changed,
+            "sourceName",
+            &old_material.source_name,
+            &new_material.source_name,
+        );
+        audit_metadata::push_changed(
+            &mut changed,
+            "description",
+            &old_material.description,
+            &new_material.description,
+        );
+        audit_metadata::push_changed(
+            &mut changed,
+            "capturedAt",
+            &old_material.captured_at,
+            &new_material.captured_at,
+        );
+        audit_metadata::push_changed(
+            &mut changed,
+            "includeInReport",
+            &old_material.include_in_report,
+            &new_material.include_in_report,
+        );
 
-    if changed.is_empty() {
-        return;
-    }
+        if changed.is_empty() {
+            return Ok(());
+        }
 
-    let is_toggle = changed.len() == 1 && changed[0] == "includeInReport";
-    let action = if is_toggle {
-        audit_action::material::REPORT_INCLUDE_CHANGED
-    } else {
-        audit_action::material::UPDATED
-    };
+        let is_toggle = changed.len() == 1 && changed[0] == "includeInReport";
+        let action = if is_toggle {
+            audit_action::material::REPORT_INCLUDE_CHANGED
+        } else {
+            audit_action::material::UPDATED
+        };
 
-    let technical_details = if is_toggle {
-        audit_metadata::material_report_include_changed(
-            &new_material.id,
-            &new_material.material_code,
-            new_material.include_in_report == 1,
-        )
-    } else {
-        audit_metadata::material_updated(&new_material.id, &new_material.material_code, &changed)
-    };
+        let technical_details = if is_toggle {
+            audit_metadata::material_report_include_changed(
+                &new_material.id,
+                &new_material.material_code,
+                new_material.include_in_report == 1,
+            )?
+        } else {
+            audit_metadata::material_updated(&new_material.id, &new_material.material_code, &changed)?
+        };
 
-    let (old_val, new_val) = audit_metadata::old_new(
-        audit_metadata::material_snapshot(
+        let old_val = audit_metadata::safe_material_snapshot(
             &old_material.material_code,
             old_material.original_file_name.as_deref().unwrap_or(""),
             &old_material.material_type,
@@ -444,8 +447,9 @@ fn write_material_updated_audit_best_effort(
             Some(old_material.description.as_str()),
             old_material.captured_at.as_deref(),
             old_material.include_in_report == 1,
-        ),
-        audit_metadata::material_snapshot(
+        )?;
+
+        let new_val = audit_metadata::safe_material_snapshot(
             &new_material.material_code,
             new_material.original_file_name.as_deref().unwrap_or(""),
             &new_material.material_type,
@@ -455,21 +459,22 @@ fn write_material_updated_audit_best_effort(
             Some(new_material.description.as_str()),
             new_material.captured_at.as_deref(),
             new_material.include_in_report == 1,
-        ),
-    );
+        )?;
 
-    let input = AuditSuccessInput::new(
-        current_user,
-        action,
-        "material",
-        Some(&new_material.id),
-        Some(&new_material.case_id),
-        old_val,
-        new_val,
-        technical_details,
-    );
+        AuditService::write_best_effort(
+            app,
+            AuditWriteInput::success(current_user, action)
+                .with_case_id(new_material.case_id.clone())
+                .with_entity("material", new_material.id.clone())
+                .with_snapshots(Some(old_val), Some(new_val))
+                .with_details(technical_details),
+        );
+        Ok::<(), crate::errors::app_error::AppErrorDto>(())
+    })();
 
-    AuditService::write_success_non_blocking(app.clone(), input);
+    if let Err(err) = result {
+        eprintln!("[audit] write_material_updated_audit failed: {}", err.message);
+    }
 }
 
 fn write_material_deleted_audit_best_effort(
@@ -479,35 +484,38 @@ fn write_material_deleted_audit_best_effort(
 ) {
     use crate::audit::audit_metadata;
     use crate::domain::audit_action;
-    use crate::services::audit_service::{AuditService, AuditSuccessInput};
+    use crate::services::audit_service::{AuditService, AuditWriteInput};
 
-    let technical_details =
-        audit_metadata::material_deleted(&old_material.id, &old_material.material_code);
+    let result = (|| {
+        let technical_details =
+            audit_metadata::material_deleted(&old_material.id, &old_material.material_code)?;
 
-    let old_value = audit_metadata::snapshot(audit_metadata::material_snapshot(
-        &old_material.material_code,
-        old_material.original_file_name.as_deref().unwrap_or(""),
-        &old_material.material_type,
-        old_material.file_size,
-        old_material.sha256.as_deref(),
-        Some(old_material.integrity_status.as_str()),
-        Some(old_material.description.as_str()),
-        old_material.captured_at.as_deref(),
-        old_material.include_in_report == 1,
-    ));
+        let old_value = audit_metadata::safe_material_snapshot(
+            &old_material.material_code,
+            old_material.original_file_name.as_deref().unwrap_or(""),
+            &old_material.material_type,
+            old_material.file_size,
+            old_material.sha256.as_deref(),
+            Some(old_material.integrity_status.as_str()),
+            Some(old_material.description.as_str()),
+            old_material.captured_at.as_deref(),
+            old_material.include_in_report == 1,
+        )?;
 
-    let input = AuditSuccessInput::new(
-        current_user,
-        audit_action::material::DELETED,
-        "material",
-        Some(&old_material.id),
-        Some(&old_material.case_id),
-        old_value,
-        None,
-        technical_details,
-    );
+        AuditService::write_best_effort(
+            app,
+            AuditWriteInput::success(current_user, audit_action::material::DELETED)
+                .with_case_id(old_material.case_id.clone())
+                .with_entity("material", old_material.id.clone())
+                .with_snapshots(Some(old_value), None)
+                .with_details(technical_details),
+        );
+        Ok::<(), crate::errors::app_error::AppErrorDto>(())
+    })();
 
-    AuditService::write_success_non_blocking(app.clone(), input);
+    if let Err(err) = result {
+        eprintln!("[audit] write_material_deleted_audit failed: {}", err.message);
+    }
 }
 
 #[allow(dead_code)]
@@ -519,23 +527,23 @@ fn write_material_hash_verified_audit_best_effort(
 ) {
     use crate::audit::audit_metadata;
     use crate::domain::audit_action;
-    use crate::services::audit_service::{AuditService, AuditSuccessInput};
+    use crate::services::audit_service::{AuditService, AuditWriteInput};
 
-    let integrity_status = new_material.integrity_status.as_str();
-    let action = if integrity_status == "ok" {
-        audit_action::material::HASH_VERIFIED
-    } else {
-        audit_action::material::HASH_MISMATCH
-    };
+    let result = (|| {
+        let integrity_status = new_material.integrity_status.as_str();
+        let action = if integrity_status == "ok" {
+            audit_action::material::HASH_VERIFIED
+        } else {
+            audit_action::material::HASH_MISMATCH
+        };
 
-    let technical_details = audit_metadata::material_hash_verified(
-        &new_material.id,
-        &new_material.material_code,
-        integrity_status,
-    );
+        let technical_details = audit_metadata::material_hash_verified(
+            &new_material.id,
+            &new_material.material_code,
+            integrity_status,
+        )?;
 
-    let (old_val, new_val) = audit_metadata::old_new(
-        audit_metadata::material_snapshot(
+        let old_val = audit_metadata::safe_material_snapshot(
             &old_material.material_code,
             old_material.original_file_name.as_deref().unwrap_or(""),
             &old_material.material_type,
@@ -545,8 +553,9 @@ fn write_material_hash_verified_audit_best_effort(
             Some(old_material.description.as_str()),
             old_material.captured_at.as_deref(),
             old_material.include_in_report == 1,
-        ),
-        audit_metadata::material_snapshot(
+        )?;
+
+        let new_val = audit_metadata::safe_material_snapshot(
             &new_material.material_code,
             new_material.original_file_name.as_deref().unwrap_or(""),
             &new_material.material_type,
@@ -556,19 +565,20 @@ fn write_material_hash_verified_audit_best_effort(
             Some(new_material.description.as_str()),
             new_material.captured_at.as_deref(),
             new_material.include_in_report == 1,
-        ),
-    );
+        )?;
 
-    let input = AuditSuccessInput::new(
-        current_user,
-        action,
-        "material",
-        Some(&new_material.id),
-        Some(&new_material.case_id),
-        old_val,
-        new_val,
-        technical_details,
-    );
+        AuditService::write_best_effort(
+            app,
+            AuditWriteInput::success(current_user, action)
+                .with_case_id(new_material.case_id.clone())
+                .with_entity("material", new_material.id.clone())
+                .with_snapshots(Some(old_val), Some(new_val))
+                .with_details(technical_details),
+        );
+        Ok::<(), crate::errors::app_error::AppErrorDto>(())
+    })();
 
-    AuditService::write_success_non_blocking(app.clone(), input);
+    if let Err(err) = result {
+        eprintln!("[audit] write_material_hash_verified_audit failed: {}", err.message);
+    }
 }

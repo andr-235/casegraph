@@ -268,41 +268,44 @@ fn write_relation_created_audit_best_effort(
 ) {
     use crate::audit::audit_metadata;
     use crate::domain::audit_action;
-    use crate::services::audit_service::{AuditService, AuditSuccessInput};
+    use crate::services::audit_service::{AuditService, AuditWriteInput};
 
-    let technical_details = audit_metadata::relation_created(
-        &created_relation.id,
-        &created_relation.relation_code,
-        &created_relation.source_object.id,
-        &created_relation.target_object.id,
-    );
+    let result = (|| {
+        let technical_details = audit_metadata::relation_created(
+            &created_relation.id,
+            &created_relation.relation_code,
+            &created_relation.source_object.id,
+            &created_relation.target_object.id,
+        )?;
 
-    let new_value = audit_metadata::snapshot(audit_metadata::relation_snapshot(
-        &created_relation.relation_code,
-        &created_relation.source_object.id,
-        &created_relation.target_object.id,
-        &created_relation.relation_type,
-        &created_relation.confidence_level,
-        Some(created_relation.basis.as_str()),
-        created_relation
-            .supporting_material
-            .as_ref()
-            .map(|m| m.id.as_str()),
-        created_relation.include_in_report,
-    ));
+        let new_value = audit_metadata::safe_relation_snapshot(
+            &created_relation.relation_code,
+            &created_relation.source_object.id,
+            &created_relation.target_object.id,
+            &created_relation.relation_type,
+            &created_relation.confidence_level,
+            Some(created_relation.basis.as_str()),
+            created_relation
+                .supporting_material
+                .as_ref()
+                .map(|m| m.id.as_str()),
+            created_relation.include_in_report,
+        )?;
 
-    let input = AuditSuccessInput::new(
-        current_user,
-        audit_action::relation::CREATED,
-        "relation",
-        Some(&created_relation.id),
-        Some(&created_relation.case_id),
-        None,
-        new_value,
-        technical_details,
-    );
+        AuditService::write_best_effort(
+            app,
+            AuditWriteInput::success(current_user, audit_action::relation::CREATED)
+                .with_case_id(created_relation.case_id.clone())
+                .with_entity("relation", created_relation.id.clone())
+                .with_snapshots(None, Some(new_value))
+                .with_details(technical_details),
+        );
+        Ok::<(), crate::errors::app_error::AppErrorDto>(())
+    })();
 
-    AuditService::write_success_non_blocking(app.clone(), input);
+    if let Err(err) = result {
+        eprintln!("[audit] write_relation_created_audit failed: {}", err.message);
+    }
 }
 
 fn write_relation_updated_audit_best_effort(
@@ -313,78 +316,82 @@ fn write_relation_updated_audit_best_effort(
 ) {
     use crate::audit::audit_metadata;
     use crate::domain::audit_action;
-    use crate::services::audit_service::{AuditService, AuditSuccessInput};
+    use crate::services::audit_service::{AuditService, AuditWriteInput};
 
-    let mut changed = Vec::new();
-    audit_metadata::push_changed(
-        &mut changed,
-        "sourceObjectId",
-        &old_relation.source_object.id,
-        &new_relation.source_object.id,
-    );
-    audit_metadata::push_changed(
-        &mut changed,
-        "targetObjectId",
-        &old_relation.target_object.id,
-        &new_relation.target_object.id,
-    );
-    audit_metadata::push_changed(
-        &mut changed,
-        "relationType",
-        &old_relation.relation_type,
-        &new_relation.relation_type,
-    );
-    audit_metadata::push_changed(
-        &mut changed,
-        "confidenceLevel",
-        &old_relation.confidence_level,
-        &new_relation.confidence_level,
-    );
-    audit_metadata::push_changed(
-        &mut changed,
-        "basis",
-        &old_relation.basis,
-        &new_relation.basis,
-    );
+    let result = (|| {
+        let mut changed = Vec::new();
+        audit_metadata::push_changed(
+            &mut changed,
+            "sourceObjectId",
+            &old_relation.source_object.id,
+            &new_relation.source_object.id,
+        );
+        audit_metadata::push_changed(
+            &mut changed,
+            "targetObjectId",
+            &old_relation.target_object.id,
+            &new_relation.target_object.id,
+        );
+        audit_metadata::push_changed(
+            &mut changed,
+            "relationType",
+            &old_relation.relation_type,
+            &new_relation.relation_type,
+        );
+        audit_metadata::push_changed(
+            &mut changed,
+            "confidenceLevel",
+            &old_relation.confidence_level,
+            &new_relation.confidence_level,
+        );
+        audit_metadata::push_changed(
+            &mut changed,
+            "basis",
+            &old_relation.basis,
+            &new_relation.basis,
+        );
 
-    let old_material_id = old_relation
-        .supporting_material
-        .as_ref()
-        .map(|m| m.id.as_str());
-    let new_material_id = new_relation
-        .supporting_material
-        .as_ref()
-        .map(|m| m.id.as_str());
-    if old_material_id != new_material_id {
-        changed.push("materialId");
-    }
+        let old_material_id = old_relation
+            .supporting_material
+            .as_ref()
+            .map(|m| m.id.as_str());
+        let new_material_id = new_relation
+            .supporting_material
+            .as_ref()
+            .map(|m| m.id.as_str());
+        if old_material_id != new_material_id {
+            changed.push("materialId");
+        }
 
-    audit_metadata::push_changed(
-        &mut changed,
-        "includeInReport",
-        &old_relation.include_in_report,
-        &new_relation.include_in_report,
-    );
+        audit_metadata::push_changed(
+            &mut changed,
+            "includeInReport",
+            &old_relation.include_in_report,
+            &new_relation.include_in_report,
+        );
 
-    let is_toggle = changed.len() == 1 && changed[0] == "includeInReport";
-    let action = if is_toggle {
-        audit_action::relation::REPORT_INCLUDE_CHANGED
-    } else {
-        audit_action::relation::UPDATED
-    };
+        if changed.is_empty() {
+            return Ok(());
+        }
 
-    let technical_details = if is_toggle {
-        audit_metadata::relation_report_include_changed(
-            &new_relation.id,
-            &new_relation.relation_code,
-            new_relation.include_in_report,
-        )
-    } else {
-        audit_metadata::relation_updated(&new_relation.id, &new_relation.relation_code, &changed)
-    };
+        let is_toggle = changed.len() == 1 && changed[0] == "includeInReport";
+        let action = if is_toggle {
+            audit_action::relation::REPORT_INCLUDE_CHANGED
+        } else {
+            audit_action::relation::UPDATED
+        };
 
-    let (old_val, new_val) = audit_metadata::old_new(
-        audit_metadata::relation_snapshot(
+        let technical_details = if is_toggle {
+            audit_metadata::relation_report_include_changed(
+                &new_relation.id,
+                &new_relation.relation_code,
+                new_relation.include_in_report,
+            )?
+        } else {
+            audit_metadata::relation_updated(&new_relation.id, &new_relation.relation_code, &changed)?
+        };
+
+        let old_val = audit_metadata::safe_relation_snapshot(
             &old_relation.relation_code,
             &old_relation.source_object.id,
             &old_relation.target_object.id,
@@ -396,8 +403,9 @@ fn write_relation_updated_audit_best_effort(
                 .as_ref()
                 .map(|m| m.id.as_str()),
             old_relation.include_in_report,
-        ),
-        audit_metadata::relation_snapshot(
+        )?;
+
+        let new_val = audit_metadata::safe_relation_snapshot(
             &new_relation.relation_code,
             &new_relation.source_object.id,
             &new_relation.target_object.id,
@@ -409,21 +417,22 @@ fn write_relation_updated_audit_best_effort(
                 .as_ref()
                 .map(|m| m.id.as_str()),
             new_relation.include_in_report,
-        ),
-    );
+        )?;
 
-    let input = AuditSuccessInput::new(
-        current_user,
-        action,
-        "relation",
-        Some(&new_relation.id),
-        Some(&new_relation.case_id),
-        old_val,
-        new_val,
-        technical_details,
-    );
+        AuditService::write_best_effort(
+            app,
+            AuditWriteInput::success(current_user, action)
+                .with_case_id(new_relation.case_id.clone())
+                .with_entity("relation", new_relation.id.clone())
+                .with_snapshots(Some(old_val), Some(new_val))
+                .with_details(technical_details),
+        );
+        Ok::<(), crate::errors::app_error::AppErrorDto>(())
+    })();
 
-    AuditService::write_success_non_blocking(app.clone(), input);
+    if let Err(err) = result {
+        eprintln!("[audit] write_relation_updated_audit failed: {}", err.message);
+    }
 }
 
 fn write_relation_deleted_audit_best_effort(
@@ -433,35 +442,38 @@ fn write_relation_deleted_audit_best_effort(
 ) {
     use crate::audit::audit_metadata;
     use crate::domain::audit_action;
-    use crate::services::audit_service::{AuditService, AuditSuccessInput};
+    use crate::services::audit_service::{AuditService, AuditWriteInput};
 
-    let technical_details =
-        audit_metadata::relation_deleted(&old_relation.id, &old_relation.relation_code);
+    let result = (|| {
+        let technical_details =
+            audit_metadata::relation_deleted(&old_relation.id, &old_relation.relation_code)?;
 
-    let old_value = audit_metadata::snapshot(audit_metadata::relation_snapshot(
-        &old_relation.relation_code,
-        &old_relation.source_object.id,
-        &old_relation.target_object.id,
-        &old_relation.relation_type,
-        &old_relation.confidence_level,
-        Some(old_relation.basis.as_str()),
-        old_relation
-            .supporting_material
-            .as_ref()
-            .map(|m| m.id.as_str()),
-        old_relation.include_in_report,
-    ));
+        let old_value = audit_metadata::safe_relation_snapshot(
+            &old_relation.relation_code,
+            &old_relation.source_object.id,
+            &old_relation.target_object.id,
+            &old_relation.relation_type,
+            &old_relation.confidence_level,
+            Some(old_relation.basis.as_str()),
+            old_relation
+                .supporting_material
+                .as_ref()
+                .map(|m| m.id.as_str()),
+            old_relation.include_in_report,
+        )?;
 
-    let input = AuditSuccessInput::new(
-        current_user,
-        audit_action::relation::DELETED,
-        "relation",
-        Some(&old_relation.id),
-        Some(&old_relation.case_id),
-        old_value,
-        None,
-        technical_details,
-    );
+        AuditService::write_best_effort(
+            app,
+            AuditWriteInput::success(current_user, audit_action::relation::DELETED)
+                .with_case_id(old_relation.case_id.clone())
+                .with_entity("relation", old_relation.id.clone())
+                .with_snapshots(Some(old_value), None)
+                .with_details(technical_details),
+        );
+        Ok::<(), crate::errors::app_error::AppErrorDto>(())
+    })();
 
-    AuditService::write_success_non_blocking(app.clone(), input);
+    if let Err(err) = result {
+        eprintln!("[audit] write_relation_deleted_audit failed: {}", err.message);
+    }
 }

@@ -1,5 +1,8 @@
 use serde::Serialize;
-use serde_json::{json, Value};
+use serde_json::{json, to_value as serde_to_value, Value};
+
+use crate::audit::audit_safe_value::{AuditSafeDetails, AuditSafeSnapshot};
+use crate::errors::app_error::AppErrorDto;
 
 pub fn sanitize_sensitive_value(value: Value) -> Value {
     match value {
@@ -67,6 +70,363 @@ pub fn old_value<T: Serialize>(value: T) -> Option<Value> {
 
 pub fn new_value<T: Serialize>(value: T) -> Option<Value> {
     to_value(value)
+}
+
+// ── Safe snapshot/details builders (compile-time enforced) ─────────────────
+//
+// Use these helpers to construct `AuditSafeSnapshot` and `AuditSafeDetails`.
+// The constructors on those types are restricted to `crate::audit`, so only
+// this module (and its siblings) can create safe-typed values.
+
+fn build_snapshot<T: Serialize>(value: T) -> Result<AuditSafeSnapshot, AppErrorDto> {
+    let value = serde_to_value(value)
+        .map_err(|_| AppErrorDto::internal("Не удалось сформировать audit snapshot."))?;
+    Ok(AuditSafeSnapshot::from_checked_value(value))
+}
+
+fn build_details<T: Serialize>(value: T) -> Result<AuditSafeDetails, AppErrorDto> {
+    use crate::audit::audit_error_sanitizer::sanitize_audit_details;
+    let value = serde_to_value(value)
+        .map_err(|_| AppErrorDto::internal("Не удалось сформировать audit details."))?;
+    let value = sanitize_audit_details(value);
+    Ok(AuditSafeDetails::from_checked_value(value))
+}
+
+// ── Safe snapshot tuple helpers ────────────────────────────────────────────
+
+pub fn old_new_snapshots(
+    old: AuditSafeSnapshot,
+    new: AuditSafeSnapshot,
+) -> (Option<AuditSafeSnapshot>, Option<AuditSafeSnapshot>) {
+    (Some(old), Some(new))
+}
+
+pub fn created_snapshot(
+    new: AuditSafeSnapshot,
+) -> (Option<AuditSafeSnapshot>, Option<AuditSafeSnapshot>) {
+    (None, Some(new))
+}
+
+pub fn deleted_snapshot(
+    old: AuditSafeSnapshot,
+) -> (Option<AuditSafeSnapshot>, Option<AuditSafeSnapshot>) {
+    (Some(old), None)
+}
+
+pub fn no_snapshots() -> (Option<AuditSafeSnapshot>, Option<AuditSafeSnapshot>) {
+    (None, None)
+}
+
+// ── Typed safe snapshot builders (new service-facing API) ─────────────────
+//
+// Each `safe_*_snapshot` function builds the corresponding typed struct and
+// wraps it in `AuditSafeSnapshot` via `build_snapshot`.  Call sites outside
+// `crate::audit` must use these functions; they cannot construct
+// `AuditSafeSnapshot` directly.
+//
+// Note: the structs referenced below are defined later in this file.
+// Rust resolves them at compile time regardless of declaration order.
+
+pub fn safe_user_snapshot(
+    username: &str,
+    display_name: &str,
+    role_code: &str,
+    is_active: bool,
+    must_change_password: bool,
+) -> Result<AuditSafeSnapshot, AppErrorDto> {
+    build_snapshot(UserAuditSnapshot {
+        username,
+        display_name,
+        role_code,
+        is_active,
+        must_change_password,
+    })
+}
+
+pub fn safe_timeline_event_snapshot(
+    event_code: &str,
+    title: &str,
+    description: Option<&str>,
+    event_date: &str,
+    include_in_report: bool,
+) -> Result<AuditSafeSnapshot, AppErrorDto> {
+    build_snapshot(TimelineEventAuditSnapshot {
+        event_code,
+        title,
+        description,
+        event_date,
+        include_in_report,
+    })
+}
+
+pub fn safe_case_snapshot(
+    case_code: &str,
+    title: &str,
+    subject: Option<&str>,
+    status: &str,
+    period_start: Option<&str>,
+    period_end: Option<&str>,
+    description: Option<&str>,
+) -> Result<AuditSafeSnapshot, AppErrorDto> {
+    build_snapshot(CaseAuditSnapshot {
+        case_code,
+        title,
+        subject,
+        status,
+        period_start,
+        period_end,
+        description,
+    })
+}
+
+pub fn safe_relation_snapshot(
+    relation_code: &str,
+    source_object_id: &str,
+    target_object_id: &str,
+    relation_type: &str,
+    confidence_level: &str,
+    basis: Option<&str>,
+    material_id: Option<&str>,
+    include_in_report: bool,
+) -> Result<AuditSafeSnapshot, AppErrorDto> {
+    build_snapshot(RelationAuditSnapshot {
+        relation_code,
+        source_object_id,
+        target_object_id,
+        relation_type,
+        confidence_level,
+        basis,
+        material_id,
+        include_in_report,
+    })
+}
+
+pub fn safe_material_snapshot(
+    material_code: &str,
+    original_file_name: &str,
+    material_type: &str,
+    file_size_bytes: Option<i64>,
+    sha256: Option<&str>,
+    integrity_status: Option<&str>,
+    description: Option<&str>,
+    captured_at: Option<&str>,
+    include_in_report: bool,
+) -> Result<AuditSafeSnapshot, AppErrorDto> {
+    build_snapshot(MaterialAuditSnapshot {
+        material_code,
+        original_file_name,
+        material_type,
+        file_size_bytes,
+        sha256,
+        integrity_status,
+        description,
+        captured_at,
+        include_in_report,
+    })
+}
+
+pub fn safe_object_snapshot(
+    object_code: &str,
+    object_type: &str,
+    title: &str,
+    description: Option<&str>,
+    is_key_object: bool,
+    include_in_report: Option<bool>,
+) -> Result<AuditSafeSnapshot, AppErrorDto> {
+    build_snapshot(ObjectAuditSnapshot {
+        object_code,
+        object_type,
+        title,
+        description,
+        is_key_object,
+        include_in_report,
+    })
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn safe_report_draft_snapshot(
+    draft_code: Option<&str>,
+    title: &str,
+    report_type: &str,
+    status: Option<&str>,
+    section_count: usize,
+    character_count: usize,
+    included_materials_count: usize,
+    included_objects_count: usize,
+    included_relations_count: usize,
+    included_events_count: usize,
+    exported_at: Option<&str>,
+) -> Result<AuditSafeSnapshot, AppErrorDto> {
+    build_snapshot(ReportDraftAuditSnapshot {
+        draft_code,
+        title,
+        report_type,
+        status,
+        section_count,
+        character_count,
+        included_materials_count,
+        included_objects_count,
+        included_relations_count,
+        included_events_count,
+        exported_at,
+    })
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn safe_backup_snapshot(
+    backup_code: Option<&str>,
+    backup_type: &str,
+    status: &str,
+    case_code: Option<&str>,
+    app_version: Option<&str>,
+    schema_version: Option<&str>,
+    archive_size_bytes: Option<i64>,
+    archive_sha256: Option<&str>,
+    entity_counts: Option<BackupEntityCounts>,
+    created_at: Option<&str>,
+    completed_at: Option<&str>,
+) -> Result<AuditSafeSnapshot, AppErrorDto> {
+    build_snapshot(BackupAuditSnapshot {
+        backup_code,
+        backup_type,
+        status,
+        case_code,
+        app_version,
+        schema_version,
+        archive_size_bytes,
+        archive_sha256,
+        entity_counts,
+        created_at,
+        completed_at,
+    })
+}
+
+pub fn safe_backup_verification_snapshot(
+    backup_code: Option<&str>,
+    backup_type: &str,
+    is_valid: bool,
+    archive_sha256: Option<&str>,
+    expected_sha256: Option<&str>,
+    errors_count: usize,
+    warnings_count: usize,
+    checked_at: Option<&str>,
+) -> Result<AuditSafeSnapshot, AppErrorDto> {
+    build_snapshot(BackupVerificationAuditSnapshot {
+        backup_code,
+        backup_type,
+        is_valid,
+        archive_sha256,
+        expected_sha256,
+        errors_count,
+        warnings_count,
+        checked_at,
+    })
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn safe_restore_snapshot(
+    backup_code: Option<&str>,
+    backup_type: &str,
+    status: &str,
+    safety_backup_code: Option<&str>,
+    app_version: Option<&str>,
+    schema_version: Option<&str>,
+    restored_counts: Option<BackupEntityCounts>,
+    started_at: Option<&str>,
+    completed_at: Option<&str>,
+) -> Result<AuditSafeSnapshot, AppErrorDto> {
+    build_snapshot(RestoreAuditSnapshot {
+        backup_code,
+        backup_type,
+        status,
+        safety_backup_code,
+        app_version,
+        schema_version,
+        restored_counts,
+        started_at,
+        completed_at,
+    })
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn safe_integrity_run_snapshot(
+    run_id: &str,
+    scope: &str,
+    case_code: Option<&str>,
+    checked_count: usize,
+    ok_count: usize,
+    mismatch_count: usize,
+    missing_count: usize,
+    read_error_count: usize,
+    problem_material_codes: Vec<String>,
+    started_at: Option<&str>,
+    completed_at: Option<&str>,
+) -> Result<AuditSafeSnapshot, AppErrorDto> {
+    build_snapshot(IntegrityRunAuditSnapshot {
+        run_id,
+        scope,
+        case_code,
+        checked_count,
+        ok_count,
+        mismatch_count,
+        missing_count,
+        read_error_count,
+        problem_material_codes,
+        started_at,
+        completed_at,
+    })
+}
+
+pub fn safe_integrity_material_snapshot(
+    material_code: &str,
+    original_file_name: &str,
+    previous_status: Option<&str>,
+    current_status: &str,
+    expected_sha256: Option<&str>,
+    actual_sha256: Option<&str>,
+    checked_at: Option<&str>,
+) -> Result<AuditSafeSnapshot, AppErrorDto> {
+    build_snapshot(IntegrityMaterialAuditSnapshot {
+        material_code,
+        original_file_name,
+        previous_status,
+        current_status,
+        expected_sha256,
+        actual_sha256,
+        checked_at,
+    })
+}
+
+pub fn safe_settings_snapshot(
+    changes: Vec<SettingsChangeSnapshot>,
+) -> Result<AuditSafeSnapshot, AppErrorDto> {
+    build_snapshot(SettingsAuditSnapshot { changes })
+}
+
+// ── Typed safe details builder ────────────────────────────────────────────
+//
+// Replaces raw `json!(...)` in failure audit paths.
+
+pub fn safe_audit_error_details(
+    operation: &str,
+    error_code: &str,
+    safe_reason: &str,
+    entity_type: Option<&str>,
+    entity_id: Option<&str>,
+    case_id: Option<&str>,
+    material_code: Option<&str>,
+    backup_code: Option<&str>,
+) -> Result<AuditSafeDetails, AppErrorDto> {
+    build_details(AuditErrorTechnicalDetails {
+        operation,
+        error_code,
+        safe_reason,
+        entity_type,
+        entity_id,
+        case_id,
+        material_code,
+        backup_code,
+    })
 }
 
 pub fn push_changed<T: PartialEq>(
@@ -437,96 +797,96 @@ pub fn setting_change_snapshot(
     }
 }
 
-pub fn user_created(user_id: &str, username: &str, role_code: &str) -> Value {
-    json!({
+pub fn user_created(user_id: &str, username: &str, role_code: &str) -> Result<AuditSafeDetails, AppErrorDto> {
+    build_details(json!({
         "userId": user_id,
         "username": username,
         "roleCode": role_code
-    })
+    }))
 }
 
-pub fn user_updated(user_id: &str, username: &str, changed_fields: &[&str]) -> Value {
-    json!({
+pub fn user_updated(user_id: &str, username: &str, changed_fields: &[&str]) -> Result<AuditSafeDetails, AppErrorDto> {
+    build_details(json!({
         "userId": user_id,
         "username": username,
         "changedFields": changed_fields
-    })
+    }))
 }
 
-pub fn user_blocked(user_id: &str, username: &str) -> Value {
-    json!({
+pub fn user_blocked(user_id: &str, username: &str) -> Result<AuditSafeDetails, AppErrorDto> {
+    build_details(json!({
         "userId": user_id,
         "username": username
-    })
+    }))
 }
 
-pub fn user_unblocked(user_id: &str, username: &str) -> Value {
-    json!({
+pub fn user_unblocked(user_id: &str, username: &str) -> Result<AuditSafeDetails, AppErrorDto> {
+    build_details(json!({
         "userId": user_id,
         "username": username
-    })
+    }))
 }
 
-pub fn user_password_reset(user_id: &str, username: &str, must_change_password: bool) -> Value {
-    json!({
+pub fn user_password_reset(user_id: &str, username: &str, must_change_password: bool) -> Result<AuditSafeDetails, AppErrorDto> {
+    build_details(json!({
         "userId": user_id,
         "username": username,
         "mustChangePassword": must_change_password
-    })
+    }))
 }
 
-pub fn user_password_changed(user_id: &str, username: &str) -> Value {
-    json!({
+pub fn user_password_changed(user_id: &str, username: &str) -> Result<AuditSafeDetails, AppErrorDto> {
+    build_details(json!({
         "userId": user_id,
         "username": username
-    })
+    }))
 }
 
-pub fn timeline_event_created(event_id: &str, event_code: &str, case_id: &str) -> Value {
-    json!({
+pub fn timeline_event_created(event_id: &str, event_code: &str, case_id: &str) -> Result<AuditSafeDetails, AppErrorDto> {
+    build_details(json!({
         "eventId": event_id,
         "eventCode": event_code,
         "caseId": case_id
-    })
+    }))
 }
 
-pub fn timeline_event_updated(event_id: &str, event_code: &str, changed_fields: &[&str]) -> Value {
-    json!({
+pub fn timeline_event_updated(event_id: &str, event_code: &str, changed_fields: &[&str]) -> Result<AuditSafeDetails, AppErrorDto> {
+    build_details(json!({
         "eventId": event_id,
         "eventCode": event_code,
         "changedFields": changed_fields
-    })
+    }))
 }
 
-pub fn timeline_event_deleted(event_id: &str, event_code: &str) -> Value {
-    json!({
+pub fn timeline_event_deleted(event_id: &str, event_code: &str) -> Result<AuditSafeDetails, AppErrorDto> {
+    build_details(json!({
         "eventId": event_id,
         "eventCode": event_code
-    })
+    }))
 }
 
 pub fn timeline_event_report_include_changed(
     event_id: &str,
     event_code: &str,
     include_in_report: bool,
-) -> Value {
-    json!({
+) -> Result<AuditSafeDetails, AppErrorDto> {
+    build_details(json!({
         "eventId": event_id,
         "eventCode": event_code,
         "includeInReport": include_in_report
-    })
+    }))
 }
 
-pub fn case_created(case_id: &str, case_code: &str, title: &str) -> Option<Value> {
-    Some(json!({
+pub fn case_created(case_id: &str, case_code: &str, title: &str) -> Result<AuditSafeDetails, AppErrorDto> {
+    build_details(json!({
         "caseId": case_id,
         "caseCode": case_code,
         "title": title
     }))
 }
 
-pub fn case_updated(case_id: &str, case_code: &str, changed_fields: &[&str]) -> Option<Value> {
-    Some(json!({
+pub fn case_updated(case_id: &str, case_code: &str, changed_fields: &[&str]) -> Result<AuditSafeDetails, AppErrorDto> {
+    build_details(json!({
         "caseId": case_id,
         "caseCode": case_code,
         "changedFields": changed_fields
@@ -538,8 +898,8 @@ pub fn case_status_changed(
     case_code: &str,
     old_status: &str,
     new_status: &str,
-) -> Option<Value> {
-    Some(json!({
+) -> Result<AuditSafeDetails, AppErrorDto> {
+    build_details(json!({
         "caseId": case_id,
         "caseCode": case_code,
         "oldStatus": old_status,
@@ -553,8 +913,8 @@ pub fn relation_created(
     relation_code: &str,
     source_object_id: &str,
     target_object_id: &str,
-) -> Option<Value> {
-    Some(json!({
+) -> Result<AuditSafeDetails, AppErrorDto> {
+    build_details(json!({
         "relationId": relation_id,
         "relationCode": relation_code,
         "sourceObjectId": source_object_id,
@@ -566,8 +926,8 @@ pub fn relation_updated(
     relation_id: &str,
     relation_code: &str,
     changed_fields: &[&str],
-) -> Option<Value> {
-    Some(json!({
+) -> Result<AuditSafeDetails, AppErrorDto> {
+    build_details(json!({
         "relationId": relation_id,
         "relationCode": relation_code,
         "changedFields": changed_fields
@@ -578,8 +938,8 @@ pub fn relation_report_include_changed(
     relation_id: &str,
     relation_code: &str,
     include_in_report: bool,
-) -> Option<Value> {
-    Some(json!({
+) -> Result<AuditSafeDetails, AppErrorDto> {
+    build_details(json!({
         "relationId": relation_id,
         "relationCode": relation_code,
         "includeInReport": include_in_report,
@@ -587,8 +947,8 @@ pub fn relation_report_include_changed(
     }))
 }
 
-pub fn relation_deleted(relation_id: &str, relation_code: &str) -> Option<Value> {
-    Some(json!({
+pub fn relation_deleted(relation_id: &str, relation_code: &str) -> Result<AuditSafeDetails, AppErrorDto> {
+    build_details(json!({
         "relationId": relation_id,
         "relationCode": relation_code
     }))
@@ -598,8 +958,8 @@ pub fn material_imported(
     material_id: &str,
     material_code: &str,
     original_file_name: &str,
-) -> Option<Value> {
-    Some(json!({
+) -> Result<AuditSafeDetails, AppErrorDto> {
+    build_details(json!({
         "materialId": material_id,
         "materialCode": material_code,
         "originalFileName": original_file_name
@@ -610,8 +970,8 @@ pub fn material_updated(
     material_id: &str,
     material_code: &str,
     changed_fields: &[&str],
-) -> Option<Value> {
-    Some(json!({
+) -> Result<AuditSafeDetails, AppErrorDto> {
+    build_details(json!({
         "materialId": material_id,
         "materialCode": material_code,
         "changedFields": changed_fields
@@ -622,8 +982,8 @@ pub fn material_report_include_changed(
     material_id: &str,
     material_code: &str,
     include_in_report: bool,
-) -> Option<Value> {
-    Some(json!({
+) -> Result<AuditSafeDetails, AppErrorDto> {
+    build_details(json!({
         "materialId": material_id,
         "materialCode": material_code,
         "includeInReport": include_in_report,
@@ -635,8 +995,8 @@ pub fn material_hash_verified(
     material_id: &str,
     material_code: &str,
     integrity_status: &str,
-) -> Option<Value> {
-    Some(json!({
+) -> Result<AuditSafeDetails, AppErrorDto> {
+    build_details(json!({
         "materialId": material_id,
         "materialCode": material_code,
         "integrityStatus": integrity_status,
@@ -644,15 +1004,15 @@ pub fn material_hash_verified(
     }))
 }
 
-pub fn material_deleted(material_id: &str, material_code: &str) -> Option<Value> {
-    Some(json!({
+pub fn material_deleted(material_id: &str, material_code: &str) -> Result<AuditSafeDetails, AppErrorDto> {
+    build_details(json!({
         "materialId": material_id,
         "materialCode": material_code
     }))
 }
 
-pub fn object_created(object_id: &str, object_code: &str, object_type: &str) -> Option<Value> {
-    Some(json!({
+pub fn object_created(object_id: &str, object_code: &str, object_type: &str) -> Result<AuditSafeDetails, AppErrorDto> {
+    build_details(json!({
         "objectId": object_id,
         "objectCode": object_code,
         "objectType": object_type
@@ -663,8 +1023,8 @@ pub fn object_updated(
     object_id: &str,
     object_code: &str,
     changed_fields: &[&str],
-) -> Option<Value> {
-    Some(json!({
+) -> Result<AuditSafeDetails, AppErrorDto> {
+    build_details(json!({
         "objectId": object_id,
         "objectCode": object_code,
         "changedFields": changed_fields
@@ -675,8 +1035,8 @@ pub fn object_material_links_changed(
     object_id: &str,
     object_code: &str,
     material_ids: &[String],
-) -> Option<Value> {
-    Some(json!({
+) -> Result<AuditSafeDetails, AppErrorDto> {
+    build_details(json!({
         "objectId": object_id,
         "objectCode": object_code,
         "materialIds": material_ids,
@@ -688,8 +1048,8 @@ pub fn object_key_flag_changed(
     object_id: &str,
     object_code: &str,
     is_key_object: bool,
-) -> Option<Value> {
-    Some(json!({
+) -> Result<AuditSafeDetails, AppErrorDto> {
+    build_details(json!({
         "objectId": object_id,
         "objectCode": object_code,
         "isKeyObject": is_key_object,
@@ -697,15 +1057,15 @@ pub fn object_key_flag_changed(
     }))
 }
 
-pub fn object_deleted(object_id: &str, object_code: &str) -> Option<Value> {
-    Some(json!({
+pub fn object_deleted(object_id: &str, object_code: &str) -> Result<AuditSafeDetails, AppErrorDto> {
+    build_details(json!({
         "objectId": object_id,
         "objectCode": object_code
     }))
 }
 
-pub fn report_draft_generated(draft_id: &str, case_id: &str, report_type: &str) -> Option<Value> {
-    Some(json!({
+pub fn report_draft_generated(draft_id: &str, case_id: &str, report_type: &str) -> Result<AuditSafeDetails, AppErrorDto> {
+    build_details(json!({
         "draftId": draft_id,
         "caseId": case_id,
         "reportType": report_type
@@ -716,8 +1076,8 @@ pub fn report_draft_updated(
     draft_id: &str,
     case_id: &str,
     changed_fields: &[&str],
-) -> Option<Value> {
-    Some(json!({
+) -> Result<AuditSafeDetails, AppErrorDto> {
+    build_details(json!({
         "draftId": draft_id,
         "caseId": case_id,
         "changedFields": changed_fields
@@ -730,8 +1090,8 @@ pub fn report_draft_validated(
     is_valid: bool,
     warnings_count: usize,
     errors_count: usize,
-) -> Option<Value> {
-    Some(json!({
+) -> Result<AuditSafeDetails, AppErrorDto> {
+    build_details(json!({
         "draftId": draft_id,
         "caseId": case_id,
         "isValid": is_valid,
@@ -740,23 +1100,23 @@ pub fn report_draft_validated(
     }))
 }
 
-pub fn report_draft_deleted(draft_id: &str, case_id: &str) -> Option<Value> {
-    Some(json!({
+pub fn report_draft_deleted(draft_id: &str, case_id: &str) -> Result<AuditSafeDetails, AppErrorDto> {
+    build_details(json!({
         "draftId": draft_id,
         "caseId": case_id
     }))
 }
 
-pub fn settings_updated(changed_keys: &[String], categories: &[String]) -> Option<Value> {
-    Some(json!({
+pub fn settings_updated(changed_keys: &[String], categories: &[String]) -> Result<AuditSafeDetails, AppErrorDto> {
+    build_details(json!({
         "changedKeys": changed_keys,
         "categories": categories,
         "changedFields": changed_keys
     }))
 }
 
-pub fn settings_reset_to_default(changed_keys: &[String]) -> Option<Value> {
-    Some(json!({
+pub fn settings_reset_to_default(changed_keys: &[String]) -> Result<AuditSafeDetails, AppErrorDto> {
+    build_details(json!({
         "changedKeys": changed_keys,
         "changedFields": changed_keys
     }))
@@ -767,33 +1127,33 @@ pub fn access_denied(
     command: &str,
     actual_role: Option<&str>,
     required_role: Option<&str>,
-) -> Value {
-    json!({
+) -> Result<AuditSafeDetails, AppErrorDto> {
+    build_details(json!({
         "reason": reason,
         "command": command,
         "actualRole": actual_role,
         "requiredRole": required_role
-    })
+    }))
 }
 
-pub fn password_change_required(command: &str, actual_role: Option<&str>) -> Value {
+pub fn password_change_required(command: &str, actual_role: Option<&str>) -> Result<AuditSafeDetails, AppErrorDto> {
     access_denied("password_change_required", command, actual_role, None)
 }
 
-pub fn inactive_user(command: &str, actual_role: Option<&str>) -> Value {
+pub fn inactive_user(command: &str, actual_role: Option<&str>) -> Result<AuditSafeDetails, AppErrorDto> {
     access_denied("inactive_user", command, actual_role, None)
 }
 
-pub fn role_denied(command: &str, actual_role: Option<&str>, required_role: &str) -> Value {
+pub fn role_denied(command: &str, actual_role: Option<&str>, required_role: &str) -> Result<AuditSafeDetails, AppErrorDto> {
     access_denied("role_denied", command, actual_role, Some(required_role))
 }
 
-pub fn audit_log_exported(exported_rows: usize, format: &str, filters_applied: bool) -> Value {
-    json!({
+pub fn audit_log_exported(exported_rows: usize, format: &str, filters_applied: bool) -> Result<AuditSafeDetails, AppErrorDto> {
+    build_details(json!({
         "exportedRows": exported_rows,
         "format": format,
         "filtersApplied": filters_applied
-    })
+    }))
 }
 
 #[derive(Debug, Serialize, Clone, PartialEq)]
@@ -859,8 +1219,8 @@ pub fn backup_created(
     backup_type: &str,
     case_id: Option<&str>,
     archive_size_bytes: Option<i64>,
-) -> Option<Value> {
-    Some(json!({
+) -> Result<AuditSafeDetails, AppErrorDto> {
+    build_details(json!({
         "backupId": backup_id,
         "backupType": backup_type,
         "caseId": case_id,
@@ -874,8 +1234,8 @@ pub fn backup_verified(
     is_valid: bool,
     errors_count: usize,
     warnings_count: usize,
-) -> Option<Value> {
-    Some(json!({
+) -> Result<AuditSafeDetails, AppErrorDto> {
+    build_details(json!({
         "backupId": backup_id,
         "backupType": backup_type,
         "isValid": is_valid,
@@ -888,8 +1248,8 @@ pub fn backup_restore_started(
     backup_id: &str,
     backup_type: &str,
     safety_backup_id: Option<&str>,
-) -> Option<Value> {
-    Some(json!({
+) -> Result<AuditSafeDetails, AppErrorDto> {
+    build_details(json!({
         "backupId": backup_id,
         "backupType": backup_type,
         "safetyBackupId": safety_backup_id
@@ -900,13 +1260,14 @@ pub fn backup_restore_completed(
     backup_id: &str,
     backup_type: &str,
     restored_counts: Option<&BackupEntityCounts>,
-) -> Option<Value> {
-    Some(json!({
+) -> Result<AuditSafeDetails, AppErrorDto> {
+    build_details(json!({
         "backupId": backup_id,
         "backupType": backup_type,
         "restoredCounts": restored_counts
     }))
 }
+
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -1071,8 +1432,8 @@ pub fn integrity_check_completed(
     case_id: Option<&str>,
     checked_count: usize,
     problem_count: usize,
-) -> Option<Value> {
-    Some(json!({
+) -> Result<AuditSafeDetails, AppErrorDto> {
+    build_details(json!({
         "runId": run_id,
         "scope": scope,
         "caseId": case_id,
@@ -1088,8 +1449,8 @@ pub fn integrity_problem_detected(
     mismatch_count: usize,
     missing_count: usize,
     read_error_count: usize,
-) -> Option<Value> {
-    Some(json!({
+) -> Result<AuditSafeDetails, AppErrorDto> {
+    build_details(json!({
         "runId": run_id,
         "scope": scope,
         "problemMaterialCodes": problem_material_codes,
@@ -1104,8 +1465,8 @@ pub fn integrity_material_verified(
     material_code: &str,
     previous_status: Option<&str>,
     current_status: &str,
-) -> Option<Value> {
-    Some(json!({
+) -> Result<AuditSafeDetails, AppErrorDto> {
+    build_details(json!({
         "materialId": material_id,
         "materialCode": material_code,
         "previousStatus": previous_status,
@@ -1114,16 +1475,13 @@ pub fn integrity_material_verified(
     }))
 }
 
+
 // ── Safe failure details builder ─────────────────────────────────────────
 //
 // Use this instead of `json!({ "error": err.to_string() })` in failure
 // audit events.  All field values are safe by construction; the result is
 // additionally passed through `sanitize_audit_details` as a defence-in-depth
 // measure.
-
-use serde_json::to_value as serde_to_value;
-
-use crate::audit::audit_error_sanitizer::sanitize_audit_details;
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -1152,6 +1510,10 @@ pub struct AuditErrorTechnicalDetails<'a> {
 ///
 /// All path / secret / content keys are absent by design.
 /// The resulting value is additionally sanitized as a defence-in-depth measure.
+///
+/// # Deprecated
+/// Prefer [`safe_audit_error_details`] which returns `AuditSafeDetails` and
+/// enforces the type boundary at the audit service layer.
 pub fn audit_error_details(
     operation: &str,
     error_code: &str,
@@ -1162,7 +1524,9 @@ pub fn audit_error_details(
     material_code: Option<&str>,
     backup_code: Option<&str>,
 ) -> Result<serde_json::Value, serde_json::Error> {
-    let value = serde_to_value(AuditErrorTechnicalDetails {
+    // Delegate to the safe builder and unwrap the inner Value.
+    // The only error path is serde serialization failure, which we remap.
+    safe_audit_error_details(
         operation,
         error_code,
         safe_reason,
@@ -1171,9 +1535,12 @@ pub fn audit_error_details(
         case_id,
         material_code,
         backup_code,
-    })?;
-
-    Ok(sanitize_audit_details(value))
+    )
+    .map(|safe| safe.into_value())
+    .map_err(|_| {
+        // AppErrorDto is not serde::Error; produce a dummy serde error.
+        serde_json::from_str::<serde_json::Value>("!invalid").unwrap_err()
+    })
 }
 
 #[cfg(test)]

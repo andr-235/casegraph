@@ -278,36 +278,39 @@ fn write_case_created_audit_best_effort(
 ) {
     use crate::audit::audit_metadata;
     use crate::domain::audit_action;
-    use crate::services::audit_service::{AuditService, AuditSuccessInput};
+    use crate::services::audit_service::{AuditService, AuditWriteInput};
 
-    let technical_details = audit_metadata::case_created(
-        &created_case.id,
-        &created_case.case_code,
-        &created_case.title,
-    );
+    let result = (|| {
+        let technical_details = audit_metadata::case_created(
+            &created_case.id,
+            &created_case.case_code,
+            &created_case.title,
+        )?;
 
-    let new_value = audit_metadata::snapshot(audit_metadata::case_snapshot(
-        &created_case.case_code,
-        &created_case.title,
-        Some(created_case.subject.as_str()),
-        &created_case.status,
-        created_case.period_start.as_deref(),
-        created_case.period_end.as_deref(),
-        Some(created_case.description.as_str()),
-    ));
+        let new_value = audit_metadata::safe_case_snapshot(
+            &created_case.case_code,
+            &created_case.title,
+            Some(created_case.subject.as_str()),
+            &created_case.status,
+            created_case.period_start.as_deref(),
+            created_case.period_end.as_deref(),
+            Some(created_case.description.as_str()),
+        )?;
 
-    let input = AuditSuccessInput::new(
-        current_user,
-        audit_action::case::CREATED,
-        "case",
-        Some(&created_case.id),
-        Some(&created_case.id),
-        None,
-        new_value,
-        technical_details,
-    );
+        AuditService::write_best_effort(
+            app,
+            AuditWriteInput::success(current_user, audit_action::case::CREATED)
+                .with_case_id(created_case.id.clone())
+                .with_entity("case", created_case.id.clone())
+                .with_snapshots(None, Some(new_value))
+                .with_details(technical_details),
+        );
+        Ok::<(), crate::errors::app_error::AppErrorDto>(())
+    })();
 
-    AuditService::write_success_non_blocking(app.clone(), input);
+    if let Err(err) = result {
+        eprintln!("[audit] write_case_created_audit failed: {}", err.message);
+    }
 }
 
 fn write_case_updated_audit_best_effort(
@@ -318,40 +321,40 @@ fn write_case_updated_audit_best_effort(
 ) {
     use crate::audit::audit_metadata;
     use crate::domain::audit_action;
-    use crate::services::audit_service::{AuditService, AuditSuccessInput};
+    use crate::services::audit_service::{AuditService, AuditWriteInput};
 
-    let mut changed = Vec::new();
-    audit_metadata::push_changed(&mut changed, "title", &old_case.title, &new_case.title);
-    audit_metadata::push_changed(
-        &mut changed,
-        "subject",
-        &old_case.subject,
-        &new_case.subject,
-    );
-    audit_metadata::push_changed(
-        &mut changed,
-        "periodStart",
-        &old_case.period_start,
-        &new_case.period_start,
-    );
-    audit_metadata::push_changed(
-        &mut changed,
-        "periodEnd",
-        &old_case.period_end,
-        &new_case.period_end,
-    );
-    audit_metadata::push_changed(
-        &mut changed,
-        "description",
-        &old_case.description,
-        &new_case.description,
-    );
+    let result = (|| {
+        let mut changed = Vec::new();
+        audit_metadata::push_changed(&mut changed, "title", &old_case.title, &new_case.title);
+        audit_metadata::push_changed(
+            &mut changed,
+            "subject",
+            &old_case.subject,
+            &new_case.subject,
+        );
+        audit_metadata::push_changed(
+            &mut changed,
+            "periodStart",
+            &old_case.period_start,
+            &new_case.period_start,
+        );
+        audit_metadata::push_changed(
+            &mut changed,
+            "periodEnd",
+            &old_case.period_end,
+            &new_case.period_end,
+        );
+        audit_metadata::push_changed(
+            &mut changed,
+            "description",
+            &old_case.description,
+            &new_case.description,
+        );
 
-    let technical_details =
-        audit_metadata::case_updated(&new_case.id, &new_case.case_code, &changed);
+        let technical_details =
+            audit_metadata::case_updated(&new_case.id, &new_case.case_code, &changed)?;
 
-    let (old_val, new_val) = audit_metadata::old_new(
-        audit_metadata::case_snapshot(
+        let old_val = audit_metadata::safe_case_snapshot(
             &old_case.case_code,
             &old_case.title,
             Some(old_case.subject.as_str()),
@@ -359,8 +362,9 @@ fn write_case_updated_audit_best_effort(
             old_case.period_start.as_deref(),
             old_case.period_end.as_deref(),
             Some(old_case.description.as_str()),
-        ),
-        audit_metadata::case_snapshot(
+        )?;
+
+        let new_val = audit_metadata::safe_case_snapshot(
             &new_case.case_code,
             &new_case.title,
             Some(new_case.subject.as_str()),
@@ -368,21 +372,22 @@ fn write_case_updated_audit_best_effort(
             new_case.period_start.as_deref(),
             new_case.period_end.as_deref(),
             Some(new_case.description.as_str()),
-        ),
-    );
+        )?;
 
-    let input = AuditSuccessInput::new(
-        current_user,
-        audit_action::case::UPDATED,
-        "case",
-        Some(&new_case.id),
-        Some(&new_case.id),
-        old_val,
-        new_val,
-        technical_details,
-    );
+        AuditService::write_best_effort(
+            app,
+            AuditWriteInput::success(current_user, audit_action::case::UPDATED)
+                .with_case_id(new_case.id.clone())
+                .with_entity("case", new_case.id.clone())
+                .with_snapshots(Some(old_val), Some(new_val))
+                .with_details(technical_details),
+        );
+        Ok::<(), crate::errors::app_error::AppErrorDto>(())
+    })();
 
-    AuditService::write_success_non_blocking(app.clone(), input);
+    if let Err(err) = result {
+        eprintln!("[audit] write_case_updated_audit failed: {}", err.message);
+    }
 }
 
 fn write_case_status_changed_audit_best_effort(
@@ -393,17 +398,17 @@ fn write_case_status_changed_audit_best_effort(
 ) {
     use crate::audit::audit_metadata;
     use crate::domain::audit_action;
-    use crate::services::audit_service::{AuditService, AuditSuccessInput};
+    use crate::services::audit_service::{AuditService, AuditWriteInput};
 
-    let technical_details = audit_metadata::case_status_changed(
-        &new_case.id,
-        &new_case.case_code,
-        &old_case.status,
-        &new_case.status,
-    );
+    let result = (|| {
+        let technical_details = audit_metadata::case_status_changed(
+            &new_case.id,
+            &new_case.case_code,
+            &old_case.status,
+            &new_case.status,
+        )?;
 
-    let (old_val, new_val) = audit_metadata::old_new(
-        audit_metadata::case_snapshot(
+        let old_val = audit_metadata::safe_case_snapshot(
             &old_case.case_code,
             &old_case.title,
             Some(old_case.subject.as_str()),
@@ -411,8 +416,9 @@ fn write_case_status_changed_audit_best_effort(
             old_case.period_start.as_deref(),
             old_case.period_end.as_deref(),
             Some(old_case.description.as_str()),
-        ),
-        audit_metadata::case_snapshot(
+        )?;
+
+        let new_val = audit_metadata::safe_case_snapshot(
             &new_case.case_code,
             &new_case.title,
             Some(new_case.subject.as_str()),
@@ -420,19 +426,20 @@ fn write_case_status_changed_audit_best_effort(
             new_case.period_start.as_deref(),
             new_case.period_end.as_deref(),
             Some(new_case.description.as_str()),
-        ),
-    );
+        )?;
 
-    let input = AuditSuccessInput::new(
-        current_user,
-        audit_action::case::STATUS_CHANGED,
-        "case",
-        Some(&new_case.id),
-        Some(&new_case.id),
-        old_val,
-        new_val,
-        technical_details,
-    );
+        AuditService::write_best_effort(
+            app,
+            AuditWriteInput::success(current_user, audit_action::case::STATUS_CHANGED)
+                .with_case_id(new_case.id.clone())
+                .with_entity("case", new_case.id.clone())
+                .with_snapshots(Some(old_val), Some(new_val))
+                .with_details(technical_details),
+        );
+        Ok::<(), crate::errors::app_error::AppErrorDto>(())
+    })();
 
-    AuditService::write_success_non_blocking(app.clone(), input);
+    if let Err(err) = result {
+        eprintln!("[audit] write_case_status_changed_audit failed: {}", err.message);
+    }
 }

@@ -1,9 +1,8 @@
 use tauri::AppHandle;
 
-use crate::db::connection::open_connection;
-use crate::domain::audit::AuditAccessDeniedInput;
+use crate::audit::audit_metadata;
 use crate::errors::app_error::AppErrorDto;
-use crate::repositories::audit_repository::AuditRepository;
+use crate::services::audit_service::{AuditService, AuditWriteInput};
 use crate::security::session::CurrentUserDto;
 
 pub fn access_denied_error(
@@ -15,38 +14,32 @@ pub fn access_denied_error(
     required_role: &str,
     message: &str,
 ) -> AppErrorDto {
-    write_access_denied_best_effort(
-        app,
-        current_user,
-        AuditAccessDeniedInput {
-            command_name: command_name.to_string(),
-            entity_type: entity_type.to_string(),
-            entity_id,
-            description: message.to_string(),
-            required_role: required_role.to_string(),
-        },
-    );
+    let result = (|| {
+        let technical_details = audit_metadata::access_denied(
+            message,
+            command_name,
+            Some(&current_user.role),
+            Some(required_role),
+        )?;
+
+        let mut input = AuditWriteInput::failure(current_user, crate::domain::audit_action::audit::ACCESS_DENIED)
+            .with_entity_type(entity_type)
+            .with_details(technical_details);
+
+        input.result = "denied".to_string(); // Keep EXACT compatibility
+        input.severity = "warning".to_string();
+
+        if let Some(id) = entity_id {
+            input.entity_id = Some(id);
+        }
+
+        AuditService::write_best_effort(app, input);
+        Ok::<(), AppErrorDto>(())
+    })();
+
+    if let Err(err) = result {
+        eprintln!("[audit] access_denied_error write failed: {}", err.message);
+    }
 
     AppErrorDto::access_denied(message)
-}
-
-fn write_access_denied_best_effort(
-    app: &AppHandle,
-    current_user: &CurrentUserDto,
-    input: AuditAccessDeniedInput,
-) {
-    let conn = match open_connection(app) {
-        Ok(conn) => conn,
-        Err(error) => {
-            eprintln!(
-                "[audit] access_denied write skipped: failed to open db: {:?}",
-                error
-            );
-            return;
-        }
-    };
-
-    if let Err(error) = AuditRepository::insert_access_denied(&conn, current_user, &input) {
-        eprintln!("[audit] access_denied write failed: {:?}", error);
-    }
 }

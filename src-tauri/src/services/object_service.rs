@@ -276,35 +276,38 @@ fn write_object_created_audit_best_effort(
 ) {
     use crate::audit::audit_metadata;
     use crate::domain::audit_action;
-    use crate::services::audit_service::{AuditService, AuditSuccessInput};
+    use crate::services::audit_service::{AuditService, AuditWriteInput};
 
-    let technical_details = audit_metadata::object_created(
-        &created_object.id,
-        &created_object.object_code,
-        &created_object.object_type,
-    );
+    let result = (|| {
+        let technical_details = audit_metadata::object_created(
+            &created_object.id,
+            &created_object.object_code,
+            &created_object.object_type,
+        )?;
 
-    let new_value = audit_metadata::snapshot(audit_metadata::object_snapshot(
-        &created_object.object_code,
-        &created_object.object_type,
-        &created_object.title,
-        Some(created_object.description.as_str()),
-        created_object.is_key,
-        Some(created_object.include_in_report),
-    ));
+        let new_value = audit_metadata::safe_object_snapshot(
+            &created_object.object_code,
+            &created_object.object_type,
+            &created_object.title,
+            Some(created_object.description.as_str()),
+            created_object.is_key,
+            Some(created_object.include_in_report),
+        )?;
 
-    let input = AuditSuccessInput::new(
-        current_user,
-        audit_action::object::CREATED,
-        "object",
-        Some(&created_object.id),
-        Some(&created_object.case_id),
-        None,
-        new_value,
-        technical_details,
-    );
+        AuditService::write_best_effort(
+            app,
+            AuditWriteInput::success(current_user, audit_action::object::CREATED)
+                .with_case_id(created_object.case_id.clone())
+                .with_entity("object", created_object.id.clone())
+                .with_snapshots(None, Some(new_value))
+                .with_details(technical_details),
+        );
+        Ok::<(), crate::errors::app_error::AppErrorDto>(())
+    })();
 
-    AuditService::write_success_non_blocking(app.clone(), input);
+    if let Err(err) = result {
+        eprintln!("[audit] write_object_created_audit failed: {}", err.message);
+    }
 }
 
 fn write_object_updated_audit_best_effort(
@@ -315,87 +318,89 @@ fn write_object_updated_audit_best_effort(
 ) {
     use crate::audit::audit_metadata;
     use crate::domain::audit_action;
-    use crate::services::audit_service::{AuditService, AuditSuccessInput};
+    use crate::services::audit_service::{AuditService, AuditWriteInput};
 
-    let mut changed = Vec::new();
-    audit_metadata::push_changed(
-        &mut changed,
-        "objectType",
-        &old_object.object_type,
-        &new_object.object_type,
-    );
-    audit_metadata::push_changed(&mut changed, "title", &old_object.title, &new_object.title);
-    audit_metadata::push_changed(
-        &mut changed,
-        "description",
-        &old_object.description,
-        &new_object.description,
-    );
-    audit_metadata::push_changed(
-        &mut changed,
-        "isKeyObject",
-        &old_object.is_key,
-        &new_object.is_key,
-    );
-    audit_metadata::push_changed(
-        &mut changed,
-        "includeInReport",
-        &old_object.include_in_report,
-        &new_object.include_in_report,
-    );
+    let result = (|| {
+        let mut changed = Vec::new();
+        audit_metadata::push_changed(
+            &mut changed,
+            "objectType",
+            &old_object.object_type,
+            &new_object.object_type,
+        );
+        audit_metadata::push_changed(&mut changed, "title", &old_object.title, &new_object.title);
+        audit_metadata::push_changed(
+            &mut changed,
+            "description",
+            &old_object.description,
+            &new_object.description,
+        );
+        audit_metadata::push_changed(
+            &mut changed,
+            "isKeyObject",
+            &old_object.is_key,
+            &new_object.is_key,
+        );
+        audit_metadata::push_changed(
+            &mut changed,
+            "includeInReport",
+            &old_object.include_in_report,
+            &new_object.include_in_report,
+        );
 
-    if changed.is_empty() {
-        return;
-    }
+        if changed.is_empty() {
+            return Ok(());
+        }
 
-    let is_key_toggle = changed.len() == 1 && changed[0] == "isKeyObject";
-    let action = if is_key_toggle {
-        audit_action::object::KEY_FLAG_CHANGED
-    } else {
-        audit_action::object::UPDATED
-    };
+        let is_key_toggle = changed.len() == 1 && changed[0] == "isKeyObject";
+        let action = if is_key_toggle {
+            audit_action::object::KEY_FLAG_CHANGED
+        } else {
+            audit_action::object::UPDATED
+        };
 
-    let technical_details = if is_key_toggle {
-        audit_metadata::object_key_flag_changed(
-            &new_object.id,
-            &new_object.object_code,
-            new_object.is_key,
-        )
-    } else {
-        audit_metadata::object_updated(&new_object.id, &new_object.object_code, &changed)
-    };
+        let technical_details = if is_key_toggle {
+            audit_metadata::object_key_flag_changed(
+                &new_object.id,
+                &new_object.object_code,
+                new_object.is_key,
+            )?
+        } else {
+            audit_metadata::object_updated(&new_object.id, &new_object.object_code, &changed)?
+        };
 
-    let (old_val, new_val) = audit_metadata::old_new(
-        audit_metadata::object_snapshot(
+        let old_val = audit_metadata::safe_object_snapshot(
             &old_object.object_code,
             &old_object.object_type,
             &old_object.title,
             Some(old_object.description.as_str()),
             old_object.is_key,
             Some(old_object.include_in_report),
-        ),
-        audit_metadata::object_snapshot(
+        )?;
+
+        let new_val = audit_metadata::safe_object_snapshot(
             &new_object.object_code,
             &new_object.object_type,
             &new_object.title,
             Some(new_object.description.as_str()),
             new_object.is_key,
             Some(new_object.include_in_report),
-        ),
-    );
+        )?;
 
-    let input = AuditSuccessInput::new(
-        current_user,
-        action,
-        "object",
-        Some(&new_object.id),
-        Some(&new_object.case_id),
-        old_val,
-        new_val,
-        technical_details,
-    );
+        AuditService::write_best_effort(
+            app,
+            AuditWriteInput::success(current_user, action)
+                .with_case_id(new_object.case_id.clone())
+                .with_entity("object", new_object.id.clone())
+                .with_snapshots(Some(old_val), Some(new_val))
+                .with_details(technical_details),
+        );
+        Ok::<(), crate::errors::app_error::AppErrorDto>(())
+    })();
 
-    AuditService::write_success_non_blocking(app.clone(), input);
+    if let Err(err) = result {
+        eprintln!("[audit] write_object_updated_audit failed: {}", err.message);
+    }
 }
 
 fn write_object_links_changed_audit_best_effort(
@@ -407,45 +412,47 @@ fn write_object_links_changed_audit_best_effort(
 ) {
     use crate::audit::audit_metadata;
     use crate::domain::audit_action;
-    use crate::services::audit_service::{AuditService, AuditSuccessInput};
+    use crate::services::audit_service::{AuditService, AuditWriteInput};
 
-    let technical_details = audit_metadata::object_material_links_changed(
-        &new_object.id,
-        &new_object.object_code,
-        material_ids,
-    );
+    let result = (|| {
+        let technical_details = audit_metadata::object_material_links_changed(
+            &new_object.id,
+            &new_object.object_code,
+            material_ids,
+        )?;
 
-    let (old_val, new_val) = audit_metadata::old_new(
-        audit_metadata::object_snapshot(
+        let old_val = audit_metadata::safe_object_snapshot(
             &old_object.object_code,
             &old_object.object_type,
             &old_object.title,
             Some(old_object.description.as_str()),
             old_object.is_key,
             Some(old_object.include_in_report),
-        ),
-        audit_metadata::object_snapshot(
+        )?;
+
+        let new_val = audit_metadata::safe_object_snapshot(
             &new_object.object_code,
             &new_object.object_type,
             &new_object.title,
             Some(new_object.description.as_str()),
             new_object.is_key,
             Some(new_object.include_in_report),
-        ),
-    );
+        )?;
 
-    let input = AuditSuccessInput::new(
-        current_user,
-        audit_action::object::MATERIAL_LINKS_CHANGED,
-        "object",
-        Some(&new_object.id),
-        Some(&new_object.case_id),
-        old_val,
-        new_val,
-        technical_details,
-    );
+        AuditService::write_best_effort(
+            app,
+            AuditWriteInput::success(current_user, audit_action::object::MATERIAL_LINKS_CHANGED)
+                .with_case_id(new_object.case_id.clone())
+                .with_entity("object", new_object.id.clone())
+                .with_snapshots(Some(old_val), Some(new_val))
+                .with_details(technical_details),
+        );
+        Ok::<(), crate::errors::app_error::AppErrorDto>(())
+    })();
 
-    AuditService::write_success_non_blocking(app.clone(), input);
+    if let Err(err) = result {
+        eprintln!("[audit] write_object_links_changed_audit failed: {}", err.message);
+    }
 }
 
 fn write_object_deleted_audit_best_effort(
@@ -455,29 +462,32 @@ fn write_object_deleted_audit_best_effort(
 ) {
     use crate::audit::audit_metadata;
     use crate::domain::audit_action;
-    use crate::services::audit_service::{AuditService, AuditSuccessInput};
+    use crate::services::audit_service::{AuditService, AuditWriteInput};
 
-    let technical_details = audit_metadata::object_deleted(&old_object.id, &old_object.object_code);
+    let result = (|| {
+        let technical_details = audit_metadata::object_deleted(&old_object.id, &old_object.object_code)?;
 
-    let old_value = audit_metadata::snapshot(audit_metadata::object_snapshot(
-        &old_object.object_code,
-        &old_object.object_type,
-        &old_object.title,
-        Some(old_object.description.as_str()),
-        old_object.is_key,
-        Some(old_object.include_in_report),
-    ));
+        let old_value = audit_metadata::safe_object_snapshot(
+            &old_object.object_code,
+            &old_object.object_type,
+            &old_object.title,
+            Some(old_object.description.as_str()),
+            old_object.is_key,
+            Some(old_object.include_in_report),
+        )?;
 
-    let input = AuditSuccessInput::new(
-        current_user,
-        audit_action::object::DELETED,
-        "object",
-        Some(&old_object.id),
-        Some(&old_object.case_id),
-        old_value,
-        None,
-        technical_details,
-    );
+        AuditService::write_best_effort(
+            app,
+            AuditWriteInput::success(current_user, audit_action::object::DELETED)
+                .with_case_id(old_object.case_id.clone())
+                .with_entity("object", old_object.id.clone())
+                .with_snapshots(Some(old_value), None)
+                .with_details(technical_details),
+        );
+        Ok::<(), crate::errors::app_error::AppErrorDto>(())
+    })();
 
-    AuditService::write_success_non_blocking(app.clone(), input);
+    if let Err(err) = result {
+        eprintln!("[audit] write_object_deleted_audit failed: {}", err.message);
+    }
 }
