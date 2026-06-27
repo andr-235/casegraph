@@ -11,6 +11,11 @@ import {
   getEventTypeLabel,
 } from "../../features/timeline/model/timelineOptions";
 import type { TimelineEventDto } from "../../features/timeline/model/timelineTypes";
+import { EventReportIncludeButton } from "../../features/timeline/ui/EventReportIncludeButton";
+import {
+  replaceTimelineEvent,
+  setTimelineEventIncludeInReport,
+} from "../../features/timeline/lib/replaceTimelineEvent";
 import {
   buildGetTimelinePayload,
   createEmptyTimelineFilters,
@@ -111,14 +116,21 @@ export function TimelinePage({ caseId, readonly = false }: TimelinePageProps) {
 
   async function handleToggleIncludeInReport(
     eventId: string,
-    nextValue: boolean,
+    currentValue: boolean,
   ) {
     if (readonly || togglingEventId) {
       return;
     }
 
+    const nextValue = !currentValue;
+    const previousItems = items;
+
     setTogglingEventId(eventId);
     setErrorMessage("");
+
+    setItems((current) =>
+      setTimelineEventIncludeInReport(current, eventId, nextValue),
+    );
 
     try {
       const result = await toggleEventReportInclude({
@@ -127,19 +139,10 @@ export function TimelinePage({ caseId, readonly = false }: TimelinePageProps) {
         includeInReport: nextValue,
       });
 
-      setItems((current) =>
-        current.map((eventItem) =>
-          eventItem.id === result.eventItem.id
-            ? result.eventItem
-            : eventItem,
-        ),
-      );
-    } catch (unknownError) {
-      setErrorMessage(
-        unknownError instanceof Error
-          ? unknownError.message
-          : "Не удалось изменить включение события в DOCX",
-      );
+      setItems((current) => replaceTimelineEvent(current, result.eventItem));
+    } catch {
+      setItems(previousItems);
+      setErrorMessage("Не удалось изменить включение события в DOCX");
     } finally {
       setTogglingEventId(null);
     }
@@ -230,19 +233,17 @@ export function TimelinePage({ caseId, readonly = false }: TimelinePageProps) {
                 <td>{item.linkedObjectCount}</td>
                 <td>{item.linkedMaterialCount}</td>
                 <td>
-                  <button
-                    type="button"
-                    className="link-button"
-                    disabled={readonly || togglingEventId === item.id}
-                    onClick={() =>
+                  <EventReportIncludeButton
+                    includeInReport={item.includeInReport}
+                    disabled={readonly || Boolean(togglingEventId)}
+                    loading={togglingEventId === item.id}
+                    onToggle={() =>
                       void handleToggleIncludeInReport(
                         item.id,
-                        !item.includeInReport,
+                        item.includeInReport,
                       )
                     }
-                  >
-                    {item.includeInReport ? "Да" : "Нет"}
-                  </button>
+                  />
                 </td>
                 <td>
                   <button

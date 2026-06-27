@@ -16,7 +16,7 @@ use crate::security::session::SessionState;
 
 use super::timeline_validation::{
     normalize_create_event_payload, normalize_required_id, normalize_timeline_filters,
-    normalize_update_event_payload,
+    normalize_toggle_event_report_include_payload, normalize_update_event_payload,
 };
 
 pub struct TimelineService;
@@ -381,26 +381,19 @@ impl TimelineService {
             ));
         }
 
-        let case_id = normalize_required_id(
-            &payload.case_id,
-            "ERR_INVALID_CASE_ID",
-            "ID дела обязателен",
-        )?;
-
-        let event_id = normalize_required_id(
-            &payload.event_id,
-            "ERR_INVALID_EVENT_ID",
-            "ID события обязателен",
-        )?;
+        let normalized = normalize_toggle_event_report_include_payload(payload)?;
 
         let conn = open_connection(app)?;
 
-        let event_item = TimelineRepository::toggle_event_report_include(
+        let event_item = TimelineRepository::set_event_report_include(
             &conn,
-            &case_id,
-            &event_id,
-            payload.include_in_report,
+            &normalized.case_id,
+            &normalized.event_id,
+            normalized.include_in_report,
         )?;
+
+        // TODO: подключить AuditService:
+        // EVENT_REPORT_INCLUDE_CHANGED
 
         Ok(ToggleEventReportIncludeResponse { event_item })
     }

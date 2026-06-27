@@ -2,7 +2,9 @@ use std::collections::HashSet;
 
 use crate::domain::event_date_precision::{is_valid_date_precision, DATE_PRECISION_PERIOD};
 use crate::domain::event_type::is_valid_event_type;
-use crate::domain::timeline::{CreateEventPayload, GetTimelinePayload, UpdateEventPayload};
+use crate::domain::timeline::{
+    CreateEventPayload, GetTimelinePayload, ToggleEventReportIncludePayload, UpdateEventPayload,
+};
 use crate::errors::app_error::AppErrorDto;
 
 const MAX_EVENT_TITLE_LEN: usize = 200;
@@ -48,6 +50,35 @@ pub struct NormalizedUpdateEventInput {
     pub object_ids: Vec<String>,
     pub material_ids: Vec<String>,
     pub link_note: String,
+}
+
+#[derive(Debug)]
+pub struct NormalizedToggleEventReportIncludeInput {
+    pub case_id: String,
+    pub event_id: String,
+    pub include_in_report: bool,
+}
+
+pub fn normalize_toggle_event_report_include_payload(
+    payload: ToggleEventReportIncludePayload,
+) -> Result<NormalizedToggleEventReportIncludeInput, AppErrorDto> {
+    let case_id = normalize_required_id(
+        &payload.case_id,
+        "ERR_INVALID_CASE_ID",
+        "ID дела обязателен",
+    )?;
+
+    let event_id = normalize_required_id(
+        &payload.event_id,
+        "ERR_INVALID_EVENT_ID",
+        "ID события обязателен",
+    )?;
+
+    Ok(NormalizedToggleEventReportIncludeInput {
+        case_id,
+        event_id,
+        include_in_report: payload.include_in_report,
+    })
 }
 
 #[derive(Debug)]

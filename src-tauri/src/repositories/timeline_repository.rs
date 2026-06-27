@@ -634,7 +634,7 @@ impl TimelineRepository {
         Ok(())
     }
 
-    pub fn toggle_event_report_include(
+    pub fn set_event_report_include(
         conn: &Connection,
         case_id: &str,
         event_id: &str,
