@@ -1,4 +1,6 @@
-use crate::domain::user_management::{CreateUserPayload, UpdateUserPayload};
+use crate::domain::user_management::{
+    BlockUserPayload, CreateUserPayload, UnblockUserPayload, UpdateUserPayload,
+};
 use crate::errors::app_error::AppErrorDto;
 
 const MIN_USERNAME_LEN: usize = 3;
@@ -76,6 +78,24 @@ pub fn normalize_update_user_payload(
         role_code,
         must_change_password: payload.must_change_password,
     })
+}
+
+pub fn normalize_user_id(user_id: &str) -> Result<String, AppErrorDto> {
+    let normalized = user_id.trim().to_string();
+
+    if normalized.is_empty() {
+        return Err(AppErrorDto::validation("Не указан пользователь"));
+    }
+
+    Ok(normalized)
+}
+
+pub fn normalize_block_user_payload(payload: BlockUserPayload) -> Result<String, AppErrorDto> {
+    normalize_user_id(&payload.user_id)
+}
+
+pub fn normalize_unblock_user_payload(payload: UnblockUserPayload) -> Result<String, AppErrorDto> {
+    normalize_user_id(&payload.user_id)
 }
 
 fn validate_username(username: &str) -> Result<(), AppErrorDto> {

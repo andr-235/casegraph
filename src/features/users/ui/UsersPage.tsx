@@ -2,9 +2,10 @@ import { useEffect, useMemo, useState } from "react";
 
 import type { CurrentUserDto } from "../../auth/model/authTypes";
 import { formatError } from "../../../shared/lib/formatError";
-import { getRoles, getUsers } from "../api/usersApi";
+import { blockUser, getRoles, getUsers, unblockUser } from "../api/usersApi";
 import { CreateUserModal } from "./CreateUserModal";
 import { EditUserModal } from "./EditUserModal";
+import { UserActionsCell } from "./UserActionsCell";
 import type {
   RoleOptionDto,
   UserListItemDto,
@@ -35,6 +36,8 @@ export function UsersPage({ user: _user, onBack }: Props) {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
+  const [busyUserId, setBusyUserId] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const page = Math.floor(offset / PAGE_SIZE) + 1;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
@@ -103,6 +106,50 @@ export function UsersPage({ user: _user, onBack }: Props) {
   async function handleUserSaved() {
     setEditingUserId(null);
     await loadUsers();
+  }
+
+  async function handleBlockUser(user: UserListItemDto) {
+    const confirmed = window.confirm(
+      `Заблокировать пользователя "${user.username}"?`,
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setBusyUserId(user.id);
+    setActionError(null);
+
+    try {
+      await blockUser({ userId: user.id });
+      await loadUsers();
+    } catch (error) {
+      setActionError(
+        error instanceof Error
+          ? error.message
+          : "Не удалось заблокировать пользователя",
+      );
+    } finally {
+      setBusyUserId(null);
+    }
+  }
+
+  async function handleUnblockUser(user: UserListItemDto) {
+    setBusyUserId(user.id);
+    setActionError(null);
+
+    try {
+      await unblockUser({ userId: user.id });
+      await loadUsers();
+    } catch (error) {
+      setActionError(
+        error instanceof Error
+          ? error.message
+          : "Не удалось разблокировать пользователя",
+      );
+    } finally {
+      setBusyUserId(null);
+    }
   }
 
   return (
@@ -186,6 +233,12 @@ export function UsersPage({ user: _user, onBack }: Props) {
         </div>
       )}
 
+      {actionError && (
+        <div role="alert" className="error-state">
+          {actionError}
+        </div>
+      )}
+
       {loadState === "ready" && users.length === 0 && (
         <div className="empty-state">Пользователи не найдены.</div>
       )}
@@ -219,9 +272,13 @@ export function UsersPage({ user: _user, onBack }: Props) {
                   <td>{formatDateTime(userItem.lastLoginAt)}</td>
                   <td>{formatDateTime(userItem.createdAt)}</td>
                   <td>
-                    <button type="button" onClick={() => setEditingUserId(userItem.id)}>
-                      Редактировать
-                    </button>
+                    <UserActionsCell
+                      user={userItem}
+                      isBusy={busyUserId === userItem.id}
+                      onEdit={setEditingUserId}
+                      onBlock={handleBlockUser}
+                      onUnblock={handleUnblockUser}
+                    />
                   </td>
                 </tr>
               ))}

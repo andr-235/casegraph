@@ -210,6 +210,26 @@ impl UserManagementRepository {
         Ok(())
     }
 
+    pub fn set_user_active(
+        conn: &Connection,
+        user_id: &str,
+        is_active: bool,
+    ) -> Result<(), AppErrorDto> {
+        conn.execute(
+            r#"
+            UPDATE users
+            SET
+                is_active = ?2,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?1
+            "#,
+            params![user_id, if is_active { 1 } else { 0 }],
+        )
+        .map_err(|err| AppErrorDto::database(err.to_string()))?;
+
+        Ok(())
+    }
+
     pub fn get_role_id_by_code(conn: &Connection, role_code: &str) -> Result<String, AppErrorDto> {
         conn.query_row(
             "SELECT id FROM roles WHERE code = ?1 LIMIT 1",

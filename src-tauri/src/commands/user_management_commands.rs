@@ -1,8 +1,9 @@
 use tauri::{AppHandle, State};
 
 use crate::domain::user_management::{
-    CreateUserPayload, CreateUserResponse, GetRolesResponse, GetUserByIdPayload,
-    GetUserByIdResponse, GetUsersPayload, GetUsersResponse, UpdateUserPayload, UpdateUserResponse,
+    BlockUserPayload, BlockUserResponse, CreateUserPayload, CreateUserResponse, GetRolesResponse,
+    GetUserByIdPayload, GetUserByIdResponse, GetUsersPayload, GetUsersResponse, UnblockUserPayload,
+    UnblockUserResponse, UpdateUserPayload, UpdateUserResponse,
 };
 use crate::errors::app_error::CommandResult;
 use crate::security::session::SessionState;
@@ -15,6 +16,30 @@ pub fn get_users(
     payload: GetUsersPayload,
 ) -> CommandResult<GetUsersResponse> {
     match UserManagementService::get_users(&app, &session, payload) {
+        Ok(response) => CommandResult::ok(response),
+        Err(error) => CommandResult::err(error),
+    }
+}
+
+#[tauri::command]
+pub fn block_user(
+    app: AppHandle,
+    session: State<SessionState>,
+    payload: BlockUserPayload,
+) -> CommandResult<BlockUserResponse> {
+    match UserManagementService::block_user(&app, &session, payload) {
+        Ok(response) => CommandResult::ok(response),
+        Err(error) => CommandResult::err(error),
+    }
+}
+
+#[tauri::command]
+pub fn unblock_user(
+    app: AppHandle,
+    session: State<SessionState>,
+    payload: UnblockUserPayload,
+) -> CommandResult<UnblockUserResponse> {
+    match UserManagementService::unblock_user(&app, &session, payload) {
         Ok(response) => CommandResult::ok(response),
         Err(error) => CommandResult::err(error),
     }

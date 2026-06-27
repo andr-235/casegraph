@@ -65,6 +65,22 @@ export type UpdateUserResponse = {
   user: UserListItemDto;
 };
 
+export type BlockUserPayload = {
+  userId: string;
+};
+
+export type BlockUserResponse = {
+  user: UserListItemDto;
+};
+
+export type UnblockUserPayload = {
+  userId: string;
+};
+
+export type UnblockUserResponse = {
+  user: UserListItemDto;
+};
+
 export type GetRolesResponse = {
   roles: RoleOptionDto[];
 };

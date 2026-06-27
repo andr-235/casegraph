@@ -2,16 +2,17 @@ use tauri::AppHandle;
 
 use crate::db::connection::open_connection;
 use crate::domain::user_management::{
-    CreateUserPayload, CreateUserResponse, GetRolesResponse, GetUserByIdPayload,
-    GetUserByIdResponse, GetUsersPayload, GetUsersResponse, UpdateUserPayload, UpdateUserResponse,
-    UserListItemDto,
+    BlockUserPayload, BlockUserResponse, CreateUserPayload, CreateUserResponse, GetRolesResponse,
+    GetUserByIdPayload, GetUserByIdResponse, GetUsersPayload, GetUsersResponse, UnblockUserPayload,
+    UnblockUserResponse, UpdateUserPayload, UpdateUserResponse, UserListItemDto,
 };
 use crate::errors::app_error::AppErrorDto;
 use crate::repositories::user_management_repository::UserManagementRepository;
 use crate::security::password::hash_password;
 use crate::security::session::{CurrentUserDto, SessionState};
 use crate::services::user_management_validation::{
-    normalize_create_user_payload, normalize_update_user_payload,
+    normalize_block_user_payload, normalize_create_user_payload, normalize_unblock_user_payload,
+    normalize_update_user_payload,
 };
 
 const DEFAULT_USERS_LIMIT: i64 = 50;
@@ -152,6 +153,78 @@ impl UserManagementService {
         Ok(UpdateUserResponse { user })
     }
 
+    pub fn block_user(
+        app: &AppHandle,
+        session: &SessionState,
+        payload: BlockUserPayload,
+    ) -> Result<BlockUserResponse, AppErrorDto> {
+        let current_user = require_user_management_admin(session)?;
+        let user_id = normalize_block_user_payload(payload)?;
+
+        if user_id == current_user.user_id {
+            return Err(AppErrorDto::validation(
+                "Нельзя заблокировать собственную учётную запись",
+            ));
+        }
+
+        let conn = open_connection(app)?;
+
+        if !UserManagementRepository::user_exists(&conn, &user_id)? {
+            return Err(AppErrorDto::validation("Пользователь не найден"));
+        }
+
+        let old_user = UserManagementRepository::get_user_by_id(&conn, &user_id)?;
+
+        if old_user.role_code == "administrator" && old_user.is_active {
+            let active_admin_count = UserManagementRepository::count_active_administrators(&conn)?;
+
+            if active_admin_count <= 1 {
+                return Err(AppErrorDto::validation(
+                    "Нельзя заблокировать последнего активного администратора",
+                ));
+            }
+        }
+
+        UserManagementRepository::set_user_active(&conn, &user_id, false)?;
+
+        let user = UserManagementRepository::get_user_by_id(&conn, &user_id)?;
+
+        write_user_activity_audit_best_effort(app, &current_user, "USER_BLOCKED", &old_user, &user);
+
+        Ok(BlockUserResponse { user })
+    }
+
+    pub fn unblock_user(
+        app: &AppHandle,
+        session: &SessionState,
+        payload: UnblockUserPayload,
+    ) -> Result<UnblockUserResponse, AppErrorDto> {
+        let current_user = require_user_management_admin(session)?;
+        let user_id = normalize_unblock_user_payload(payload)?;
+
+        let conn = open_connection(app)?;
+
+        if !UserManagementRepository::user_exists(&conn, &user_id)? {
+            return Err(AppErrorDto::validation("Пользователь не найден"));
+        }
+
+        let old_user = UserManagementRepository::get_user_by_id(&conn, &user_id)?;
+
+        UserManagementRepository::set_user_active(&conn, &user_id, true)?;
+
+        let user = UserManagementRepository::get_user_by_id(&conn, &user_id)?;
+
+        write_user_activity_audit_best_effort(
+            app,
+            &current_user,
+            "USER_UNBLOCKED",
+            &old_user,
+            &user,
+        );
+
+        Ok(UnblockUserResponse { user })
+    }
+
     pub fn get_roles(
         app: &AppHandle,
         session: &SessionState,
@@ -240,6 +313,49 @@ fn write_user_updated_audit_best_effort(
     let input = AuditSuccessInput::new(
         current_user,
         "USER_UPDATED",
+        "user",
+        Some(&new_user.id),
+        None,
+        old_value,
+        new_value,
+        None,
+    );
+
+    AuditService::write_success_non_blocking(app.clone(), input);
+}
+
+fn write_user_activity_audit_best_effort(
+    app: &AppHandle,
+    current_user: &CurrentUserDto,
+    action: &str,
+    old_user: &UserListItemDto,
+    new_user: &UserListItemDto,
+) {
+    use crate::services::audit_service::{to_json_value, AuditService, AuditSuccessInput};
+
+    let old_value = to_json_value(&serde_json::json!({
+        "id": old_user.id,
+        "username": old_user.username,
+        "displayName": old_user.display_name,
+        "roleCode": old_user.role_code,
+        "isActive": old_user.is_active,
+        "mustChangePassword": old_user.must_change_password,
+    }))
+    .ok();
+
+    let new_value = to_json_value(&serde_json::json!({
+        "id": new_user.id,
+        "username": new_user.username,
+        "displayName": new_user.display_name,
+        "roleCode": new_user.role_code,
+        "isActive": new_user.is_active,
+        "mustChangePassword": new_user.must_change_password,
+    }))
+    .ok();
+
+    let input = AuditSuccessInput::new(
+        current_user,
+        action,
         "user",
         Some(&new_user.id),
         None,

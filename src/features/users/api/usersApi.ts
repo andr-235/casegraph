@@ -1,5 +1,7 @@
 import { invokeCommand } from "../../../shared/api/invoke";
 import type {
+  BlockUserPayload,
+  BlockUserResponse,
   CreateUserPayload,
   CreateUserResponse,
   GetRolesResponse,
@@ -7,6 +9,8 @@ import type {
   GetUserByIdResponse,
   GetUsersPayload,
   GetUsersResponse,
+  UnblockUserPayload,
+  UnblockUserResponse,
   UpdateUserPayload,
   UpdateUserResponse,
 } from "../model/userTypes";
@@ -19,6 +23,18 @@ export function createUser(
   payload: CreateUserPayload,
 ): Promise<CreateUserResponse> {
   return invokeCommand<CreateUserResponse>("create_user", { payload });
+}
+
+export function blockUser(
+  payload: BlockUserPayload,
+): Promise<BlockUserResponse> {
+  return invokeCommand<BlockUserResponse>("block_user", { payload });
+}
+
+export function unblockUser(
+  payload: UnblockUserPayload,
+): Promise<UnblockUserResponse> {
+  return invokeCommand<UnblockUserResponse>("unblock_user", { payload });
 }
 
 export function getUserById(
