@@ -277,8 +277,8 @@ fn write_case_created_audit_best_effort(
     created_case: &CaseRow,
 ) {
     use crate::audit::audit_metadata;
-    use crate::domain::audit_action;
     use crate::audit::audit_service::{AuditService, AuditWriteInput};
+    use crate::domain::audit_action;
 
     let result = (|| {
         let technical_details = audit_metadata::case_created(
@@ -320,8 +320,8 @@ fn write_case_updated_audit_best_effort(
     new_case: &CaseRow,
 ) {
     use crate::audit::audit_metadata;
-    use crate::domain::audit_action;
     use crate::audit::audit_service::{AuditService, AuditWriteInput};
+    use crate::domain::audit_action;
 
     let result = (|| {
         let mut changed = Vec::new();
@@ -397,8 +397,8 @@ fn write_case_status_changed_audit_best_effort(
     new_case: &CaseRow,
 ) {
     use crate::audit::audit_metadata;
-    use crate::domain::audit_action;
     use crate::audit::audit_service::{AuditService, AuditWriteInput};
+    use crate::domain::audit_action;
 
     let result = (|| {
         let technical_details = audit_metadata::case_status_changed(

@@ -3,6 +3,7 @@ pub mod commands;
 pub mod db;
 pub mod domain;
 pub mod errors;
+pub mod models;
 pub mod repositories;
 pub mod security;
 pub mod services;
@@ -76,7 +77,8 @@ pub fn run() {
             commands::user_management_commands::update_user,
             commands::user_management_commands::create_user,
             commands::user_management_commands::reset_user_password,
-            commands::user_management_commands::change_own_password
+            commands::user_management_commands::change_own_password,
+            commands::settings_commands::get_settings
         ])
         .run(tauri::generate_context!())
         .expect("error while running CaseGraph");

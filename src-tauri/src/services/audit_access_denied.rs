@@ -1,9 +1,9 @@
 use tauri::AppHandle;
 
 use crate::audit::audit_metadata;
+use crate::audit::audit_service::{AuditService, AuditWriteInput};
 use crate::errors::app_error::AppErrorDto;
 use crate::security::session::CurrentUserDto;
-use crate::audit::audit_service::{AuditService, AuditWriteInput};
 
 pub fn access_denied_error(
     app: &AppHandle,

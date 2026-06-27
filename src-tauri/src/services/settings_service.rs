@@ -6,7 +6,9 @@ use tauri::AppHandle;
 
 use crate::errors::app_error::AppErrorDto;
 use crate::security::session::SessionState;
-use crate::services::protected_service_context::require_protected_user_for;
+use crate::services::protected_service_context::{
+    require_protected_administrator_for, require_protected_user_for,
+};
 
 pub struct SettingsRepository;
 
@@ -46,6 +48,21 @@ pub struct UpdateSettingsPayload {
 pub struct SettingsService;
 
 impl SettingsService {
+    pub fn get_settings(
+        app: &AppHandle,
+        session: &SessionState,
+    ) -> Result<crate::models::settings::AppSettingsDto, AppErrorDto> {
+        let context = require_protected_administrator_for(app, session, "settings.get")?;
+
+        let conn = crate::db::connection::open_connection(app)?;
+        let settings =
+            crate::repositories::settings_repository::SettingsRepository::get_settings(&conn)?;
+
+        drop(context);
+
+        Ok(settings)
+    }
+
     pub fn update_settings(
         app: &AppHandle,
         session: &SessionState,

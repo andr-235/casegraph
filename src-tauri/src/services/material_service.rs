@@ -329,8 +329,8 @@ fn write_material_imported_audit_best_effort(
     created_material: &MaterialRow,
 ) {
     use crate::audit::audit_metadata;
-    use crate::domain::audit_action;
     use crate::audit::audit_service::{AuditService, AuditWriteInput};
+    use crate::domain::audit_action;
 
     let result = (|| {
         let technical_details = audit_metadata::material_imported(
@@ -377,8 +377,8 @@ fn write_material_updated_audit_best_effort(
     new_material: &MaterialRow,
 ) {
     use crate::audit::audit_metadata;
-    use crate::domain::audit_action;
     use crate::audit::audit_service::{AuditService, AuditWriteInput};
+    use crate::domain::audit_action;
 
     let result = (|| {
         let mut changed = Vec::new();
@@ -493,8 +493,8 @@ fn write_material_deleted_audit_best_effort(
     old_material: &MaterialRow,
 ) {
     use crate::audit::audit_metadata;
-    use crate::domain::audit_action;
     use crate::audit::audit_service::{AuditService, AuditWriteInput};
+    use crate::domain::audit_action;
 
     let result = (|| {
         let technical_details =
@@ -539,8 +539,8 @@ fn write_material_hash_verified_audit_best_effort(
     new_material: &MaterialRow,
 ) {
     use crate::audit::audit_metadata;
-    use crate::domain::audit_action;
     use crate::audit::audit_service::{AuditService, AuditWriteInput};
+    use crate::domain::audit_action;
 
     let result = (|| {
         let integrity_status = new_material.integrity_status.as_str();

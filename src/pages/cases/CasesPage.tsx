@@ -11,9 +11,10 @@ type Props = {
   onOpenCase: (caseItem: CaseDto) => void;
   onOpenAuditLog?: () => void;
   onOpenUsers?: () => void;
+  onOpenSettings?: () => void;
 };
 
-export function CasesPage({ user, onLogout, onOpenCase, onOpenAuditLog, onOpenUsers }: Props) {
+export function CasesPage({ user, onLogout, onOpenCase, onOpenAuditLog, onOpenUsers, onOpenSettings }: Props) {
   const [cases, setCases] = useState<CaseDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -58,6 +59,12 @@ export function CasesPage({ user, onLogout, onOpenCase, onOpenAuditLog, onOpenUs
           {user.role === "administrator" && onOpenUsers ? (
             <button type="button" onClick={onOpenUsers}>
               Пользователи
+            </button>
+          ) : null}
+
+          {user.role === "administrator" && onOpenSettings ? (
+            <button type="button" onClick={onOpenSettings}>
+              ⚙ Настройки
             </button>
           ) : null}
 

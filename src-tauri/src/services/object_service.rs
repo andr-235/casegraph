@@ -275,8 +275,8 @@ fn write_object_created_audit_best_effort(
     created_object: &ObjectListItemDto,
 ) {
     use crate::audit::audit_metadata;
-    use crate::domain::audit_action;
     use crate::audit::audit_service::{AuditService, AuditWriteInput};
+    use crate::domain::audit_action;
 
     let result = (|| {
         let technical_details = audit_metadata::object_created(
@@ -317,8 +317,8 @@ fn write_object_updated_audit_best_effort(
     new_object: &ObjectDetailsDto,
 ) {
     use crate::audit::audit_metadata;
-    use crate::domain::audit_action;
     use crate::audit::audit_service::{AuditService, AuditWriteInput};
+    use crate::domain::audit_action;
 
     let result = (|| {
         let mut changed = Vec::new();
@@ -411,8 +411,8 @@ fn write_object_links_changed_audit_best_effort(
     material_ids: &[String],
 ) {
     use crate::audit::audit_metadata;
-    use crate::domain::audit_action;
     use crate::audit::audit_service::{AuditService, AuditWriteInput};
+    use crate::domain::audit_action;
 
     let result = (|| {
         let technical_details = audit_metadata::object_material_links_changed(
@@ -464,8 +464,8 @@ fn write_object_deleted_audit_best_effort(
     old_object: &ObjectDetailsDto,
 ) {
     use crate::audit::audit_metadata;
-    use crate::domain::audit_action;
     use crate::audit::audit_service::{AuditService, AuditWriteInput};
+    use crate::domain::audit_action;
 
     let result = (|| {
         let technical_details =

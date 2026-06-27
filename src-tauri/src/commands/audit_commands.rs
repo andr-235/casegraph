@@ -1,12 +1,12 @@
 use tauri::{AppHandle, State};
 
+use crate::audit::audit_service::AuditService;
 use crate::domain::audit::{
     ExportAuditLogPayload, ExportAuditLogResponse, GetAuditActionsResponse, GetAuditLogByIdPayload,
     GetAuditLogByIdResponse, GetAuditLogsPayload, GetAuditLogsResponse, GetAuditUsersResponse,
 };
 use crate::errors::app_error::CommandResult;
 use crate::security::session::SessionState;
-use crate::audit::audit_service::AuditService;
 
 #[tauri::command]
 pub fn get_audit_logs(

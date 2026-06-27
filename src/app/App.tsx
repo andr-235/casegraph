@@ -13,6 +13,7 @@ import { CaseWorkspacePage } from "../pages/case-workspace/CaseWorkspacePage";
 import { AuditLogPage } from "../pages/audit-log/AuditLogPage";
 import { UsersPage } from "../features/users/ui/UsersPage";
 import { ChangePasswordPage } from "../pages/change-password/ChangePasswordPage";
+import { SettingsPage } from "../pages/settings/SettingsPage";
 
 type BootstrapState =
   | "loading"
@@ -28,6 +29,7 @@ export function App() {
   const [selectedCase, setSelectedCase] = useState<CaseDto | null>(null);
   const [showAuditLog, setShowAuditLog] = useState(false);
   const [showUsers, setShowUsers] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const [startupError, setStartupError] = useState<string | null>(null);
 
   async function boot() {
@@ -179,6 +181,14 @@ export function App() {
     );
   }
 
+  if (showSettings && currentUser.role === "administrator") {
+    return (
+      <SettingsPage
+        onBack={() => setShowSettings(false)}
+      />
+    );
+  }
+
   return (
     <CasesPage
       user={currentUser}
@@ -186,6 +196,7 @@ export function App() {
       onOpenCase={setSelectedCase}
       onOpenAuditLog={() => setShowAuditLog(true)}
       onOpenUsers={() => setShowUsers(true)}
+      onOpenSettings={() => setShowSettings(true)}
     />
   );
 }

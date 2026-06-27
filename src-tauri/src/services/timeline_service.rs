@@ -3,6 +3,10 @@ use tauri::AppHandle;
 use uuid::Uuid;
 
 use crate::audit::audit_metadata;
+use crate::audit::audit_service::{
+    AuditService, AuditWriteInput, ENTITY_TYPE_EVENT, EVENT_CREATED, EVENT_DELETED,
+    EVENT_REPORT_FLAG_CHANGED, EVENT_UPDATED,
+};
 use crate::db::connection::open_connection;
 use crate::domain::timeline::{
     CreateEventPayload, CreateEventResponse, GetEventByIdPayload, GetEventByIdResponse,
@@ -15,10 +19,6 @@ use crate::repositories::timeline_repository::{
     CreateEventRecord, TimelineFiltersRecord, TimelineRepository, UpdateEventRecord,
 };
 use crate::security::session::SessionState;
-use crate::audit::audit_service::{
-    AuditService, AuditWriteInput, ENTITY_TYPE_EVENT, EVENT_CREATED, EVENT_DELETED,
-    EVENT_REPORT_FLAG_CHANGED, EVENT_UPDATED,
-};
 use crate::services::protected_service_context::{
     require_protected_analyst_or_admin_for, require_protected_user_for,
 };

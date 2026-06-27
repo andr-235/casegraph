@@ -319,6 +319,8 @@ pub fn apply_migrations(conn: &Connection) -> Result<(), AppErrorDto> {
 
     seed_roles(conn)?;
 
+    seed_settings(conn)?;
+
     Ok(())
 }
 
@@ -337,6 +339,60 @@ fn seed_roles(conn: &Connection) -> Result<(), AppErrorDto> {
             ON CONFLICT(code) DO NOTHING
             "#,
             (id, code, title),
+        )
+        .map_err(|err| AppErrorDto::database(err.to_string()))?;
+    }
+
+    Ok(())
+}
+
+fn seed_settings(conn: &Connection) -> Result<(), AppErrorDto> {
+    let settings = [
+        (
+            "docx_default_template",
+            "analytical-report",
+            "string",
+            "docx",
+            "Шаблон DOCX по умолчанию",
+        ),
+        (
+            "integrity_check_on_startup",
+            "false",
+            "boolean",
+            "integrity",
+            "Проверка целостности при запуске",
+        ),
+        (
+            "viewer_can_export_docx",
+            "false",
+            "boolean",
+            "docx",
+            "Разрешить наблюдателю экспорт в DOCX",
+        ),
+        (
+            "analyst_can_create_backup",
+            "false",
+            "boolean",
+            "backup",
+            "Разрешить аналитику создавать бэкапы",
+        ),
+        (
+            "audit_strict_mode",
+            "true",
+            "boolean",
+            "audit",
+            "Строгий режим логирования аудита",
+        ),
+    ];
+
+    for (key, value, value_type, category, description) in settings {
+        conn.execute(
+            r#"
+            INSERT INTO app_settings (key, value, value_type, category, description)
+            VALUES (?1, ?2, ?3, ?4, ?5)
+            ON CONFLICT(key) DO NOTHING
+            "#,
+            (key, value, value_type, category, description),
         )
         .map_err(|err| AppErrorDto::database(err.to_string()))?;
     }
