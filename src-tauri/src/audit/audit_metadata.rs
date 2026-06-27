@@ -742,18 +742,10 @@ pub fn is_sensitive_setting_key(key: &str) -> bool {
         || normalized.contains("credential")
 }
 
+/// Returns true for keys whose values are filesystem paths.
+/// Driven by the settings catalog's `is_path_like` flag — no separate heuristic list to drift.
 pub fn is_path_setting_key(key: &str) -> bool {
-    let normalized = key.to_ascii_lowercase();
-
-    normalized.ends_with("_path")
-        || normalized.ends_with("_dir")
-        || normalized.contains("storage_path")
-        || normalized.contains("backup_path")
-        || normalized.contains("export_path")
-        || normalized.contains("template_path")
-        || normalized.contains("default_dir")
-        || normalized.contains("export_dir")
-        || normalized.contains("backup_dir")
+    crate::models::settings_catalog::path_like_keys().contains(key)
 }
 
 pub fn redact_setting_value(key: &str, value: &Value) -> Value {
@@ -1808,10 +1800,13 @@ mod tests {
 
     #[test]
     fn setting_change_snapshot_redacts_paths() {
+        // Keys must be real catalog keys with is_path_like = true
+        // (backup.default_dir and docx.default_export_dir)
         let old_value = Value::String("C:\\Users\\Admin\\Documents\\CaseGraph".to_string());
         let new_value = Value::String("D:\\CaseGraphData".to_string());
 
-        let change = setting_change_snapshot("storage_path", "storage", &old_value, &new_value);
+        let change =
+            setting_change_snapshot("backup.default_dir", "backup", &old_value, &new_value);
 
         let value = to_value(change).unwrap();
 
