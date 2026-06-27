@@ -2,6 +2,44 @@ use rusqlite::{Connection, OptionalExtension};
 
 use crate::errors::app_error::AppErrorDto;
 
+fn ensure_audit_log_columns(conn: &Connection) -> Result<(), AppErrorDto> {
+    let additions: [(&str, &str); 7] = [
+        ("username", "TEXT NOT NULL DEFAULT ''"),
+        ("user_role", "TEXT NOT NULL DEFAULT ''"),
+        ("case_id", "TEXT"),
+        ("old_value", "TEXT"),
+        ("new_value", "TEXT"),
+        ("technical_details", "TEXT"),
+        ("app_version", "TEXT NOT NULL DEFAULT ''"),
+    ];
+
+    for (col_name, col_type) in &additions {
+        let exists: bool = conn
+            .query_row(
+                &format!(
+                    "SELECT COUNT(*) > 0 FROM pragma_table_info('audit_logs') WHERE name = '{0}'",
+                    col_name
+                ),
+                [],
+                |row| row.get(0),
+            )
+            .map_err(|err| AppErrorDto::database(err.to_string()))?;
+
+        if !exists {
+            conn.execute(
+                &format!(
+                    "ALTER TABLE audit_logs ADD COLUMN {0} {1}",
+                    col_name, col_type
+                ),
+                [],
+            )
+            .map_err(|err| AppErrorDto::database(err.to_string()))?;
+        }
+    }
+
+    Ok(())
+}
+
 pub fn apply_migrations(conn: &Connection) -> Result<(), AppErrorDto> {
     conn.execute_batch(
         r#"
@@ -276,6 +314,8 @@ pub fn apply_migrations(conn: &Connection) -> Result<(), AppErrorDto> {
         "#,
     )
     .map_err(|err| AppErrorDto::database(err.to_string()))?;
+
+    ensure_audit_log_columns(conn)?;
 
     seed_roles(conn)?;
 

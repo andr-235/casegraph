@@ -1,3 +1,4 @@
+use serde_json::json;
 use tauri::AppHandle;
 use uuid::Uuid;
 
@@ -13,6 +14,10 @@ use crate::repositories::timeline_repository::{
     CreateEventRecord, TimelineFiltersRecord, TimelineRepository, UpdateEventRecord,
 };
 use crate::security::session::SessionState;
+use crate::services::audit_service::{
+    AuditService, ENTITY_TYPE_EVENT, EVENT_CREATED, EVENT_DELETED, EVENT_REPORT_FLAG_CHANGED,
+    EVENT_UPDATED,
+};
 
 use super::timeline_validation::{
     normalize_create_event_payload, normalize_required_id, normalize_timeline_filters,
@@ -177,6 +182,25 @@ impl TimelineService {
                 )
             })?;
 
+        AuditService::write_success(
+            &conn,
+            &current_user,
+            EVENT_CREATED,
+            ENTITY_TYPE_EVENT,
+            Some(&event_item.id),
+            Some(&normalized.case_id),
+            None,
+            Some(json!({
+                "id": event_item.id,
+                "eventCode": event_item.event_code,
+                "title": event_item.title,
+                "eventType": event_item.event_type,
+                "eventDate": event_item.event_date,
+                "includeInReport": event_item.include_in_report
+            })),
+            None,
+        )?;
+
         Ok(CreateEventResponse { event_item })
     }
 
@@ -275,6 +299,16 @@ impl TimelineService {
             }
         }
 
+        let old_event_details =
+            TimelineRepository::get_event_by_id(&tx, &normalized.case_id, &normalized.event_id)?
+                .ok_or_else(|| {
+                    AppErrorDto::new(
+                        "ERR_EVENT_NOT_FOUND_BEFORE_UPDATE",
+                        "Событие не найдено перед обновлением",
+                        None,
+                    )
+                })?;
+
         let record = UpdateEventRecord {
             id: normalized.event_id.clone(),
             case_id: normalized.case_id.clone(),
@@ -325,6 +359,24 @@ impl TimelineService {
                     )
                 })?;
 
+        AuditService::write_success(
+            &conn,
+            &current_user,
+            EVENT_UPDATED,
+            ENTITY_TYPE_EVENT,
+            Some(&normalized.event_id),
+            Some(&normalized.case_id),
+            Some(json!({
+                "eventItem": old_event_details.event_item,
+                "linkedObjects": old_event_details.linked_objects,
+                "linkedMaterials": old_event_details.linked_materials
+            })),
+            Some(json!({
+                "eventItem": event_details.event_item
+            })),
+            None,
+        )?;
+
         Ok(UpdateEventResponse { event_details })
     }
 
@@ -359,7 +411,26 @@ impl TimelineService {
 
         let conn = open_connection(app)?;
 
+        let old_event_item =
+            TimelineRepository::get_event_list_item_by_id(&conn, &case_id, &event_id)?;
+
         TimelineRepository::soft_delete_event(&conn, &case_id, &event_id)?;
+
+        AuditService::write_success(
+            &conn,
+            &current_user,
+            EVENT_DELETED,
+            ENTITY_TYPE_EVENT,
+            Some(&event_id),
+            Some(&case_id),
+            Some(json!({
+                "eventItem": old_event_item
+            })),
+            Some(json!({
+                "archived": true
+            })),
+            None,
+        )?;
 
         Ok(SoftDeleteEventResponse { event_id })
     }
@@ -385,6 +456,12 @@ impl TimelineService {
 
         let conn = open_connection(app)?;
 
+        let old_event_item = TimelineRepository::get_event_list_item_by_id(
+            &conn,
+            &normalized.case_id,
+            &normalized.event_id,
+        )?;
+
         let event_item = TimelineRepository::set_event_report_include(
             &conn,
             &normalized.case_id,
@@ -392,8 +469,21 @@ impl TimelineService {
             normalized.include_in_report,
         )?;
 
-        // TODO: подключить AuditService:
-        // EVENT_REPORT_INCLUDE_CHANGED
+        AuditService::write_success(
+            &conn,
+            &current_user,
+            EVENT_REPORT_FLAG_CHANGED,
+            ENTITY_TYPE_EVENT,
+            Some(&event_item.id),
+            Some(&normalized.case_id),
+            Some(json!({
+                "includeInReport": old_event_item.include_in_report
+            })),
+            Some(json!({
+                "includeInReport": event_item.include_in_report
+            })),
+            None,
+        )?;
 
         Ok(ToggleEventReportIncludeResponse { event_item })
     }
