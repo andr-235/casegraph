@@ -1,0 +1,43 @@
+
+.graph-summary {
+  display: flex;
+  gap: 12px;
+  margin: 16px 0;
+}
+
+.summary-card {
+  border: 1px solid #d9dee8;
+  border-radius: 8px;
+  padding: 12px 16px;
+  min-width: 160px;
+  background: #ffffff;
+}
+
+.summary-card span {
+  display: block;
+  font-size: 12px;
+  color: #667085;
+  margin-bottom: 4px;
+}
+
+.summary-card strong {
+  font-size: 24px;
+}
+
+.graph-foundation-layout {
+  display: grid;
+  grid-template-columns: 1fr 1.2fr;
+  gap: 16px;
+  align-items: start;
+}
+
+.graph-panel {
+  border: 1px solid #d9dee8;
+  border-radius: 8px;
+  padding: 16px;
+  background: #ffffff;
+}
+
+.graph-panel h2 {
+  margin-top: 0;
+}

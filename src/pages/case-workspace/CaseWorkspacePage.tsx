@@ -8,6 +8,7 @@ import {
 } from "./CaseSidebar";
 import { MaterialsPage } from "../materials/MaterialsPage";
 import { ObjectsPage } from "./ObjectsPage";
+import { GraphPage } from "./GraphPage";
 import { RelationsPage } from "./RelationsPage";
 
 type Props = {
@@ -99,7 +100,11 @@ export function CaseWorkspacePage({
             />
           )}
 
-          {activeSection !== "overview" && activeSection !== "materials" && activeSection !== "objects" && activeSection !== "relations" && (
+          {activeSection === "graph" && (
+            <GraphPage caseId={caseItem.id} />
+          )}
+
+          {activeSection !== "overview" && activeSection !== "materials" && activeSection !== "objects" && activeSection !== "relations" && activeSection !== "graph" && (
             <PlaceholderSection
               title={sectionTitles[activeSection]}
               caseItem={caseItem}
