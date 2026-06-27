@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { getGraphData } from "../../features/graph/api/graphApi";
 import type { GraphEdge, GraphNode } from "../../features/graph/model/graphTypes";
 import { getObjectTypeLabel } from "../../features/objects/model/objectOptions";
+import { GraphVisualPreview } from "../../features/graph/ui/GraphVisualPreview";
 import {
   getRelationConfidenceLabel,
   getRelationTypeLabel,
@@ -80,6 +81,8 @@ export function GraphPage({ caseId }: GraphPageProps) {
               <strong>{nodes.filter((node) => node.isKey).length}</strong>
             </div>
           </div>
+
+          <GraphVisualPreview nodes={nodes} edges={edges} />
 
           {nodes.length === 0 ? (
             <div className="empty-state">

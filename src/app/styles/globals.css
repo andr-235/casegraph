@@ -41,3 +41,147 @@
 .graph-panel h2 {
   margin-top: 0;
 }
+
+.graph-preview-panel {
+  border: 1px solid #d9dee8;
+  border-radius: 10px;
+  padding: 16px;
+  margin: 16px 0;
+  background: #ffffff;
+}
+
+.graph-preview-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.graph-preview-header h2 {
+  margin: 0 0 4px;
+}
+
+.graph-preview-header p {
+  margin: 0;
+  color: #667085;
+}
+
+.graph-preview-meta {
+  color: #667085;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.graph-preview-canvas {
+  position: relative;
+  width: 100%;
+  max-width: var(--graph-canvas-width);
+  height: var(--graph-canvas-height);
+  overflow: hidden;
+  border: 1px dashed #cfd6e4;
+  border-radius: 10px;
+  background:
+    linear-gradient(#f8fafc 1px, transparent 1px),
+    linear-gradient(90deg, #f8fafc 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+.graph-preview-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.graph-preview-edge line {
+  stroke: #98a2b3;
+  stroke-width: 2;
+}
+
+.graph-preview-edge path {
+  fill: #98a2b3;
+}
+
+.graph-preview-edge text {
+  font-size: 11px;
+  fill: #475467;
+  paint-order: stroke;
+  stroke: #ffffff;
+  stroke-width: 4px;
+  stroke-linejoin: round;
+}
+
+.graph-preview-node {
+  position: absolute;
+  z-index: 2;
+  box-sizing: border-box;
+  border: 1px solid #cfd6e4;
+  border-radius: 10px;
+  padding: 10px;
+  background: #ffffff;
+  box-shadow: 0 4px 14px rgba(16, 24, 40, 0.08);
+}
+
+.graph-preview-node-key {
+  border-width: 2px;
+}
+
+.graph-preview-node-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+  font-size: 12px;
+}
+
+.graph-preview-node-top span {
+  border: 1px solid #cfd6e4;
+  border-radius: 999px;
+  padding: 2px 6px;
+  font-size: 11px;
+  color: #475467;
+}
+
+.graph-preview-node-title {
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.graph-preview-node-meta {
+  margin-top: 4px;
+  color: #667085;
+  font-size: 12px;
+  line-height: 1.3;
+}
+
+.graph-preview-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.graph-preview-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid #e4e7ec;
+  border-radius: 999px;
+  padding: 5px 9px;
+  background: #f9fafb;
+  font-size: 12px;
+}
+
+.graph-preview-legend-item span {
+  color: #667085;
+}
+
+.graph-preview-empty {
+  border: 1px dashed #cfd6e4;
+  border-radius: 10px;
+  padding: 24px;
+  color: #667085;
+  background: #ffffff;
+}
