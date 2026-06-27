@@ -55,7 +55,9 @@ pub fn run() {
             get_relation_by_id,
             update_relation,
             soft_delete_relation,
-            commands::graph_commands::get_graph_data
+            commands::graph_commands::get_graph_data,
+            commands::timeline_commands::get_timeline,
+            commands::timeline_commands::create_event
         ])
         .run(tauri::generate_context!())
         .expect("error while running CaseGraph");

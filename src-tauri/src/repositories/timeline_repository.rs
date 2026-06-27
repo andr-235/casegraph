@@ -1,0 +1,295 @@
+use rusqlite::{params, Connection};
+use uuid::Uuid;
+
+use crate::domain::timeline::TimelineEventDto;
+use crate::errors::app_error::AppErrorDto;
+
+#[derive(Debug)]
+pub struct CreateEventRecord {
+    pub id: String,
+    pub case_id: String,
+    pub event_code: String,
+    pub event_type: String,
+    pub title: String,
+    pub description: String,
+    pub event_date: String,
+    pub event_time: Option<String>,
+    pub date_precision: String,
+    pub period_start: Option<String>,
+    pub period_end: Option<String>,
+    pub source_note: String,
+    pub analyst_comment: String,
+    pub include_in_report: bool,
+    pub created_by_user_id: String,
+}
+
+pub struct TimelineRepository;
+
+impl TimelineRepository {
+    pub fn get_next_event_code(conn: &Connection, case_id: &str) -> Result<String, AppErrorDto> {
+        let last_code: Option<String> = conn
+            .query_row(
+                r#"
+                SELECT event_code
+                FROM events
+                WHERE case_id = ?1
+                ORDER BY CAST(SUBSTR(event_code, 5) AS INTEGER) DESC
+                LIMIT 1
+                "#,
+                params![case_id],
+                |row| row.get(0),
+            )
+            .ok();
+
+        let next_number = last_code
+            .as_deref()
+            .and_then(|code| code.strip_prefix("EVT-"))
+            .and_then(|number| number.parse::<u32>().ok())
+            .unwrap_or(0)
+            + 1;
+
+        Ok(format!("EVT-{next_number:03}"))
+    }
+
+    pub fn create_event(
+        conn: &Connection,
+        record: &CreateEventRecord,
+    ) -> Result<(), AppErrorDto> {
+        conn.execute(
+            r#"
+            INSERT INTO events (
+                id,
+                case_id,
+                event_code,
+                event_type,
+                title,
+                description,
+                event_date,
+                event_time,
+                date_precision,
+                period_start,
+                period_end,
+                source_note,
+                analyst_comment,
+                include_in_report,
+                created_by_user_id
+            )
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)
+            "#,
+            params![
+                record.id,
+                record.case_id,
+                record.event_code,
+                record.event_type,
+                record.title,
+                record.description,
+                record.event_date,
+                record.event_time,
+                record.date_precision,
+                record.period_start,
+                record.period_end,
+                record.source_note,
+                record.analyst_comment,
+                record.include_in_report as i32,
+                record.created_by_user_id
+            ],
+        )
+        .map_err(|err| AppErrorDto::database(err.to_string()))?;
+
+        Ok(())
+    }
+
+    pub fn link_event_to_objects(
+        conn: &Connection,
+        case_id: &str,
+        event_id: &str,
+        object_ids: &[String],
+        link_note: &str,
+        created_by_user_id: &str,
+    ) -> Result<(), AppErrorDto> {
+        for object_id in object_ids {
+            conn.execute(
+                r#"
+                INSERT OR IGNORE INTO event_objects (
+                    id,
+                    case_id,
+                    event_id,
+                    object_id,
+                    link_note,
+                    created_by_user_id
+                )
+                VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+                "#,
+                params![
+                    Uuid::new_v4().to_string(),
+                    case_id,
+                    event_id,
+                    object_id,
+                    link_note,
+                    created_by_user_id
+                ],
+            )
+            .map_err(|err| AppErrorDto::database(err.to_string()))?;
+        }
+
+        Ok(())
+    }
+
+    pub fn link_event_to_materials(
+        conn: &Connection,
+        case_id: &str,
+        event_id: &str,
+        material_ids: &[String],
+        link_note: &str,
+        created_by_user_id: &str,
+    ) -> Result<(), AppErrorDto> {
+        for material_id in material_ids {
+            conn.execute(
+                r#"
+                INSERT OR IGNORE INTO event_materials (
+                    id,
+                    case_id,
+                    event_id,
+                    material_id,
+                    link_note,
+                    created_by_user_id
+                )
+                VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+                "#,
+                params![
+                    Uuid::new_v4().to_string(),
+                    case_id,
+                    event_id,
+                    material_id,
+                    link_note,
+                    created_by_user_id
+                ],
+            )
+            .map_err(|err| AppErrorDto::database(err.to_string()))?;
+        }
+
+        Ok(())
+    }
+
+    pub fn get_timeline(
+        conn: &Connection,
+        case_id: &str,
+    ) -> Result<Vec<TimelineEventDto>, AppErrorDto> {
+        let mut stmt = conn
+            .prepare(
+                r#"
+                SELECT
+                    e.id,
+                    e.case_id,
+                    e.event_code,
+                    e.event_type,
+                    e.title,
+                    e.description,
+                    e.event_date,
+                    e.event_time,
+                    e.date_precision,
+                    e.period_start,
+                    e.period_end,
+                    e.source_note,
+                    e.analyst_comment,
+                    e.include_in_report,
+                    (
+                        SELECT COUNT(*)
+                        FROM event_objects eo
+                        WHERE eo.event_id = e.id
+                    ) AS linked_object_count,
+                    (
+                        SELECT COUNT(*)
+                        FROM event_materials em
+                        WHERE em.event_id = e.id
+                    ) AS linked_material_count,
+                    e.created_by_user_id,
+                    e.created_at,
+                    e.updated_at
+                FROM events e
+                WHERE e.case_id = ?1
+                  AND e.archived_at IS NULL
+                ORDER BY e.event_date ASC, e.event_time ASC, e.created_at ASC
+                "#,
+            )
+            .map_err(|err| AppErrorDto::database(err.to_string()))?;
+
+        let rows = stmt
+            .query_map(params![case_id], |row| {
+                Ok(TimelineEventDto {
+                    id: row.get(0)?,
+                    case_id: row.get(1)?,
+                    event_code: row.get(2)?,
+                    event_type: row.get(3)?,
+                    title: row.get(4)?,
+                    description: row.get(5)?,
+                    event_date: row.get(6)?,
+                    event_time: row.get(7)?,
+                    date_precision: row.get(8)?,
+                    period_start: row.get(9)?,
+                    period_end: row.get(10)?,
+                    source_note: row.get(11)?,
+                    analyst_comment: row.get(12)?,
+                    include_in_report: row.get::<_, i32>(13)? == 1,
+                    linked_object_count: row.get(14)?,
+                    linked_material_count: row.get(15)?,
+                    created_by_user_id: row.get(16)?,
+                    created_at: row.get(17)?,
+                    updated_at: row.get(18)?,
+                })
+            })
+            .map_err(|err| AppErrorDto::database(err.to_string()))?;
+
+        let mut items = Vec::new();
+
+        for row in rows {
+            items.push(row.map_err(|err| AppErrorDto::database(err.to_string()))?);
+        }
+
+        Ok(items)
+    }
+
+    pub fn object_belongs_to_case(
+        conn: &Connection,
+        case_id: &str,
+        object_id: &str,
+    ) -> Result<bool, AppErrorDto> {
+        let count: i64 = conn
+            .query_row(
+                r#"
+                SELECT COUNT(*)
+                FROM object_nodes
+                WHERE id = ?1
+                  AND case_id = ?2
+                  AND archived_at IS NULL
+                "#,
+                params![object_id, case_id],
+                |row| row.get(0),
+            )
+            .map_err(|err| AppErrorDto::database(err.to_string()))?;
+
+        Ok(count > 0)
+    }
+
+    pub fn material_belongs_to_case(
+        conn: &Connection,
+        case_id: &str,
+        material_id: &str,
+    ) -> Result<bool, AppErrorDto> {
+        let count: i64 = conn
+            .query_row(
+                r#"
+                SELECT COUNT(*)
+                FROM materials
+                WHERE id = ?1
+                  AND case_id = ?2
+                  AND archived_at IS NULL
+                "#,
+                params![material_id, case_id],
+                |row| row.get(0),
+            )
+            .map_err(|err| AppErrorDto::database(err.to_string()))?;
+
+        Ok(count > 0)
+    }
+}

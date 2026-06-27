@@ -196,6 +196,83 @@ pub fn apply_migrations(conn: &Connection) -> Result<(), AppErrorDto> {
         CREATE INDEX IF NOT EXISTS idx_relations_supporting_material_id ON relations(supporting_material_id);
         CREATE INDEX IF NOT EXISTS idx_relations_include_in_report ON relations(include_in_report);
         CREATE INDEX IF NOT EXISTS idx_relations_archived_at ON relations(archived_at);
+
+        CREATE TABLE IF NOT EXISTS events (
+            id TEXT PRIMARY KEY,
+            case_id TEXT NOT NULL,
+            event_code TEXT NOT NULL,
+
+            event_type TEXT NOT NULL DEFAULT 'fact',
+            title TEXT NOT NULL,
+            description TEXT NOT NULL DEFAULT '',
+
+            event_date TEXT NOT NULL,
+            event_time TEXT,
+            date_precision TEXT NOT NULL DEFAULT 'day',
+
+            period_start TEXT,
+            period_end TEXT,
+
+            source_note TEXT NOT NULL DEFAULT '',
+            analyst_comment TEXT NOT NULL DEFAULT '',
+            include_in_report INTEGER NOT NULL DEFAULT 1,
+
+            created_by_user_id TEXT NOT NULL,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            archived_at TEXT,
+
+            FOREIGN KEY (case_id) REFERENCES cases(id),
+            FOREIGN KEY (created_by_user_id) REFERENCES users(id),
+            UNIQUE(case_id, event_code)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_events_case_id ON events(case_id);
+        CREATE INDEX IF NOT EXISTS idx_events_event_code ON events(event_code);
+        CREATE INDEX IF NOT EXISTS idx_events_event_type ON events(event_type);
+        CREATE INDEX IF NOT EXISTS idx_events_event_date ON events(event_date);
+        CREATE INDEX IF NOT EXISTS idx_events_include_in_report ON events(include_in_report);
+        CREATE INDEX IF NOT EXISTS idx_events_archived_at ON events(archived_at);
+
+        CREATE TABLE IF NOT EXISTS event_objects (
+            id TEXT PRIMARY KEY,
+            case_id TEXT NOT NULL,
+            event_id TEXT NOT NULL,
+            object_id TEXT NOT NULL,
+            link_note TEXT NOT NULL DEFAULT '',
+            created_by_user_id TEXT NOT NULL,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+            FOREIGN KEY (case_id) REFERENCES cases(id),
+            FOREIGN KEY (event_id) REFERENCES events(id),
+            FOREIGN KEY (object_id) REFERENCES object_nodes(id),
+            FOREIGN KEY (created_by_user_id) REFERENCES users(id),
+            UNIQUE(event_id, object_id)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_event_objects_case_id ON event_objects(case_id);
+        CREATE INDEX IF NOT EXISTS idx_event_objects_event_id ON event_objects(event_id);
+        CREATE INDEX IF NOT EXISTS idx_event_objects_object_id ON event_objects(object_id);
+
+        CREATE TABLE IF NOT EXISTS event_materials (
+            id TEXT PRIMARY KEY,
+            case_id TEXT NOT NULL,
+            event_id TEXT NOT NULL,
+            material_id TEXT NOT NULL,
+            link_note TEXT NOT NULL DEFAULT '',
+            created_by_user_id TEXT NOT NULL,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+            FOREIGN KEY (case_id) REFERENCES cases(id),
+            FOREIGN KEY (event_id) REFERENCES events(id),
+            FOREIGN KEY (material_id) REFERENCES materials(id),
+            FOREIGN KEY (created_by_user_id) REFERENCES users(id),
+            UNIQUE(event_id, material_id)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_event_materials_case_id ON event_materials(case_id);
+        CREATE INDEX IF NOT EXISTS idx_event_materials_event_id ON event_materials(event_id);
+        CREATE INDEX IF NOT EXISTS idx_event_materials_material_id ON event_materials(material_id);
         "#,
     )
     .map_err(|err| AppErrorDto::database(err.to_string()))?;

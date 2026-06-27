@@ -1,5 +1,7 @@
 pub mod case_status;
 pub mod cases;
+pub mod event_date_precision;
+pub mod event_type;
 pub mod graph;
 pub mod material_integrity_status;
 pub mod material_type;
@@ -9,3 +11,4 @@ pub mod objects;
 pub mod relation_confidence;
 pub mod relation_type;
 pub mod relations;
+pub mod timeline;

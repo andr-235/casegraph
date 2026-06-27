@@ -10,6 +10,7 @@ import { MaterialsPage } from "../materials/MaterialsPage";
 import { ObjectsPage } from "./ObjectsPage";
 import { GraphPage } from "./GraphPage";
 import { RelationsPage } from "./RelationsPage";
+import { TimelinePage } from "./TimelinePage";
 
 type Props = {
   user: CurrentUserDto;
@@ -104,7 +105,14 @@ export function CaseWorkspacePage({
             <GraphPage caseId={caseItem.id} />
           )}
 
-          {activeSection !== "overview" && activeSection !== "materials" && activeSection !== "objects" && activeSection !== "relations" && activeSection !== "graph" && (
+          {activeSection === "timeline" && (
+            <TimelinePage
+              caseId={caseItem.id}
+              readonly={user.role === "viewer"}
+            />
+          )}
+
+          {activeSection !== "overview" && activeSection !== "materials" && activeSection !== "objects" && activeSection !== "relations" && activeSection !== "graph" && activeSection !== "timeline" && (
             <PlaceholderSection
               title={sectionTitles[activeSection]}
               caseItem={caseItem}

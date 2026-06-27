@@ -5,3 +5,4 @@ pub mod graph_commands;
 pub mod material_commands;
 pub mod object_commands;
 pub mod relation_commands;
+pub mod timeline_commands;
