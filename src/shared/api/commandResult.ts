@@ -1,3 +1,5 @@
+export const PASSWORD_CHANGE_REQUIRED_ERROR = "ERR_PASSWORD_CHANGE_REQUIRED";
+
 export type AppErrorDto = {
   code: string;
   message: string;

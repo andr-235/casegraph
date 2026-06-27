@@ -55,6 +55,17 @@ impl AppErrorDto {
             Some(details.to_string()),
         )
     }
+
+    pub fn password_change_required() -> Self {
+        Self::new(
+            "ERR_PASSWORD_CHANGE_REQUIRED",
+            "Необходимо сменить временный пароль",
+            Some(
+                "Перед выполнением действия пользователь должен сменить временный пароль."
+                    .to_string(),
+            ),
+        )
+    }
 }
 
 #[derive(Debug, Serialize)]

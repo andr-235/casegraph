@@ -66,6 +66,16 @@ export function App() {
     boot();
   }, []);
 
+  useEffect(() => {
+    function handlePasswordChangeRequired() {
+      setCurrentUser((prev) => (prev ? { ...prev, mustChangePassword: true } : null));
+    }
+    window.addEventListener("password-change-required", handlePasswordChangeRequired);
+    return () => {
+      window.removeEventListener("password-change-required", handlePasswordChangeRequired);
+    };
+  }, []);
+
   async function handleLogout() {
     try {
       await logout();

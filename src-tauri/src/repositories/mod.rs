@@ -6,5 +6,6 @@ pub mod object_repository;
 pub mod relation_repository;
 pub mod role_repository;
 pub mod timeline_repository;
+pub mod user_access_repository;
 pub mod user_management_repository;
 pub mod user_repository;

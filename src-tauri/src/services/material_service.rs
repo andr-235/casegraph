@@ -16,6 +16,7 @@ use crate::repositories::material_repository::{
     CreateMaterialRecord, MaterialRepository, MaterialRow, UpdateMaterialRecord,
 };
 use crate::security::session::{CurrentUserDto, SessionState};
+use crate::services::protected_service_guard::ProtectedServiceGuard;
 use crate::storage::material_file_storage::import_material_file;
 
 pub struct MaterialService;
@@ -26,13 +27,14 @@ impl MaterialService {
         session: &SessionState,
         payload: GetMaterialsPayload,
     ) -> Result<Vec<MaterialDto>, AppErrorDto> {
-        require_current_user(session)?;
+        let current_user = require_current_user(session)?;
 
         let case_id = payload.case_id.trim().to_string();
 
         validate_case_id(&case_id)?;
 
         let conn = open_connection(app)?;
+        ProtectedServiceGuard::require_password_change_resolved(&conn, &current_user)?;
 
         ensure_case_exists(&conn, &case_id)?;
 
@@ -59,6 +61,7 @@ impl MaterialService {
         validate_create_material_payload(&title, &material_type)?;
 
         let conn = open_connection(app)?;
+        ProtectedServiceGuard::require_password_change_resolved(&conn, &current_user)?;
 
         ensure_case_exists(&conn, &case_id)?;
 
@@ -143,7 +146,7 @@ impl MaterialService {
         session: &SessionState,
         payload: DeleteMaterialPayload,
     ) -> Result<DeleteMaterialResponse, AppErrorDto> {
-        require_current_user(session)?;
+        let current_user = require_current_user(session)?;
 
         let case_id = payload.case_id.trim().to_string();
         let material_id = payload.material_id.trim().to_string();
@@ -159,6 +162,7 @@ impl MaterialService {
         }
 
         let conn = open_connection(app)?;
+        ProtectedServiceGuard::require_password_change_resolved(&conn, &current_user)?;
 
         ensure_case_exists(&conn, &case_id)?;
 
@@ -172,7 +176,7 @@ impl MaterialService {
         session: &SessionState,
         payload: UpdateMaterialPayload,
     ) -> Result<UpdateMaterialResponse, AppErrorDto> {
-        require_current_user(session)?;
+        let current_user = require_current_user(session)?;
 
         let case_id = payload.case_id.trim().to_string();
         let material_id = payload.material_id.trim().to_string();
@@ -195,6 +199,7 @@ impl MaterialService {
         validate_create_material_payload(&title, &material_type)?;
 
         let conn = open_connection(app)?;
+        ProtectedServiceGuard::require_password_change_resolved(&conn, &current_user)?;
 
         ensure_case_exists(&conn, &case_id)?;
 

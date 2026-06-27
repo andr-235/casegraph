@@ -22,6 +22,7 @@ use crate::services::audit_guards::{
     audit_user_filter_for_reader, require_audit_admin, require_audit_reader,
     require_no_user_filter_for_analyst, require_own_audit_entry_or_admin,
 };
+use crate::services::protected_service_guard::ProtectedServiceGuard;
 
 pub const AUDIT_RESULT_SUCCESS: &str = "success";
 pub const AUDIT_SEVERITY_INFO: &str = "info";
@@ -137,6 +138,8 @@ impl AuditService {
         current_user: &CurrentUserDto,
         payload: GetAuditLogsPayload,
     ) -> Result<GetAuditLogsResponse, AppErrorDto> {
+        ProtectedServiceGuard::require_password_change_resolved(conn, current_user)?;
+
         require_audit_reader(
             app,
             current_user,
@@ -182,6 +185,8 @@ impl AuditService {
         conn: &Connection,
         current_user: &CurrentUserDto,
     ) -> Result<GetAuditActionsResponse, AppErrorDto> {
+        ProtectedServiceGuard::require_password_change_resolved(conn, current_user)?;
+
         require_audit_reader(
             app,
             current_user,
@@ -200,6 +205,8 @@ impl AuditService {
         conn: &Connection,
         current_user: &CurrentUserDto,
     ) -> Result<GetAuditUsersResponse, AppErrorDto> {
+        ProtectedServiceGuard::require_password_change_resolved(conn, current_user)?;
+
         require_audit_admin(
             app,
             current_user,
@@ -218,6 +225,8 @@ impl AuditService {
         current_user: &CurrentUserDto,
         payload: GetAuditLogByIdPayload,
     ) -> Result<GetAuditLogByIdResponse, AppErrorDto> {
+        ProtectedServiceGuard::require_password_change_resolved(conn, current_user)?;
+
         require_audit_reader(
             app,
             current_user,
@@ -270,14 +279,15 @@ impl AuditService {
         current_user: &CurrentUserDto,
         payload: ExportAuditLogPayload,
     ) -> Result<ExportAuditLogResponse, AppErrorDto> {
+        let conn = open_connection(app)?;
+        ProtectedServiceGuard::require_password_change_resolved(&conn, current_user)?;
+
         require_audit_admin(
             app,
             current_user,
             "export_audit_log",
             "Экспорт журнала действий доступен только администратору.",
         )?;
-
-        let conn = open_connection(app)?;
 
         let filters = AuditLogFilters {
             action: normalize_optional_filter(payload.action),

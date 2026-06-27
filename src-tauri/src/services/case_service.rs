@@ -12,14 +12,16 @@ use crate::repositories::case_repository::{
     CaseRepository, CaseRow, CreateCaseRecord, UpdateCaseRecord,
 };
 use crate::security::session::{CurrentUserDto, SessionState};
+use crate::services::protected_service_guard::ProtectedServiceGuard;
 
 pub struct CaseService;
 
 impl CaseService {
     pub fn get_cases(app: &AppHandle, session: &SessionState) -> Result<Vec<CaseDto>, AppErrorDto> {
-        require_current_user(session)?;
+        let current_user = require_current_user(session)?;
 
         let conn = open_connection(app)?;
+        ProtectedServiceGuard::require_password_change_resolved(&conn, &current_user)?;
         let rows = CaseRepository::get_cases(&conn)?;
 
         Ok(rows.into_iter().map(case_row_to_dto).collect())
@@ -44,6 +46,7 @@ impl CaseService {
         )?;
 
         let conn = open_connection(app)?;
+        ProtectedServiceGuard::require_password_change_resolved(&conn, &current_user)?;
         let case_code = CaseRepository::get_next_case_code(&conn)?;
         let case_id = Uuid::new_v4().to_string();
 
@@ -79,7 +82,7 @@ impl CaseService {
         session: &SessionState,
         payload: GetCaseByIdPayload,
     ) -> Result<CaseDto, AppErrorDto> {
-        require_current_user(session)?;
+        let current_user = require_current_user(session)?;
 
         let case_id = payload.case_id.trim();
 
@@ -92,6 +95,7 @@ impl CaseService {
         }
 
         let conn = open_connection(app)?;
+        ProtectedServiceGuard::require_password_change_resolved(&conn, &current_user)?;
 
         let case_row = CaseRepository::get_case_by_id(&conn, case_id)?
             .ok_or_else(|| AppErrorDto::new("ERR_CASE_NOT_FOUND", "Дело не найдено.", None))?;
@@ -104,7 +108,7 @@ impl CaseService {
         session: &SessionState,
         payload: UpdateCasePayload,
     ) -> Result<UpdateCaseResponse, AppErrorDto> {
-        require_current_user(session)?;
+        let current_user = require_current_user(session)?;
 
         let case_id = payload.case_id.trim().to_string();
         let title = payload.title.trim().to_string();
@@ -127,6 +131,7 @@ impl CaseService {
         )?;
 
         let conn = open_connection(app)?;
+        ProtectedServiceGuard::require_password_change_resolved(&conn, &current_user)?;
 
         CaseRepository::update_case(
             &conn,
@@ -158,7 +163,7 @@ impl CaseService {
         session: &SessionState,
         payload: UpdateCaseStatusPayload,
     ) -> Result<UpdateCaseStatusResponse, AppErrorDto> {
-        require_current_user(session)?;
+        let current_user = require_current_user(session)?;
 
         let case_id = payload.case_id.trim().to_string();
         let status = payload.status.trim().to_string();
@@ -174,6 +179,7 @@ impl CaseService {
         validate_case_status(&status)?;
 
         let conn = open_connection(app)?;
+        ProtectedServiceGuard::require_password_change_resolved(&conn, &current_user)?;
 
         CaseRepository::update_case_status(&conn, &case_id, &status)?;
 

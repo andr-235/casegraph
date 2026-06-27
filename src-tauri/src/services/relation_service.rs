@@ -13,6 +13,7 @@ use crate::repositories::relation_repository::{
     CreateRelationRecord, RelationRepository, UpdateRelationRecord,
 };
 use crate::security::session::SessionState;
+use crate::services::protected_service_guard::ProtectedServiceGuard;
 use crate::services::relation_validation::{
     normalize_analyst_comment, normalize_confidence_level, normalize_optional_id,
     normalize_relation_basis, normalize_relation_title, normalize_relation_type,
@@ -64,6 +65,7 @@ impl RelationService {
         let analyst_comment = normalize_analyst_comment(&payload.analyst_comment)?;
 
         let conn = open_connection(app)?;
+        ProtectedServiceGuard::require_password_change_resolved(&conn, &current_user)?;
 
         CaseRepository::get_case_by_id(&conn, &case_id)?
             .ok_or_else(|| AppErrorDto::new("ERR_CASE_NOT_FOUND", "Дело не найдено.", None))?;
@@ -134,13 +136,14 @@ impl RelationService {
         session: &SessionState,
         payload: GetRelationsPayload,
     ) -> Result<GetRelationsResponse, AppErrorDto> {
-        session.get_current_user().ok_or_else(|| {
+        let current_user = session.get_current_user().ok_or_else(|| {
             AppErrorDto::new("ERR_UNAUTHORIZED", "Пользователь не авторизован.", None)
         })?;
 
         let case_id =
             normalize_required_id(&payload.case_id, "ERR_CASE_REQUIRED", "Не выбрано дело.")?;
         let conn = open_connection(app)?;
+        ProtectedServiceGuard::require_password_change_resolved(&conn, &current_user)?;
 
         CaseRepository::get_case_by_id(&conn, &case_id)?
             .ok_or_else(|| AppErrorDto::new("ERR_CASE_NOT_FOUND", "Дело не найдено.", None))?;
@@ -155,7 +158,7 @@ impl RelationService {
         session: &SessionState,
         payload: GetRelationByIdPayload,
     ) -> Result<GetRelationByIdResponse, AppErrorDto> {
-        session.get_current_user().ok_or_else(|| {
+        let current_user = session.get_current_user().ok_or_else(|| {
             AppErrorDto::new("ERR_UNAUTHORIZED", "Пользователь не авторизован.", None)
         })?;
 
@@ -169,6 +172,7 @@ impl RelationService {
         )?;
 
         let conn = open_connection(app)?;
+        ProtectedServiceGuard::require_password_change_resolved(&conn, &current_user)?;
 
         let relation = RelationRepository::get_details_by_id(&conn, &case_id, &relation_id)?
             .ok_or_else(|| AppErrorDto::new("ERR_RELATION_NOT_FOUND", "Связь не найдена.", None))?;
@@ -210,6 +214,7 @@ impl RelationService {
         let analyst_comment = normalize_analyst_comment(&payload.analyst_comment)?;
 
         let conn = open_connection(app)?;
+        ProtectedServiceGuard::require_password_change_resolved(&conn, &current_user)?;
 
         RelationRepository::get_details_by_id(&conn, &case_id, &relation_id)?
             .ok_or_else(|| AppErrorDto::new("ERR_RELATION_NOT_FOUND", "Связь не найдена.", None))?;
@@ -276,6 +281,7 @@ impl RelationService {
         )?;
 
         let conn = open_connection(app)?;
+        ProtectedServiceGuard::require_password_change_resolved(&conn, &current_user)?;
 
         let _existing = RelationRepository::get_details_by_id(&conn, &case_id, &relation_id)?
             .ok_or_else(|| AppErrorDto::new("ERR_RELATION_NOT_FOUND", "Связь не найдена.", None))?;

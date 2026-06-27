@@ -18,6 +18,7 @@ use crate::services::audit_service::{
     AuditService, AuditSuccessInput, ENTITY_TYPE_EVENT, EVENT_CREATED, EVENT_DELETED,
     EVENT_REPORT_FLAG_CHANGED, EVENT_UPDATED,
 };
+use crate::services::protected_service_guard::ProtectedServiceGuard;
 
 use super::timeline_validation::{
     normalize_create_event_payload, normalize_required_id, normalize_timeline_filters,
@@ -32,7 +33,7 @@ impl TimelineService {
         session: &SessionState,
         payload: GetTimelinePayload,
     ) -> Result<GetTimelineResponse, AppErrorDto> {
-        let _current_user = session.get_current_user().ok_or_else(|| {
+        let current_user = session.get_current_user().ok_or_else(|| {
             AppErrorDto::new("ERR_UNAUTHORIZED", "Требуется вход в систему.", None)
         })?;
 
@@ -55,6 +56,7 @@ impl TimelineService {
         };
 
         let conn = open_connection(app)?;
+        ProtectedServiceGuard::require_password_change_resolved(&conn, &current_user)?;
         let items = TimelineRepository::get_timeline(&conn, &case_id, &filters_record)?;
 
         Ok(GetTimelineResponse { items })
@@ -80,6 +82,7 @@ impl TimelineService {
         let normalized = normalize_create_event_payload(payload)?;
 
         let mut conn = open_connection(app)?;
+        ProtectedServiceGuard::require_password_change_resolved(&conn, &current_user)?;
         let tx = conn
             .transaction()
             .map_err(|err| AppErrorDto::database(err.to_string()))?;
@@ -210,7 +213,7 @@ impl TimelineService {
         session: &SessionState,
         payload: GetEventByIdPayload,
     ) -> Result<GetEventByIdResponse, AppErrorDto> {
-        let _current_user = session.get_current_user().ok_or_else(|| {
+        let current_user = session.get_current_user().ok_or_else(|| {
             AppErrorDto::new("ERR_UNAUTHORIZED", "Требуется вход в систему.", None)
         })?;
 
@@ -227,6 +230,7 @@ impl TimelineService {
         )?;
 
         let conn = open_connection(app)?;
+        ProtectedServiceGuard::require_password_change_resolved(&conn, &current_user)?;
         let event_details = TimelineRepository::get_event_by_id(&conn, &case_id, &event_id)?
             .ok_or_else(|| AppErrorDto::new("ERR_EVENT_NOT_FOUND", "Событие не найдено", None))?;
 
@@ -253,6 +257,7 @@ impl TimelineService {
         let normalized = normalize_update_event_payload(payload)?;
 
         let mut conn = open_connection(app)?;
+        ProtectedServiceGuard::require_password_change_resolved(&conn, &current_user)?;
         let tx = conn
             .transaction()
             .map_err(|err| AppErrorDto::database(err.to_string()))?;
@@ -413,6 +418,7 @@ impl TimelineService {
         )?;
 
         let conn = open_connection(app)?;
+        ProtectedServiceGuard::require_password_change_resolved(&conn, &current_user)?;
 
         let old_event_item =
             TimelineRepository::get_event_list_item_by_id(&conn, &case_id, &event_id)?;
@@ -462,6 +468,7 @@ impl TimelineService {
         let normalized = normalize_toggle_event_report_include_payload(payload)?;
 
         let conn = open_connection(app)?;
+        ProtectedServiceGuard::require_password_change_resolved(&conn, &current_user)?;
 
         let old_event_item = TimelineRepository::get_event_list_item_by_id(
             &conn,

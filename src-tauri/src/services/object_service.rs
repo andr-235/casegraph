@@ -19,6 +19,7 @@ use crate::services::object_validation::{
     normalize_object_title, normalize_object_type, normalize_optional_value, normalize_required_id,
     normalize_unique_ids,
 };
+use crate::services::protected_service_guard::ProtectedServiceGuard;
 
 pub struct ObjectService;
 
@@ -50,6 +51,7 @@ impl ObjectService {
         let confidence_note = normalize_confidence_note(payload.confidence_note)?;
 
         let conn = open_connection(app)?;
+        ProtectedServiceGuard::require_password_change_resolved(&conn, &current_user)?;
 
         let case_item = CaseRepository::get_case_by_id(&conn, &case_id)?;
 
@@ -117,6 +119,8 @@ impl ObjectService {
             normalize_required_id(&payload.case_id, "ERR_CASE_REQUIRED", "Не выбрано дело.")?;
 
         let conn = open_connection(app)?;
+        ProtectedServiceGuard::require_password_change_resolved(&conn, &current_user)?;
+
         let items = ObjectRepository::list_by_case(&conn, &case_id)?;
 
         Ok(GetObjectsResponse { items })
@@ -152,6 +156,7 @@ impl ObjectService {
         )?;
 
         let conn = open_connection(app)?;
+        ProtectedServiceGuard::require_password_change_resolved(&conn, &current_user)?;
 
         let object_item = ObjectRepository::find_by_id(&conn, &case_id, &object_id)?
             .ok_or_else(|| AppErrorDto::new("ERR_OBJECT_NOT_FOUND", "Объект не найден.", None))?;
@@ -189,6 +194,7 @@ impl ObjectService {
         let link_reason = normalize_link_reason(payload.link_reason)?;
 
         let conn = open_connection(app)?;
+        ProtectedServiceGuard::require_password_change_resolved(&conn, &current_user)?;
 
         ObjectRepository::validate_materials_belong_to_case(&conn, &case_id, &material_ids)?;
 
@@ -248,6 +254,7 @@ impl ObjectService {
         let confidence_note = normalize_confidence_note(payload.confidence_note)?;
 
         let conn = open_connection(app)?;
+        ProtectedServiceGuard::require_password_change_resolved(&conn, &current_user)?;
 
         ObjectRepository::update_object(
             &conn,
@@ -302,6 +309,7 @@ impl ObjectService {
         )?;
 
         let conn = open_connection(app)?;
+        ProtectedServiceGuard::require_password_change_resolved(&conn, &current_user)?;
 
         ObjectRepository::soft_delete_object(&conn, &case_id, &object_id)?;
 
