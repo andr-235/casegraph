@@ -3,15 +3,17 @@ use tauri::AppHandle;
 use crate::db::connection::open_connection;
 use crate::domain::user_management::{
     BlockUserPayload, BlockUserResponse, CreateUserPayload, CreateUserResponse, GetRolesResponse,
-    GetUserByIdPayload, GetUserByIdResponse, GetUsersPayload, GetUsersResponse, UnblockUserPayload,
-    UnblockUserResponse, UpdateUserPayload, UpdateUserResponse, UserListItemDto,
+    GetUserByIdPayload, GetUserByIdResponse, GetUsersPayload, GetUsersResponse,
+    ResetUserPasswordPayload, ResetUserPasswordResponse, UnblockUserPayload, UnblockUserResponse,
+    UpdateUserPayload, UpdateUserResponse, UserListItemDto,
 };
 use crate::errors::app_error::AppErrorDto;
 use crate::repositories::user_management_repository::UserManagementRepository;
 use crate::security::password::hash_password;
 use crate::security::session::{CurrentUserDto, SessionState};
 use crate::services::user_management_validation::{
-    normalize_block_user_payload, normalize_create_user_payload, normalize_unblock_user_payload,
+    normalize_block_user_payload, normalize_create_user_payload,
+    normalize_reset_user_password_payload, normalize_unblock_user_payload,
     normalize_update_user_payload,
 };
 
@@ -225,6 +227,33 @@ impl UserManagementService {
         Ok(UnblockUserResponse { user })
     }
 
+    pub fn reset_user_password(
+        app: &AppHandle,
+        session: &SessionState,
+        payload: ResetUserPasswordPayload,
+    ) -> Result<ResetUserPasswordResponse, AppErrorDto> {
+        let current_user = require_user_management_admin(session)?;
+        let input = normalize_reset_user_password_payload(payload)?;
+
+        let conn = open_connection(app)?;
+
+        if !UserManagementRepository::user_exists(&conn, &input.user_id)? {
+            return Err(AppErrorDto::validation("Пользователь не найден"));
+        }
+
+        let old_user = UserManagementRepository::get_user_by_id(&conn, &input.user_id)?;
+
+        let password_hash = hash_password(&input.temporary_password)?;
+
+        UserManagementRepository::update_user_password_hash(&conn, &input.user_id, &password_hash)?;
+
+        let user = UserManagementRepository::get_user_by_id(&conn, &input.user_id)?;
+
+        write_user_password_reset_audit_best_effort(app, &current_user, &old_user, &user);
+
+        Ok(ResetUserPasswordResponse { user })
+    }
+
     pub fn get_roles(
         app: &AppHandle,
         session: &SessionState,
@@ -356,6 +385,43 @@ fn write_user_activity_audit_best_effort(
     let input = AuditSuccessInput::new(
         current_user,
         action,
+        "user",
+        Some(&new_user.id),
+        None,
+        old_value,
+        new_value,
+        None,
+    );
+
+    AuditService::write_success_non_blocking(app.clone(), input);
+}
+
+fn write_user_password_reset_audit_best_effort(
+    app: &AppHandle,
+    current_user: &CurrentUserDto,
+    old_user: &UserListItemDto,
+    new_user: &UserListItemDto,
+) {
+    use crate::services::audit_service::{to_json_value, AuditService, AuditSuccessInput};
+
+    let old_value = to_json_value(&serde_json::json!({
+        "id": old_user.id,
+        "username": old_user.username,
+        "mustChangePassword": old_user.must_change_password,
+    }))
+    .ok();
+
+    let new_value = to_json_value(&serde_json::json!({
+        "id": new_user.id,
+        "username": new_user.username,
+        "mustChangePassword": new_user.must_change_password,
+        "passwordReset": true,
+    }))
+    .ok();
+
+    let input = AuditSuccessInput::new(
+        current_user,
+        "USER_PASSWORD_RESET",
         "user",
         Some(&new_user.id),
         None,

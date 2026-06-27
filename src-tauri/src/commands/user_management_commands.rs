@@ -2,8 +2,9 @@ use tauri::{AppHandle, State};
 
 use crate::domain::user_management::{
     BlockUserPayload, BlockUserResponse, CreateUserPayload, CreateUserResponse, GetRolesResponse,
-    GetUserByIdPayload, GetUserByIdResponse, GetUsersPayload, GetUsersResponse, UnblockUserPayload,
-    UnblockUserResponse, UpdateUserPayload, UpdateUserResponse,
+    GetUserByIdPayload, GetUserByIdResponse, GetUsersPayload, GetUsersResponse,
+    ResetUserPasswordPayload, ResetUserPasswordResponse, UnblockUserPayload, UnblockUserResponse,
+    UpdateUserPayload, UpdateUserResponse,
 };
 use crate::errors::app_error::CommandResult;
 use crate::security::session::SessionState;
@@ -76,6 +77,18 @@ pub fn create_user(
     payload: CreateUserPayload,
 ) -> CommandResult<CreateUserResponse> {
     match UserManagementService::create_user(&app, &session, payload) {
+        Ok(response) => CommandResult::ok(response),
+        Err(error) => CommandResult::err(error),
+    }
+}
+
+#[tauri::command]
+pub fn reset_user_password(
+    app: AppHandle,
+    session: State<SessionState>,
+    payload: ResetUserPasswordPayload,
+) -> CommandResult<ResetUserPasswordResponse> {
+    match UserManagementService::reset_user_password(&app, &session, payload) {
         Ok(response) => CommandResult::ok(response),
         Err(error) => CommandResult::err(error),
     }

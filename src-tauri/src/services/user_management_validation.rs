@@ -1,5 +1,6 @@
 use crate::domain::user_management::{
-    BlockUserPayload, CreateUserPayload, UnblockUserPayload, UpdateUserPayload,
+    BlockUserPayload, CreateUserPayload, ResetUserPasswordPayload, UnblockUserPayload,
+    UpdateUserPayload,
 };
 use crate::errors::app_error::AppErrorDto;
 
@@ -96,6 +97,26 @@ pub fn normalize_block_user_payload(payload: BlockUserPayload) -> Result<String,
 
 pub fn normalize_unblock_user_payload(payload: UnblockUserPayload) -> Result<String, AppErrorDto> {
     normalize_user_id(&payload.user_id)
+}
+
+#[derive(Debug)]
+pub struct NormalizedResetUserPasswordInput {
+    pub user_id: String,
+    pub temporary_password: String,
+}
+
+pub fn normalize_reset_user_password_payload(
+    payload: ResetUserPasswordPayload,
+) -> Result<NormalizedResetUserPasswordInput, AppErrorDto> {
+    let user_id = normalize_user_id(&payload.user_id)?;
+    let temporary_password = payload.temporary_password.trim().to_string();
+
+    validate_password(&temporary_password)?;
+
+    Ok(NormalizedResetUserPasswordInput {
+        user_id,
+        temporary_password,
+    })
 }
 
 fn validate_username(username: &str) -> Result<(), AppErrorDto> {

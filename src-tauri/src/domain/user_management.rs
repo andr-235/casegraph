@@ -2,6 +2,19 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct ResetUserPasswordPayload {
+    pub user_id: String,
+    pub temporary_password: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ResetUserPasswordResponse {
+    pub user: UserListItemDto,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct BlockUserPayload {
     pub user_id: String,
 }

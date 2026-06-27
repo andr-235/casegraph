@@ -319,6 +319,27 @@ impl UserManagementRepository {
         .map_err(|err| AppErrorDto::database(err.to_string()))
     }
 
+    pub fn update_user_password_hash(
+        conn: &Connection,
+        user_id: &str,
+        password_hash: &str,
+    ) -> Result<(), AppErrorDto> {
+        conn.execute(
+            r#"
+            UPDATE users
+            SET
+                password_hash = ?2,
+                must_change_password = 1,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?1
+            "#,
+            params![user_id, password_hash],
+        )
+        .map_err(|err| AppErrorDto::database(err.to_string()))?;
+
+        Ok(())
+    }
+
     pub fn get_roles(conn: &Connection) -> Result<Vec<RoleOptionDto>, AppErrorDto> {
         let mut stmt = conn
             .prepare(

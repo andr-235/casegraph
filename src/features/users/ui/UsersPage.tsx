@@ -5,6 +5,7 @@ import { formatError } from "../../../shared/lib/formatError";
 import { blockUser, getRoles, getUsers, unblockUser } from "../api/usersApi";
 import { CreateUserModal } from "./CreateUserModal";
 import { EditUserModal } from "./EditUserModal";
+import { ResetPasswordModal } from "./ResetPasswordModal";
 import { UserActionsCell } from "./UserActionsCell";
 import type {
   RoleOptionDto,
@@ -36,6 +37,8 @@ export function UsersPage({ user: _user, onBack }: Props) {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
+  const [passwordResetUser, setPasswordResetUser] =
+    useState<UserListItemDto | null>(null);
   const [busyUserId, setBusyUserId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
@@ -132,6 +135,10 @@ export function UsersPage({ user: _user, onBack }: Props) {
     } finally {
       setBusyUserId(null);
     }
+  }
+
+  function handlePasswordReset() {
+    void loadUsers();
   }
 
   async function handleUnblockUser(user: UserListItemDto) {
@@ -276,6 +283,7 @@ export function UsersPage({ user: _user, onBack }: Props) {
                       user={userItem}
                       isBusy={busyUserId === userItem.id}
                       onEdit={setEditingUserId}
+                      onResetPassword={setPasswordResetUser}
                       onBlock={handleBlockUser}
                       onUnblock={handleUnblockUser}
                     />
@@ -318,6 +326,14 @@ export function UsersPage({ user: _user, onBack }: Props) {
           roles={roles}
           onClose={() => setEditingUserId(null)}
           onSaved={handleUserSaved}
+        />
+      )}
+
+      {passwordResetUser && (
+        <ResetPasswordModal
+          user={passwordResetUser}
+          onClose={() => setPasswordResetUser(null)}
+          onSaved={handlePasswordReset}
         />
       )}
     </main>

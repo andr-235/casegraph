@@ -9,6 +9,8 @@ import type {
   GetUserByIdResponse,
   GetUsersPayload,
   GetUsersResponse,
+  ResetUserPasswordPayload,
+  ResetUserPasswordResponse,
   UnblockUserPayload,
   UnblockUserResponse,
   UpdateUserPayload,
@@ -47,6 +49,14 @@ export function updateUser(
   payload: UpdateUserPayload,
 ): Promise<UpdateUserResponse> {
   return invokeCommand<UpdateUserResponse>("update_user", { payload });
+}
+
+export function resetUserPassword(
+  payload: ResetUserPasswordPayload,
+): Promise<ResetUserPasswordResponse> {
+  return invokeCommand<ResetUserPasswordResponse>("reset_user_password", {
+    payload,
+  });
 }
 
 export function getRoles(): Promise<GetRolesResponse> {

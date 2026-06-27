@@ -81,6 +81,15 @@ export type UnblockUserResponse = {
   user: UserListItemDto;
 };
 
+export type ResetUserPasswordPayload = {
+  userId: string;
+  temporaryPassword: string;
+};
+
+export type ResetUserPasswordResponse = {
+  user: UserListItemDto;
+};
+
 export type GetRolesResponse = {
   roles: RoleOptionDto[];
 };
