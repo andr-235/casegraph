@@ -4,6 +4,17 @@ use uuid::Uuid;
 use crate::domain::user_management::{RoleOptionDto, UserListItemDto};
 use crate::errors::app_error::AppErrorDto;
 
+#[derive(Debug)]
+pub struct UserAuthRecord {
+    pub id: String,
+    pub username: String,
+    pub display_name: String,
+    pub role_code: String,
+    pub is_active: bool,
+    pub must_change_password: bool,
+    pub password_hash: String,
+}
+
 pub struct UserManagementRepository;
 
 impl UserManagementRepository {
@@ -319,11 +330,37 @@ impl UserManagementRepository {
         .map_err(|err| AppErrorDto::database(err.to_string()))
     }
 
-    pub fn get_user_password_hash(conn: &Connection, user_id: &str) -> Result<String, AppErrorDto> {
+    pub fn get_auth_user_by_id(
+        conn: &Connection,
+        user_id: &str,
+    ) -> Result<UserAuthRecord, AppErrorDto> {
         conn.query_row(
-            "SELECT password_hash FROM users WHERE id = ?1",
+            r#"
+            SELECT
+                u.id,
+                u.username,
+                u.display_name,
+                r.code AS role_code,
+                u.is_active,
+                u.must_change_password,
+                u.password_hash
+            FROM users u
+            INNER JOIN roles r ON r.id = u.role_id
+            WHERE u.id = ?1
+            LIMIT 1
+            "#,
             params![user_id],
-            |row| row.get(0),
+            |row| {
+                Ok(UserAuthRecord {
+                    id: row.get(0)?,
+                    username: row.get(1)?,
+                    display_name: row.get(2)?,
+                    role_code: row.get(3)?,
+                    is_active: row.get::<_, i64>(4)? == 1,
+                    must_change_password: row.get::<_, i64>(5)? == 1,
+                    password_hash: row.get(6)?,
+                })
+            },
         )
         .map_err(|err| AppErrorDto::database(err.to_string()))
     }

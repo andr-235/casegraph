@@ -1,6 +1,6 @@
 use crate::domain::user_management::{
-    BlockUserPayload, CreateUserPayload, ResetUserPasswordPayload, UnblockUserPayload,
-    UpdateUserPayload,
+    BlockUserPayload, ChangeOwnPasswordPayload, CreateUserPayload, ResetUserPasswordPayload,
+    UnblockUserPayload, UpdateUserPayload,
 };
 use crate::errors::app_error::AppErrorDto;
 
@@ -116,6 +116,36 @@ pub fn normalize_reset_user_password_payload(
     Ok(NormalizedResetUserPasswordInput {
         user_id,
         temporary_password,
+    })
+}
+
+#[derive(Debug)]
+pub struct NormalizedChangeOwnPasswordInput {
+    pub current_password: String,
+    pub new_password: String,
+}
+
+pub fn normalize_change_own_password_payload(
+    payload: ChangeOwnPasswordPayload,
+) -> Result<NormalizedChangeOwnPasswordInput, AppErrorDto> {
+    let current_password = payload.current_password.trim().to_string();
+    let new_password = payload.new_password.trim().to_string();
+
+    if current_password.is_empty() {
+        return Err(AppErrorDto::validation("Укажите текущий пароль"));
+    }
+
+    validate_password(&new_password)?;
+
+    if current_password == new_password {
+        return Err(AppErrorDto::validation(
+            "Новый пароль должен отличаться от временного",
+        ));
+    }
+
+    Ok(NormalizedChangeOwnPasswordInput {
+        current_password,
+        new_password,
     })
 }
 

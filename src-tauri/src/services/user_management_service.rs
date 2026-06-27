@@ -13,9 +13,9 @@ use crate::repositories::user_management_repository::UserManagementRepository;
 use crate::security::password::{hash_password, verify_password};
 use crate::security::session::{CurrentUserDto, SessionState};
 use crate::services::user_management_validation::{
-    normalize_block_user_payload, normalize_create_user_payload,
-    normalize_reset_user_password_payload, normalize_unblock_user_payload,
-    normalize_update_user_payload, validate_password,
+    normalize_block_user_payload, normalize_change_own_password_payload,
+    normalize_create_user_payload, normalize_reset_user_password_payload,
+    normalize_unblock_user_payload, normalize_update_user_payload,
 };
 
 const DEFAULT_USERS_LIMIT: i64 = 50;
@@ -234,24 +234,25 @@ impl UserManagementService {
         payload: ChangeOwnPasswordPayload,
     ) -> Result<ChangeOwnPasswordResponse, AppErrorDto> {
         let current_user = require_authenticated_user(session)?;
-
-        let current_password = payload.current_password.trim().to_string();
-        let new_password = payload.new_password.trim().to_string();
-
-        validate_password(&new_password)?;
+        let input = normalize_change_own_password_payload(payload)?;
 
         let conn = open_connection(app)?;
 
-        let stored_password_hash =
-            UserManagementRepository::get_user_password_hash(&conn, &current_user.user_id)?;
+        let auth_user =
+            UserManagementRepository::get_auth_user_by_id(&conn, &current_user.user_id)?;
 
-        let is_current_password_valid = verify_password(&current_password, &stored_password_hash)?;
+        if !auth_user.is_active {
+            return Err(AppErrorDto::validation("Пользователь заблокирован"));
+        }
 
-        if !is_current_password_valid {
+        let is_valid_current_password =
+            verify_password(&input.current_password, &auth_user.password_hash)?;
+
+        if !is_valid_current_password {
             return Err(AppErrorDto::validation("Текущий пароль указан неверно"));
         }
 
-        let new_password_hash = hash_password(&new_password)?;
+        let new_password_hash = hash_password(&input.new_password)?;
 
         UserManagementRepository::update_own_password_hash(
             &conn,
@@ -259,15 +260,13 @@ impl UserManagementService {
             &new_password_hash,
         )?;
 
-        let updated_user = UserManagementRepository::get_user_by_id(&conn, &current_user.user_id)?;
-
         let updated_dto = CurrentUserDto {
-            user_id: updated_user.id.clone(),
-            username: updated_user.username.clone(),
-            display_name: updated_user.display_name.clone().unwrap_or_default(),
-            role: updated_user.role_code.clone(),
-            is_active: updated_user.is_active,
-            must_change_password: updated_user.must_change_password,
+            user_id: auth_user.id,
+            username: auth_user.username,
+            display_name: auth_user.display_name,
+            role: auth_user.role_code,
+            is_active: auth_user.is_active,
+            must_change_password: false,
         };
 
         session.set_current_user(updated_dto.clone());
