@@ -2,6 +2,33 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct GetUserByIdPayload {
+    pub user_id: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GetUserByIdResponse {
+    pub user: UserListItemDto,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateUserPayload {
+    pub user_id: String,
+    pub display_name: Option<String>,
+    pub role_code: String,
+    pub must_change_password: bool,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateUserResponse {
+    pub user: UserListItemDto,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct CreateUserPayload {
     pub username: String,
     pub display_name: Option<String>,

@@ -46,6 +46,25 @@ export type CreateUserResponse = {
   user: UserListItemDto;
 };
 
+export type GetUserByIdPayload = {
+  userId: string;
+};
+
+export type GetUserByIdResponse = {
+  user: UserListItemDto;
+};
+
+export type UpdateUserPayload = {
+  userId: string;
+  displayName?: string;
+  roleCode: UserRole;
+  mustChangePassword: boolean;
+};
+
+export type UpdateUserResponse = {
+  user: UserListItemDto;
+};
+
 export type GetRolesResponse = {
   roles: RoleOptionDto[];
 };

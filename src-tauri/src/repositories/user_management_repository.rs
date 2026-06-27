@@ -136,6 +136,80 @@ impl UserManagementRepository {
         Ok(count > 0)
     }
 
+    pub fn user_exists(conn: &Connection, user_id: &str) -> Result<bool, AppErrorDto> {
+        let count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM users WHERE id = ?1",
+                params![user_id],
+                |row| row.get(0),
+            )
+            .map_err(|err| AppErrorDto::database(err.to_string()))?;
+
+        Ok(count > 0)
+    }
+
+    pub fn get_user_role_code_by_id(
+        conn: &Connection,
+        user_id: &str,
+    ) -> Result<String, AppErrorDto> {
+        conn.query_row(
+            r#"
+            SELECT r.code
+            FROM users u
+            INNER JOIN roles r ON r.id = u.role_id
+            WHERE u.id = ?1
+            LIMIT 1
+            "#,
+            params![user_id],
+            |row| row.get(0),
+        )
+        .map_err(|err| AppErrorDto::database(err.to_string()))
+    }
+
+    pub fn count_active_administrators(conn: &Connection) -> Result<i64, AppErrorDto> {
+        conn.query_row(
+            r#"
+            SELECT COUNT(*)
+            FROM users u
+            INNER JOIN roles r ON r.id = u.role_id
+            WHERE r.code = 'administrator'
+              AND u.is_active = 1
+            "#,
+            [],
+            |row| row.get(0),
+        )
+        .map_err(|err| AppErrorDto::database(err.to_string()))
+    }
+
+    pub fn update_user(
+        conn: &Connection,
+        user_id: &str,
+        display_name: Option<&str>,
+        role_id: &str,
+        must_change_password: bool,
+    ) -> Result<(), AppErrorDto> {
+        conn.execute(
+            r#"
+            UPDATE users
+            SET
+                display_name = ?2,
+                role_id = ?3,
+                must_change_password = ?4,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?1
+            "#,
+            params![
+                user_id,
+                display_name,
+                role_id,
+                if must_change_password { 1 } else { 0 },
+            ],
+        )
+        .map_err(|err| AppErrorDto::database(err.to_string()))?;
+
+        Ok(())
+    }
+
     pub fn get_role_id_by_code(conn: &Connection, role_code: &str) -> Result<String, AppErrorDto> {
         conn.query_row(
             "SELECT id FROM roles WHERE code = ?1 LIMIT 1",

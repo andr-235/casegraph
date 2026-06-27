@@ -69,6 +69,8 @@ pub fn run() {
             commands::audit_commands::export_audit_log,
             commands::user_management_commands::get_users,
             commands::user_management_commands::get_roles,
+            commands::user_management_commands::get_user_by_id,
+            commands::user_management_commands::update_user,
             commands::user_management_commands::create_user
         ])
         .run(tauri::generate_context!())

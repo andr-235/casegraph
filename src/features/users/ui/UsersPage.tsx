@@ -4,6 +4,7 @@ import type { CurrentUserDto } from "../../auth/model/authTypes";
 import { formatError } from "../../../shared/lib/formatError";
 import { getRoles, getUsers } from "../api/usersApi";
 import { CreateUserModal } from "./CreateUserModal";
+import { EditUserModal } from "./EditUserModal";
 import type {
   RoleOptionDto,
   UserListItemDto,
@@ -33,6 +34,7 @@ export function UsersPage({ user: _user, onBack }: Props) {
   const [loadState, setLoadState] = useState<LoadState>("idle");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [editingUserId, setEditingUserId] = useState<string | null>(null);
 
   const page = Math.floor(offset / PAGE_SIZE) + 1;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
@@ -95,6 +97,11 @@ export function UsersPage({ user: _user, onBack }: Props) {
 
   async function handleUserCreated() {
     setIsCreateModalOpen(false);
+    await loadUsers();
+  }
+
+  async function handleUserSaved() {
+    setEditingUserId(null);
     await loadUsers();
   }
 
@@ -195,6 +202,7 @@ export function UsersPage({ user: _user, onBack }: Props) {
                 <th>Смена пароля</th>
                 <th>Последний вход</th>
                 <th>Создан</th>
+                <th>Действия</th>
               </tr>
             </thead>
 
@@ -210,6 +218,11 @@ export function UsersPage({ user: _user, onBack }: Props) {
                   <td>{userItem.mustChangePassword ? "Требуется" : "Нет"}</td>
                   <td>{formatDateTime(userItem.lastLoginAt)}</td>
                   <td>{formatDateTime(userItem.createdAt)}</td>
+                  <td>
+                    <button type="button" onClick={() => setEditingUserId(userItem.id)}>
+                      Редактировать
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -239,6 +252,15 @@ export function UsersPage({ user: _user, onBack }: Props) {
           roles={roles}
           onClose={() => setIsCreateModalOpen(false)}
           onCreated={handleUserCreated}
+        />
+      )}
+
+      {editingUserId && (
+        <EditUserModal
+          userId={editingUserId}
+          roles={roles}
+          onClose={() => setEditingUserId(null)}
+          onSaved={handleUserSaved}
         />
       )}
     </main>

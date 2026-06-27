@@ -2,14 +2,17 @@ use tauri::AppHandle;
 
 use crate::db::connection::open_connection;
 use crate::domain::user_management::{
-    CreateUserPayload, CreateUserResponse, GetRolesResponse, GetUsersPayload, GetUsersResponse,
+    CreateUserPayload, CreateUserResponse, GetRolesResponse, GetUserByIdPayload,
+    GetUserByIdResponse, GetUsersPayload, GetUsersResponse, UpdateUserPayload, UpdateUserResponse,
     UserListItemDto,
 };
 use crate::errors::app_error::AppErrorDto;
 use crate::repositories::user_management_repository::UserManagementRepository;
 use crate::security::password::hash_password;
 use crate::security::session::{CurrentUserDto, SessionState};
-use crate::services::user_management_validation::normalize_create_user_payload;
+use crate::services::user_management_validation::{
+    normalize_create_user_payload, normalize_update_user_payload,
+};
 
 const DEFAULT_USERS_LIMIT: i64 = 50;
 const MAX_USERS_LIMIT: i64 = 200;
@@ -85,6 +88,70 @@ impl UserManagementService {
         Ok(CreateUserResponse { user })
     }
 
+    pub fn get_user_by_id(
+        app: &AppHandle,
+        session: &SessionState,
+        payload: GetUserByIdPayload,
+    ) -> Result<GetUserByIdResponse, AppErrorDto> {
+        require_user_management_admin(session)?;
+
+        let user_id = payload.user_id.trim();
+
+        if user_id.is_empty() {
+            return Err(AppErrorDto::validation("Не указан пользователь"));
+        }
+
+        let conn = open_connection(app)?;
+        let user = UserManagementRepository::get_user_by_id(&conn, user_id)?;
+
+        Ok(GetUserByIdResponse { user })
+    }
+
+    pub fn update_user(
+        app: &AppHandle,
+        session: &SessionState,
+        payload: UpdateUserPayload,
+    ) -> Result<UpdateUserResponse, AppErrorDto> {
+        let current_user = require_user_management_admin(session)?;
+        let input = normalize_update_user_payload(payload)?;
+
+        let conn = open_connection(app)?;
+
+        if !UserManagementRepository::user_exists(&conn, &input.user_id)? {
+            return Err(AppErrorDto::validation("Пользователь не найден"));
+        }
+
+        let old_user = UserManagementRepository::get_user_by_id(&conn, &input.user_id)?;
+        let old_role_code =
+            UserManagementRepository::get_user_role_code_by_id(&conn, &input.user_id)?;
+
+        if old_role_code == "administrator" && input.role_code != "administrator" {
+            let active_admin_count = UserManagementRepository::count_active_administrators(&conn)?;
+
+            if active_admin_count <= 1 {
+                return Err(AppErrorDto::validation(
+                    "Нельзя изменить роль последнего активного администратора",
+                ));
+            }
+        }
+
+        let role_id = UserManagementRepository::get_role_id_by_code(&conn, &input.role_code)?;
+
+        UserManagementRepository::update_user(
+            &conn,
+            &input.user_id,
+            input.display_name.as_deref(),
+            &role_id,
+            input.must_change_password,
+        )?;
+
+        let user = UserManagementRepository::get_user_by_id(&conn, &input.user_id)?;
+
+        write_user_updated_audit_best_effort(app, &current_user, &old_user, &user);
+
+        Ok(UpdateUserResponse { user })
+    }
+
     pub fn get_roles(
         app: &AppHandle,
         session: &SessionState,
@@ -135,6 +202,48 @@ fn write_user_created_audit_best_effort(
         Some(&created_user.id),
         None,
         None,
+        new_value,
+        None,
+    );
+
+    AuditService::write_success_non_blocking(app.clone(), input);
+}
+
+fn write_user_updated_audit_best_effort(
+    app: &AppHandle,
+    current_user: &CurrentUserDto,
+    old_user: &UserListItemDto,
+    new_user: &UserListItemDto,
+) {
+    use crate::services::audit_service::{to_json_value, AuditService, AuditSuccessInput};
+
+    let old_value = to_json_value(&serde_json::json!({
+        "id": old_user.id,
+        "username": old_user.username,
+        "displayName": old_user.display_name,
+        "roleCode": old_user.role_code,
+        "isActive": old_user.is_active,
+        "mustChangePassword": old_user.must_change_password,
+    }))
+    .ok();
+
+    let new_value = to_json_value(&serde_json::json!({
+        "id": new_user.id,
+        "username": new_user.username,
+        "displayName": new_user.display_name,
+        "roleCode": new_user.role_code,
+        "isActive": new_user.is_active,
+        "mustChangePassword": new_user.must_change_password,
+    }))
+    .ok();
+
+    let input = AuditSuccessInput::new(
+        current_user,
+        "USER_UPDATED",
+        "user",
+        Some(&new_user.id),
+        None,
+        old_value,
         new_value,
         None,
     );

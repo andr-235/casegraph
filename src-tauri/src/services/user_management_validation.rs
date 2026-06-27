@@ -1,4 +1,4 @@
-use crate::domain::user_management::CreateUserPayload;
+use crate::domain::user_management::{CreateUserPayload, UpdateUserPayload};
 use crate::errors::app_error::AppErrorDto;
 
 const MIN_USERNAME_LEN: usize = 3;
@@ -40,6 +40,41 @@ pub fn normalize_create_user_payload(
         role_code,
         password,
         must_change_password: payload.must_change_password.unwrap_or(true),
+    })
+}
+
+#[derive(Debug)]
+pub struct NormalizedUpdateUserInput {
+    pub user_id: String,
+    pub display_name: Option<String>,
+    pub role_code: String,
+    pub must_change_password: bool,
+}
+
+pub fn normalize_update_user_payload(
+    payload: UpdateUserPayload,
+) -> Result<NormalizedUpdateUserInput, AppErrorDto> {
+    let user_id = payload.user_id.trim().to_string();
+
+    if user_id.is_empty() {
+        return Err(AppErrorDto::validation("Не указан пользователь"));
+    }
+
+    let display_name = payload
+        .display_name
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+
+    let role_code = payload.role_code.trim().to_string();
+
+    validate_display_name(display_name.as_deref())?;
+    validate_role_code(&role_code)?;
+
+    Ok(NormalizedUpdateUserInput {
+        user_id,
+        display_name,
+        role_code,
+        must_change_password: payload.must_change_password,
     })
 }
 
