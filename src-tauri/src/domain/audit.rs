@@ -135,5 +135,3 @@ pub struct ExportAuditLogResponse {
     pub exported_count: i64,
     pub format: String,
 }
-
-

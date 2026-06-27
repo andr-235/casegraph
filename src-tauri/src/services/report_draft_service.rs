@@ -154,11 +154,14 @@ impl ReportDraftService {
 
         crate::services::audit_service::AuditService::write_best_effort(
             app,
-            crate::services::audit_service::AuditWriteInput::success(&context.current_user, crate::domain::audit_action::report::DRAFT_GENERATED)
-                .with_case_id(created_draft.case_id.clone())
-                .with_entity("report_draft", created_draft.id.clone())
-                .with_snapshots(None, Some(new_value))
-                .with_details(technical_details),
+            crate::services::audit_service::AuditWriteInput::success(
+                &context.current_user,
+                crate::domain::audit_action::report::DRAFT_GENERATED,
+            )
+            .with_case_id(created_draft.case_id.clone())
+            .with_entity("report_draft", created_draft.id.clone())
+            .with_snapshots(None, Some(new_value))
+            .with_details(technical_details),
         );
 
         Ok(created_draft)
@@ -256,11 +259,14 @@ impl ReportDraftService {
 
         crate::services::audit_service::AuditService::write_best_effort(
             app,
-            crate::services::audit_service::AuditWriteInput::success(&context.current_user, crate::domain::audit_action::report::DRAFT_UPDATED)
-                .with_case_id(updated_draft.case_id.clone())
-                .with_entity("report_draft", updated_draft.id.clone())
-                .with_snapshots(Some(old_value), Some(new_value))
-                .with_details(technical_details),
+            crate::services::audit_service::AuditWriteInput::success(
+                &context.current_user,
+                crate::domain::audit_action::report::DRAFT_UPDATED,
+            )
+            .with_case_id(updated_draft.case_id.clone())
+            .with_entity("report_draft", updated_draft.id.clone())
+            .with_snapshots(Some(old_value), Some(new_value))
+            .with_details(technical_details),
         );
 
         Ok(updated_draft)
@@ -292,10 +298,13 @@ impl ReportDraftService {
 
         crate::services::audit_service::AuditService::write_best_effort(
             app,
-            crate::services::audit_service::AuditWriteInput::success(&context.current_user, crate::domain::audit_action::report::DRAFT_VALIDATED)
-                .with_case_id(draft.case_id.clone())
-                .with_entity("report_draft", draft.id.clone())
-                .with_details(technical_details),
+            crate::services::audit_service::AuditWriteInput::success(
+                &context.current_user,
+                crate::domain::audit_action::report::DRAFT_VALIDATED,
+            )
+            .with_case_id(draft.case_id.clone())
+            .with_entity("report_draft", draft.id.clone())
+            .with_details(technical_details),
         );
 
         Ok(validation_result)
@@ -329,15 +338,19 @@ impl ReportDraftService {
 
         ReportRepository::delete_draft(conn, &payload.draft_id)?;
 
-        let technical_details = crate::audit::audit_metadata::report_draft_deleted(&old_draft.id, &old_draft.case_id)?;
+        let technical_details =
+            crate::audit::audit_metadata::report_draft_deleted(&old_draft.id, &old_draft.case_id)?;
 
         crate::services::audit_service::AuditService::write_best_effort(
             app,
-            crate::services::audit_service::AuditWriteInput::success(&context.current_user, crate::domain::audit_action::report::DRAFT_DELETED)
-                .with_case_id(old_draft.case_id.clone())
-                .with_entity("report_draft", old_draft.id.clone())
-                .with_snapshots(Some(old_value), None)
-                .with_details(technical_details),
+            crate::services::audit_service::AuditWriteInput::success(
+                &context.current_user,
+                crate::domain::audit_action::report::DRAFT_DELETED,
+            )
+            .with_case_id(old_draft.case_id.clone())
+            .with_entity("report_draft", old_draft.id.clone())
+            .with_snapshots(Some(old_value), None)
+            .with_details(technical_details),
         );
 
         Ok(())

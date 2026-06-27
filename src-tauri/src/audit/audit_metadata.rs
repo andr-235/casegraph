@@ -797,7 +797,11 @@ pub fn setting_change_snapshot(
     }
 }
 
-pub fn user_created(user_id: &str, username: &str, role_code: &str) -> Result<AuditSafeDetails, AppErrorDto> {
+pub fn user_created(
+    user_id: &str,
+    username: &str,
+    role_code: &str,
+) -> Result<AuditSafeDetails, AppErrorDto> {
     build_details(json!({
         "userId": user_id,
         "username": username,
@@ -805,7 +809,11 @@ pub fn user_created(user_id: &str, username: &str, role_code: &str) -> Result<Au
     }))
 }
 
-pub fn user_updated(user_id: &str, username: &str, changed_fields: &[&str]) -> Result<AuditSafeDetails, AppErrorDto> {
+pub fn user_updated(
+    user_id: &str,
+    username: &str,
+    changed_fields: &[&str],
+) -> Result<AuditSafeDetails, AppErrorDto> {
     build_details(json!({
         "userId": user_id,
         "username": username,
@@ -827,7 +835,11 @@ pub fn user_unblocked(user_id: &str, username: &str) -> Result<AuditSafeDetails,
     }))
 }
 
-pub fn user_password_reset(user_id: &str, username: &str, must_change_password: bool) -> Result<AuditSafeDetails, AppErrorDto> {
+pub fn user_password_reset(
+    user_id: &str,
+    username: &str,
+    must_change_password: bool,
+) -> Result<AuditSafeDetails, AppErrorDto> {
     build_details(json!({
         "userId": user_id,
         "username": username,
@@ -835,14 +847,21 @@ pub fn user_password_reset(user_id: &str, username: &str, must_change_password: 
     }))
 }
 
-pub fn user_password_changed(user_id: &str, username: &str) -> Result<AuditSafeDetails, AppErrorDto> {
+pub fn user_password_changed(
+    user_id: &str,
+    username: &str,
+) -> Result<AuditSafeDetails, AppErrorDto> {
     build_details(json!({
         "userId": user_id,
         "username": username
     }))
 }
 
-pub fn timeline_event_created(event_id: &str, event_code: &str, case_id: &str) -> Result<AuditSafeDetails, AppErrorDto> {
+pub fn timeline_event_created(
+    event_id: &str,
+    event_code: &str,
+    case_id: &str,
+) -> Result<AuditSafeDetails, AppErrorDto> {
     build_details(json!({
         "eventId": event_id,
         "eventCode": event_code,
@@ -850,7 +869,11 @@ pub fn timeline_event_created(event_id: &str, event_code: &str, case_id: &str) -
     }))
 }
 
-pub fn timeline_event_updated(event_id: &str, event_code: &str, changed_fields: &[&str]) -> Result<AuditSafeDetails, AppErrorDto> {
+pub fn timeline_event_updated(
+    event_id: &str,
+    event_code: &str,
+    changed_fields: &[&str],
+) -> Result<AuditSafeDetails, AppErrorDto> {
     build_details(json!({
         "eventId": event_id,
         "eventCode": event_code,
@@ -858,7 +881,10 @@ pub fn timeline_event_updated(event_id: &str, event_code: &str, changed_fields: 
     }))
 }
 
-pub fn timeline_event_deleted(event_id: &str, event_code: &str) -> Result<AuditSafeDetails, AppErrorDto> {
+pub fn timeline_event_deleted(
+    event_id: &str,
+    event_code: &str,
+) -> Result<AuditSafeDetails, AppErrorDto> {
     build_details(json!({
         "eventId": event_id,
         "eventCode": event_code
@@ -877,7 +903,11 @@ pub fn timeline_event_report_include_changed(
     }))
 }
 
-pub fn case_created(case_id: &str, case_code: &str, title: &str) -> Result<AuditSafeDetails, AppErrorDto> {
+pub fn case_created(
+    case_id: &str,
+    case_code: &str,
+    title: &str,
+) -> Result<AuditSafeDetails, AppErrorDto> {
     build_details(json!({
         "caseId": case_id,
         "caseCode": case_code,
@@ -885,7 +915,11 @@ pub fn case_created(case_id: &str, case_code: &str, title: &str) -> Result<Audit
     }))
 }
 
-pub fn case_updated(case_id: &str, case_code: &str, changed_fields: &[&str]) -> Result<AuditSafeDetails, AppErrorDto> {
+pub fn case_updated(
+    case_id: &str,
+    case_code: &str,
+    changed_fields: &[&str],
+) -> Result<AuditSafeDetails, AppErrorDto> {
     build_details(json!({
         "caseId": case_id,
         "caseCode": case_code,
@@ -947,7 +981,10 @@ pub fn relation_report_include_changed(
     }))
 }
 
-pub fn relation_deleted(relation_id: &str, relation_code: &str) -> Result<AuditSafeDetails, AppErrorDto> {
+pub fn relation_deleted(
+    relation_id: &str,
+    relation_code: &str,
+) -> Result<AuditSafeDetails, AppErrorDto> {
     build_details(json!({
         "relationId": relation_id,
         "relationCode": relation_code
@@ -1004,14 +1041,21 @@ pub fn material_hash_verified(
     }))
 }
 
-pub fn material_deleted(material_id: &str, material_code: &str) -> Result<AuditSafeDetails, AppErrorDto> {
+pub fn material_deleted(
+    material_id: &str,
+    material_code: &str,
+) -> Result<AuditSafeDetails, AppErrorDto> {
     build_details(json!({
         "materialId": material_id,
         "materialCode": material_code
     }))
 }
 
-pub fn object_created(object_id: &str, object_code: &str, object_type: &str) -> Result<AuditSafeDetails, AppErrorDto> {
+pub fn object_created(
+    object_id: &str,
+    object_code: &str,
+    object_type: &str,
+) -> Result<AuditSafeDetails, AppErrorDto> {
     build_details(json!({
         "objectId": object_id,
         "objectCode": object_code,
@@ -1064,7 +1108,11 @@ pub fn object_deleted(object_id: &str, object_code: &str) -> Result<AuditSafeDet
     }))
 }
 
-pub fn report_draft_generated(draft_id: &str, case_id: &str, report_type: &str) -> Result<AuditSafeDetails, AppErrorDto> {
+pub fn report_draft_generated(
+    draft_id: &str,
+    case_id: &str,
+    report_type: &str,
+) -> Result<AuditSafeDetails, AppErrorDto> {
     build_details(json!({
         "draftId": draft_id,
         "caseId": case_id,
@@ -1100,14 +1148,20 @@ pub fn report_draft_validated(
     }))
 }
 
-pub fn report_draft_deleted(draft_id: &str, case_id: &str) -> Result<AuditSafeDetails, AppErrorDto> {
+pub fn report_draft_deleted(
+    draft_id: &str,
+    case_id: &str,
+) -> Result<AuditSafeDetails, AppErrorDto> {
     build_details(json!({
         "draftId": draft_id,
         "caseId": case_id
     }))
 }
 
-pub fn settings_updated(changed_keys: &[String], categories: &[String]) -> Result<AuditSafeDetails, AppErrorDto> {
+pub fn settings_updated(
+    changed_keys: &[String],
+    categories: &[String],
+) -> Result<AuditSafeDetails, AppErrorDto> {
     build_details(json!({
         "changedKeys": changed_keys,
         "categories": categories,
@@ -1136,19 +1190,33 @@ pub fn access_denied(
     }))
 }
 
-pub fn password_change_required(command: &str, actual_role: Option<&str>) -> Result<AuditSafeDetails, AppErrorDto> {
+pub fn password_change_required(
+    command: &str,
+    actual_role: Option<&str>,
+) -> Result<AuditSafeDetails, AppErrorDto> {
     access_denied("password_change_required", command, actual_role, None)
 }
 
-pub fn inactive_user(command: &str, actual_role: Option<&str>) -> Result<AuditSafeDetails, AppErrorDto> {
+pub fn inactive_user(
+    command: &str,
+    actual_role: Option<&str>,
+) -> Result<AuditSafeDetails, AppErrorDto> {
     access_denied("inactive_user", command, actual_role, None)
 }
 
-pub fn role_denied(command: &str, actual_role: Option<&str>, required_role: &str) -> Result<AuditSafeDetails, AppErrorDto> {
+pub fn role_denied(
+    command: &str,
+    actual_role: Option<&str>,
+    required_role: &str,
+) -> Result<AuditSafeDetails, AppErrorDto> {
     access_denied("role_denied", command, actual_role, Some(required_role))
 }
 
-pub fn audit_log_exported(exported_rows: usize, format: &str, filters_applied: bool) -> Result<AuditSafeDetails, AppErrorDto> {
+pub fn audit_log_exported(
+    exported_rows: usize,
+    format: &str,
+    filters_applied: bool,
+) -> Result<AuditSafeDetails, AppErrorDto> {
     build_details(json!({
         "exportedRows": exported_rows,
         "format": format,
@@ -1267,7 +1335,6 @@ pub fn backup_restore_completed(
         "restoredCounts": restored_counts
     }))
 }
-
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -1474,7 +1541,6 @@ pub fn integrity_material_verified(
         "changedFields": ["integrityStatus"]
     }))
 }
-
 
 // ── Safe failure details builder ─────────────────────────────────────────
 //

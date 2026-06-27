@@ -304,7 +304,10 @@ fn write_relation_created_audit_best_effort(
     })();
 
     if let Err(err) = result {
-        eprintln!("[audit] write_relation_created_audit failed: {}", err.message);
+        eprintln!(
+            "[audit] write_relation_created_audit failed: {}",
+            err.message
+        );
     }
 }
 
@@ -388,7 +391,11 @@ fn write_relation_updated_audit_best_effort(
                 new_relation.include_in_report,
             )?
         } else {
-            audit_metadata::relation_updated(&new_relation.id, &new_relation.relation_code, &changed)?
+            audit_metadata::relation_updated(
+                &new_relation.id,
+                &new_relation.relation_code,
+                &changed,
+            )?
         };
 
         let old_val = audit_metadata::safe_relation_snapshot(
@@ -431,7 +438,10 @@ fn write_relation_updated_audit_best_effort(
     })();
 
     if let Err(err) = result {
-        eprintln!("[audit] write_relation_updated_audit failed: {}", err.message);
+        eprintln!(
+            "[audit] write_relation_updated_audit failed: {}",
+            err.message
+        );
     }
 }
 
@@ -474,6 +484,9 @@ fn write_relation_deleted_audit_best_effort(
     })();
 
     if let Err(err) = result {
-        eprintln!("[audit] write_relation_deleted_audit failed: {}", err.message);
+        eprintln!(
+            "[audit] write_relation_deleted_audit failed: {}",
+            err.message
+        );
     }
 }

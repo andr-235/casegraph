@@ -451,7 +451,10 @@ fn write_object_links_changed_audit_best_effort(
     })();
 
     if let Err(err) = result {
-        eprintln!("[audit] write_object_links_changed_audit failed: {}", err.message);
+        eprintln!(
+            "[audit] write_object_links_changed_audit failed: {}",
+            err.message
+        );
     }
 }
 
@@ -465,7 +468,8 @@ fn write_object_deleted_audit_best_effort(
     use crate::services::audit_service::{AuditService, AuditWriteInput};
 
     let result = (|| {
-        let technical_details = audit_metadata::object_deleted(&old_object.id, &old_object.object_code)?;
+        let technical_details =
+            audit_metadata::object_deleted(&old_object.id, &old_object.object_code)?;
 
         let old_value = audit_metadata::safe_object_snapshot(
             &old_object.object_code,

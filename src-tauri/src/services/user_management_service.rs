@@ -529,7 +529,10 @@ fn write_own_password_changed_audit_best_effort(
     })();
 
     if let Err(err) = result {
-        eprintln!("[audit] write_own_password_changed_audit failed: {}", err.message);
+        eprintln!(
+            "[audit] write_own_password_changed_audit failed: {}",
+            err.message
+        );
     }
 }
 
@@ -576,10 +579,12 @@ fn write_user_password_reset_audit_best_effort(
     })();
 
     if let Err(err) = result {
-        eprintln!("[audit] write_user_password_reset_audit failed: {}", err.message);
+        eprintln!(
+            "[audit] write_user_password_reset_audit failed: {}",
+            err.message
+        );
     }
 }
-
 
 fn normalize_limit(limit: Option<i64>) -> i64 {
     limit

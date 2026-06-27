@@ -2,8 +2,8 @@ use tauri::AppHandle;
 
 use crate::audit::audit_metadata;
 use crate::errors::app_error::AppErrorDto;
-use crate::services::audit_service::{AuditService, AuditWriteInput};
 use crate::security::session::CurrentUserDto;
+use crate::services::audit_service::{AuditService, AuditWriteInput};
 
 pub fn access_denied_error(
     app: &AppHandle,
@@ -22,9 +22,12 @@ pub fn access_denied_error(
             Some(required_role),
         )?;
 
-        let mut input = AuditWriteInput::failure(current_user, crate::domain::audit_action::audit::ACCESS_DENIED)
-            .with_entity_type(entity_type)
-            .with_details(technical_details);
+        let mut input = AuditWriteInput::failure(
+            current_user,
+            crate::domain::audit_action::audit::ACCESS_DENIED,
+        )
+        .with_entity_type(entity_type)
+        .with_details(technical_details);
 
         input.result = "denied".to_string(); // Keep EXACT compatibility
         input.severity = "warning".to_string();

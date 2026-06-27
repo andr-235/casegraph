@@ -1,9 +1,7 @@
 use rusqlite::{params, Connection, OptionalExtension};
 use uuid::Uuid;
 
-use crate::domain::audit::{
-    AuditActionOptionDto, AuditLogDto, AuditUserOptionDto,
-};
+use crate::domain::audit::{AuditActionOptionDto, AuditLogDto, AuditUserOptionDto};
 use crate::domain::audit_action_label::normalize_legacy_action;
 use crate::errors::app_error::AppErrorDto;
 
@@ -31,8 +29,6 @@ pub struct CreateAuditLogRecord {
 pub struct AuditRepository;
 
 impl AuditRepository {
-
-
     pub fn insert(conn: &Connection, record: CreateAuditLogRecord) -> Result<(), AppErrorDto> {
         let id = Uuid::new_v4().to_string();
 

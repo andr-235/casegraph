@@ -2,8 +2,8 @@ use tauri::AppHandle;
 
 use crate::audit::audit_metadata;
 use crate::errors::app_error::AppErrorDto;
-use crate::services::audit_service::{AuditService, AuditWriteInput};
 use crate::security::session::CurrentUserDto;
+use crate::services::audit_service::{AuditService, AuditWriteInput};
 
 #[derive(Debug, Clone)]
 pub struct ProtectedAccessDeniedAudit<'a> {
@@ -65,9 +65,12 @@ pub fn write_protected_access_denied_best_effort(
             Some(required_role_str),
         )?;
 
-        let mut input = AuditWriteInput::failure(current_user, crate::domain::audit_action::audit::ACCESS_DENIED)
-            .with_entity_type(entity_type_str)
-            .with_details(technical_details);
+        let mut input = AuditWriteInput::failure(
+            current_user,
+            crate::domain::audit_action::audit::ACCESS_DENIED,
+        )
+        .with_entity_type(entity_type_str)
+        .with_details(technical_details);
 
         input.result = "denied".to_string(); // Keep EXACT compatibility
         input.severity = "warning".to_string();
@@ -85,6 +88,9 @@ pub fn write_protected_access_denied_best_effort(
     })();
 
     if let Err(err) = result {
-        eprintln!("[audit] write_protected_access_denied failed: {}", err.message);
+        eprintln!(
+            "[audit] write_protected_access_denied failed: {}",
+            err.message
+        );
     }
 }

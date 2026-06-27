@@ -363,7 +363,10 @@ fn write_material_imported_audit_best_effort(
     })();
 
     if let Err(err) = result {
-        eprintln!("[audit] write_material_imported_audit failed: {}", err.message);
+        eprintln!(
+            "[audit] write_material_imported_audit failed: {}",
+            err.message
+        );
     }
 }
 
@@ -434,7 +437,11 @@ fn write_material_updated_audit_best_effort(
                 new_material.include_in_report == 1,
             )?
         } else {
-            audit_metadata::material_updated(&new_material.id, &new_material.material_code, &changed)?
+            audit_metadata::material_updated(
+                &new_material.id,
+                &new_material.material_code,
+                &changed,
+            )?
         };
 
         let old_val = audit_metadata::safe_material_snapshot(
@@ -473,7 +480,10 @@ fn write_material_updated_audit_best_effort(
     })();
 
     if let Err(err) = result {
-        eprintln!("[audit] write_material_updated_audit failed: {}", err.message);
+        eprintln!(
+            "[audit] write_material_updated_audit failed: {}",
+            err.message
+        );
     }
 }
 
@@ -514,7 +524,10 @@ fn write_material_deleted_audit_best_effort(
     })();
 
     if let Err(err) = result {
-        eprintln!("[audit] write_material_deleted_audit failed: {}", err.message);
+        eprintln!(
+            "[audit] write_material_deleted_audit failed: {}",
+            err.message
+        );
     }
 }
 
@@ -579,6 +592,9 @@ fn write_material_hash_verified_audit_best_effort(
     })();
 
     if let Err(err) = result {
-        eprintln!("[audit] write_material_hash_verified_audit failed: {}", err.message);
+        eprintln!(
+            "[audit] write_material_hash_verified_audit failed: {}",
+            err.message
+        );
     }
 }

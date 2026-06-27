@@ -440,6 +440,9 @@ fn write_case_status_changed_audit_best_effort(
     })();
 
     if let Err(err) = result {
-        eprintln!("[audit] write_case_status_changed_audit failed: {}", err.message);
+        eprintln!(
+            "[audit] write_case_status_changed_audit failed: {}",
+            err.message
+        );
     }
 }

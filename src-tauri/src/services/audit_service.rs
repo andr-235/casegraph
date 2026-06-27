@@ -160,10 +160,8 @@ impl AuditService {
             case_id: input.case_id,
             result: input.result,
             severity: input.severity,
-            old_value: old_value
-                .map(|v| serde_json::to_string(&v).unwrap_or_default()),
-            new_value: new_value
-                .map(|v| serde_json::to_string(&v).unwrap_or_default()),
+            old_value: old_value.map(|v| serde_json::to_string(&v).unwrap_or_default()),
+            new_value: new_value.map(|v| serde_json::to_string(&v).unwrap_or_default()),
             technical_details: technical_details
                 .map(|v| serde_json::to_string(&v).unwrap_or_default()),
             app_version: env!("CARGO_PKG_VERSION").to_string(),
@@ -255,7 +253,6 @@ impl AuditService {
 
         AuditRepository::insert(&conn, record)
     }
-
 
     pub fn get_audit_logs(
         app: &AppHandle,
