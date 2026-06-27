@@ -30,3 +30,10 @@ pub mod audit {
     pub const ACCESS_DENIED: &str = "ACCESS_DENIED";
     pub const LOG_EXPORTED: &str = "AUDIT_LOG_EXPORTED";
 }
+
+pub mod relation {
+    pub const CREATED: &str = "RELATION_CREATED";
+    pub const UPDATED: &str = "RELATION_UPDATED";
+    pub const REPORT_INCLUDE_CHANGED: &str = "RELATION_REPORT_INCLUDE_CHANGED";
+    pub const DELETED: &str = "RELATION_DELETED";
+}

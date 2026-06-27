@@ -3,8 +3,9 @@ use uuid::Uuid;
 
 use crate::domain::relations::{
     CreateRelationPayload, CreateRelationResponse, GetRelationByIdPayload, GetRelationByIdResponse,
-    GetRelationsPayload, GetRelationsResponse, SoftDeleteRelationPayload,
-    SoftDeleteRelationResponse, UpdateRelationPayload, UpdateRelationResponse,
+    GetRelationsPayload, GetRelationsResponse, RelationDetailsDto, RelationListItemDto,
+    SoftDeleteRelationPayload, SoftDeleteRelationResponse, UpdateRelationPayload,
+    UpdateRelationResponse,
 };
 use crate::errors::app_error::AppErrorDto;
 use crate::repositories::case_repository::CaseRepository;
@@ -118,6 +119,8 @@ impl RelationService {
         let relation_item = RelationRepository::get_by_id(conn, &relation_id)?
             .ok_or_else(|| AppErrorDto::new("ERR_RELATION_NOT_FOUND", "Связь не найдена.", None))?;
 
+        write_relation_created_audit_best_effort(app, current_user, &relation_item);
+
         Ok(CreateRelationResponse { relation_item })
     }
 
@@ -169,6 +172,7 @@ impl RelationService {
         payload: UpdateRelationPayload,
     ) -> Result<UpdateRelationResponse, AppErrorDto> {
         let context = require_protected_analyst_or_admin_for(app, session, "UPDATE_RELATION")?;
+        let current_user = &context.current_user;
         let conn = &context.conn;
 
         let case_id =
@@ -187,7 +191,7 @@ impl RelationService {
         let supporting_material_id = normalize_optional_id(&payload.supporting_material_id);
         let analyst_comment = normalize_analyst_comment(&payload.analyst_comment)?;
 
-        RelationRepository::get_details_by_id(conn, &case_id, &relation_id)?
+        let old_relation = RelationRepository::get_details_by_id(conn, &case_id, &relation_id)?
             .ok_or_else(|| AppErrorDto::new("ERR_RELATION_NOT_FOUND", "Связь не найдена.", None))?;
 
         if let Some(material_id) = supporting_material_id.as_deref() {
@@ -223,6 +227,8 @@ impl RelationService {
         let relation = RelationRepository::get_details_by_id(conn, &case_id, &relation_id)?
             .ok_or_else(|| AppErrorDto::new("ERR_RELATION_NOT_FOUND", "Связь не найдена.", None))?;
 
+        write_relation_updated_audit_best_effort(app, current_user, &old_relation, &relation);
+
         Ok(UpdateRelationResponse { relation })
     }
 
@@ -232,6 +238,7 @@ impl RelationService {
         payload: SoftDeleteRelationPayload,
     ) -> Result<SoftDeleteRelationResponse, AppErrorDto> {
         let context = require_protected_analyst_or_admin_for(app, session, "SOFT_DELETE_RELATION")?;
+        let current_user = &context.current_user;
         let conn = &context.conn;
 
         let case_id =
@@ -243,11 +250,218 @@ impl RelationService {
             "Не выбрана связь.",
         )?;
 
-        let _existing = RelationRepository::get_details_by_id(conn, &case_id, &relation_id)?
+        let old_relation = RelationRepository::get_details_by_id(conn, &case_id, &relation_id)?
             .ok_or_else(|| AppErrorDto::new("ERR_RELATION_NOT_FOUND", "Связь не найдена.", None))?;
 
         RelationRepository::soft_delete_relation(conn, &case_id, &relation_id)?;
 
+        write_relation_deleted_audit_best_effort(app, current_user, &old_relation);
+
         Ok(SoftDeleteRelationResponse { relation_id })
     }
+}
+
+fn write_relation_created_audit_best_effort(
+    app: &AppHandle,
+    current_user: &crate::security::session::CurrentUserDto,
+    created_relation: &RelationListItemDto,
+) {
+    use crate::audit::audit_metadata;
+    use crate::domain::audit_action;
+    use crate::services::audit_service::{AuditService, AuditSuccessInput};
+
+    let technical_details = audit_metadata::relation_created(
+        &created_relation.id,
+        &created_relation.relation_code,
+        &created_relation.source_object.id,
+        &created_relation.target_object.id,
+    );
+
+    let new_value = audit_metadata::snapshot(audit_metadata::relation_snapshot(
+        &created_relation.relation_code,
+        &created_relation.source_object.id,
+        &created_relation.target_object.id,
+        &created_relation.relation_type,
+        &created_relation.confidence_level,
+        Some(created_relation.basis.as_str()),
+        created_relation
+            .supporting_material
+            .as_ref()
+            .map(|m| m.id.as_str()),
+        created_relation.include_in_report,
+    ));
+
+    let input = AuditSuccessInput::new(
+        current_user,
+        audit_action::relation::CREATED,
+        "relation",
+        Some(&created_relation.id),
+        Some(&created_relation.case_id),
+        None,
+        new_value,
+        technical_details,
+    );
+
+    AuditService::write_success_non_blocking(app.clone(), input);
+}
+
+fn write_relation_updated_audit_best_effort(
+    app: &AppHandle,
+    current_user: &crate::security::session::CurrentUserDto,
+    old_relation: &RelationDetailsDto,
+    new_relation: &RelationDetailsDto,
+) {
+    use crate::audit::audit_metadata;
+    use crate::domain::audit_action;
+    use crate::services::audit_service::{AuditService, AuditSuccessInput};
+
+    let mut changed = Vec::new();
+    audit_metadata::push_changed(
+        &mut changed,
+        "sourceObjectId",
+        &old_relation.source_object.id,
+        &new_relation.source_object.id,
+    );
+    audit_metadata::push_changed(
+        &mut changed,
+        "targetObjectId",
+        &old_relation.target_object.id,
+        &new_relation.target_object.id,
+    );
+    audit_metadata::push_changed(
+        &mut changed,
+        "relationType",
+        &old_relation.relation_type,
+        &new_relation.relation_type,
+    );
+    audit_metadata::push_changed(
+        &mut changed,
+        "confidenceLevel",
+        &old_relation.confidence_level,
+        &new_relation.confidence_level,
+    );
+    audit_metadata::push_changed(
+        &mut changed,
+        "basis",
+        &old_relation.basis,
+        &new_relation.basis,
+    );
+
+    let old_material_id = old_relation
+        .supporting_material
+        .as_ref()
+        .map(|m| m.id.as_str());
+    let new_material_id = new_relation
+        .supporting_material
+        .as_ref()
+        .map(|m| m.id.as_str());
+    if old_material_id != new_material_id {
+        changed.push("materialId");
+    }
+
+    audit_metadata::push_changed(
+        &mut changed,
+        "includeInReport",
+        &old_relation.include_in_report,
+        &new_relation.include_in_report,
+    );
+
+    let is_toggle = changed.len() == 1 && changed[0] == "includeInReport";
+    let action = if is_toggle {
+        audit_action::relation::REPORT_INCLUDE_CHANGED
+    } else {
+        audit_action::relation::UPDATED
+    };
+
+    let technical_details = if is_toggle {
+        audit_metadata::relation_report_include_changed(
+            &new_relation.id,
+            &new_relation.relation_code,
+            new_relation.include_in_report,
+        )
+    } else {
+        audit_metadata::relation_updated(&new_relation.id, &new_relation.relation_code, &changed)
+    };
+
+    let (old_val, new_val) = audit_metadata::old_new(
+        audit_metadata::relation_snapshot(
+            &old_relation.relation_code,
+            &old_relation.source_object.id,
+            &old_relation.target_object.id,
+            &old_relation.relation_type,
+            &old_relation.confidence_level,
+            Some(old_relation.basis.as_str()),
+            old_relation
+                .supporting_material
+                .as_ref()
+                .map(|m| m.id.as_str()),
+            old_relation.include_in_report,
+        ),
+        audit_metadata::relation_snapshot(
+            &new_relation.relation_code,
+            &new_relation.source_object.id,
+            &new_relation.target_object.id,
+            &new_relation.relation_type,
+            &new_relation.confidence_level,
+            Some(new_relation.basis.as_str()),
+            new_relation
+                .supporting_material
+                .as_ref()
+                .map(|m| m.id.as_str()),
+            new_relation.include_in_report,
+        ),
+    );
+
+    let input = AuditSuccessInput::new(
+        current_user,
+        action,
+        "relation",
+        Some(&new_relation.id),
+        Some(&new_relation.case_id),
+        old_val,
+        new_val,
+        technical_details,
+    );
+
+    AuditService::write_success_non_blocking(app.clone(), input);
+}
+
+fn write_relation_deleted_audit_best_effort(
+    app: &AppHandle,
+    current_user: &crate::security::session::CurrentUserDto,
+    old_relation: &RelationDetailsDto,
+) {
+    use crate::audit::audit_metadata;
+    use crate::domain::audit_action;
+    use crate::services::audit_service::{AuditService, AuditSuccessInput};
+
+    let technical_details =
+        audit_metadata::relation_deleted(&old_relation.id, &old_relation.relation_code);
+
+    let old_value = audit_metadata::snapshot(audit_metadata::relation_snapshot(
+        &old_relation.relation_code,
+        &old_relation.source_object.id,
+        &old_relation.target_object.id,
+        &old_relation.relation_type,
+        &old_relation.confidence_level,
+        Some(old_relation.basis.as_str()),
+        old_relation
+            .supporting_material
+            .as_ref()
+            .map(|m| m.id.as_str()),
+        old_relation.include_in_report,
+    ));
+
+    let input = AuditSuccessInput::new(
+        current_user,
+        audit_action::relation::DELETED,
+        "relation",
+        Some(&old_relation.id),
+        Some(&old_relation.case_id),
+        old_value,
+        None,
+        technical_details,
+    );
+
+    AuditService::write_success_non_blocking(app.clone(), input);
 }
