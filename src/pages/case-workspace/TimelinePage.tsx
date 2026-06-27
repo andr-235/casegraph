@@ -189,6 +189,10 @@ export function TimelinePage({ caseId, readonly = false }: TimelinePageProps) {
             setSelectedEventId(null);
             void loadTimeline();
           }}
+          onDeleted={() => {
+            setSelectedEventId(null);
+            void loadTimeline();
+          }}
         />
       )}
     </section>

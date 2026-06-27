@@ -488,6 +488,37 @@ impl TimelineRepository {
         Ok(items)
     }
 
+    pub fn soft_delete_event(
+        conn: &Connection,
+        case_id: &str,
+        event_id: &str,
+    ) -> Result<(), AppErrorDto> {
+        let affected = conn
+            .execute(
+                "
+                UPDATE events
+                SET
+                    archived_at = CURRENT_TIMESTAMP,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?1
+                  AND case_id = ?2
+                  AND archived_at IS NULL
+                ",
+                params![event_id, case_id],
+            )
+            .map_err(|err| AppErrorDto::database(err.to_string()))?;
+
+        if affected == 0 {
+            return Err(AppErrorDto::new(
+                "ERR_EVENT_NOT_FOUND",
+                "Событие не найдено",
+                None,
+            ));
+        }
+
+        Ok(())
+    }
+
     fn get_event_materials(
         conn: &Connection,
         case_id: &str,

@@ -1,6 +1,10 @@
 import { useEffect, useState } from "react";
 
-import { getEventById, updateEvent } from "../api/timelineApi";
+import {
+  getEventById,
+  softDeleteEvent,
+  updateEvent,
+} from "../api/timelineApi";
 import { toggleSelectedId } from "../lib/toggleSelectedId";
 import {
   datePrecisionOptions,
@@ -24,6 +28,7 @@ type EventCardModalProps = {
   readonly: boolean;
   onClose: () => void;
   onSaved: () => void;
+  onDeleted: () => void;
 };
 
 export function EventCardModal({
@@ -34,6 +39,7 @@ export function EventCardModal({
   readonly,
   onClose,
   onSaved,
+  onDeleted,
 }: EventCardModalProps) {
   const [eventDetails, setEventDetails] = useState<EventDetailsDto | null>(null);
   const [form, setForm] = useState<UpdateEventPayload | null>(null);
@@ -132,6 +138,37 @@ export function EventCardModal({
         unknownError instanceof Error
           ? unknownError.message
           : "Не удалось сохранить событие",
+      );
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function handleDelete() {
+    if (isSaving || readonly) {
+      return;
+    }
+
+    const confirmed = window.confirm(
+      "Удалить событие из хронологии? Действие скроет событие из списка, но не удалит данные физически.",
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setIsSaving(true);
+    setErrorMessage("");
+
+    try {
+      await softDeleteEvent({ caseId, eventId });
+      onDeleted();
+      onClose();
+    } catch (unknownError) {
+      setErrorMessage(
+        unknownError instanceof Error
+          ? unknownError.message
+          : "Не удалось удалить событие",
       );
     } finally {
       setIsSaving(false);
@@ -393,13 +430,23 @@ export function EventCardModal({
           </button>
 
           {!readonly && (
-            <button
-              type="button"
-              onClick={handleSave}
-              disabled={isSaving || isLoading || !form}
-            >
-              {isSaving ? "Сохранение..." : "Сохранить"}
-            </button>
+            <div className="modal__footer-actions">
+              <button
+                type="button"
+                onClick={handleDelete}
+                disabled={isSaving || isLoading}
+              >
+                Удалить
+              </button>
+
+              <button
+                type="button"
+                onClick={handleSave}
+                disabled={isSaving || isLoading || !form}
+              >
+                {isSaving ? "Сохранение..." : "Сохранить"}
+              </button>
+            </div>
           )}
         </div>
       </div>

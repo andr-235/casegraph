@@ -4,7 +4,8 @@ use uuid::Uuid;
 use crate::db::connection::open_connection;
 use crate::domain::timeline::{
     CreateEventPayload, CreateEventResponse, GetEventByIdPayload, GetEventByIdResponse,
-    GetTimelinePayload, GetTimelineResponse, UpdateEventPayload, UpdateEventResponse,
+    GetTimelinePayload, GetTimelineResponse, SoftDeleteEventPayload, SoftDeleteEventResponse,
+    UpdateEventPayload, UpdateEventResponse,
 };
 use crate::errors::app_error::AppErrorDto;
 use crate::repositories::timeline_repository::{
@@ -299,5 +300,51 @@ impl TimelineService {
                 })?;
 
         Ok(UpdateEventResponse { event_details })
+    }
+
+    pub fn soft_delete_event(
+        app: &AppHandle,
+        session: &SessionState,
+        payload: SoftDeleteEventPayload,
+    ) -> Result<SoftDeleteEventResponse, AppErrorDto> {
+        let current_user = session.get_current_user().ok_or_else(|| {
+            AppErrorDto::new("ERR_UNAUTHORIZED", "Требуется вход в систему.", None)
+        })?;
+
+        if current_user.role == "viewer" {
+            return Err(AppErrorDto::new(
+                "ERR_ACCESS_DENIED",
+                "Недостаточно прав для удаления события",
+                None,
+            ));
+        }
+
+        let case_id = normalize_required_id(
+            &payload.case_id,
+            "ERR_INVALID_CASE_ID",
+            "ID дела обязателен",
+        )?;
+
+        let event_id = normalize_required_id(
+            &payload.event_id,
+            "ERR_INVALID_EVENT_ID",
+            "ID события обязателен",
+        )?;
+
+        let conn = open_connection(app)?;
+
+        let exists = TimelineRepository::event_belongs_to_case(&conn, &case_id, &event_id)?;
+
+        if !exists {
+            return Err(AppErrorDto::new(
+                "ERR_EVENT_NOT_FOUND",
+                "Событие не найдено",
+                None,
+            ));
+        }
+
+        TimelineRepository::soft_delete_event(&conn, &case_id, &event_id)?;
+
+        Ok(SoftDeleteEventResponse { event_id })
     }
 }

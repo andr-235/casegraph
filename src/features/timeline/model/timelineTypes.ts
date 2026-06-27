@@ -106,3 +106,12 @@ export type UpdateEventPayload = CreateEventPayload & {
 export type UpdateEventResponse = {
   eventDetails: EventDetailsDto;
 };
+
+export type SoftDeleteEventPayload = {
+  caseId: string;
+  eventId: string;
+};
+
+export type SoftDeleteEventResponse = {
+  eventId: string;
+};

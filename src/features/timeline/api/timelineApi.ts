@@ -6,6 +6,8 @@ import type {
   GetEventByIdResponse,
   GetTimelinePayload,
   GetTimelineResponse,
+  SoftDeleteEventPayload,
+  SoftDeleteEventResponse,
   UpdateEventPayload,
   UpdateEventResponse,
 } from "../model/timelineTypes";
@@ -24,4 +26,10 @@ export function getEventById(payload: GetEventByIdPayload) {
 
 export function updateEvent(payload: UpdateEventPayload) {
   return invokeCommand<UpdateEventResponse>("update_event", { payload });
+}
+
+export function softDeleteEvent(payload: SoftDeleteEventPayload) {
+  return invokeCommand<SoftDeleteEventResponse>("soft_delete_event", {
+    payload,
+  });
 }

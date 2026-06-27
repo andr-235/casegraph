@@ -2,7 +2,8 @@ use tauri::{AppHandle, State};
 
 use crate::domain::timeline::{
     CreateEventPayload, CreateEventResponse, GetEventByIdPayload, GetEventByIdResponse,
-    GetTimelinePayload, GetTimelineResponse, UpdateEventPayload, UpdateEventResponse,
+    GetTimelinePayload, GetTimelineResponse, SoftDeleteEventPayload, SoftDeleteEventResponse,
+    UpdateEventPayload, UpdateEventResponse,
 };
 use crate::errors::app_error::CommandResult;
 use crate::security::session::SessionState;
@@ -51,6 +52,18 @@ pub fn update_event(
     payload: UpdateEventPayload,
 ) -> CommandResult<UpdateEventResponse> {
     match TimelineService::update_event(&app, &session, payload) {
+        Ok(response) => CommandResult::ok(response),
+        Err(error) => CommandResult::err(error),
+    }
+}
+
+#[tauri::command]
+pub fn soft_delete_event(
+    app: AppHandle,
+    session: State<SessionState>,
+    payload: SoftDeleteEventPayload,
+) -> CommandResult<SoftDeleteEventResponse> {
+    match TimelineService::soft_delete_event(&app, &session, payload) {
         Ok(response) => CommandResult::ok(response),
         Err(error) => CommandResult::err(error),
     }

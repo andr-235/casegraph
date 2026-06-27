@@ -136,3 +136,16 @@ pub struct UpdateEventPayload {
 pub struct UpdateEventResponse {
     pub event_details: EventDetailsDto,
 }
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SoftDeleteEventPayload {
+    pub case_id: String,
+    pub event_id: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SoftDeleteEventResponse {
+    pub event_id: String,
+}
