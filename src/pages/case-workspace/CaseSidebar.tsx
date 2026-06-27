@@ -5,12 +5,14 @@ export type CaseWorkspaceSection =
   | "relations"
   | "graph"
   | "timeline"
-  | "report";
+  | "report"
+  | "settings";
 
 type SidebarItem = {
   section: CaseWorkspaceSection;
   label: string;
   icon: string;
+  adminOnly?: boolean;
 };
 
 const sidebarItems: SidebarItem[] = [
@@ -21,18 +23,21 @@ const sidebarItems: SidebarItem[] = [
   { section: "graph", label: "Граф", icon: "🕸" },
   { section: "timeline", label: "Хронология", icon: "🕒" },
   { section: "report", label: "Справка", icon: "📄" },
+  { section: "settings", label: "Настройки", icon: "⚙", adminOnly: true },
 ];
 
 type Props = {
   activeSection: CaseWorkspaceSection;
   onSectionChange: (section: CaseWorkspaceSection) => void;
   onBackToCases: () => void;
+  showSettings?: boolean;
 };
 
 export function CaseSidebar({
   activeSection,
   onSectionChange,
   onBackToCases,
+  showSettings = false,
 }: Props) {
   return (
     <aside
@@ -48,26 +53,28 @@ export function CaseSidebar({
       </button>
 
       <nav style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        {sidebarItems.map((item) => {
-          const active = item.section === activeSection;
+        {sidebarItems
+          .filter((item) => !item.adminOnly || showSettings)
+          .map((item) => {
+            const active = item.section === activeSection;
 
-          return (
-            <button
-              key={item.section}
-              type="button"
-              onClick={() => onSectionChange(item.section)}
-              style={{
-                textAlign: "left",
-                padding: "8px 10px",
-                border: active ? "1px solid #222" : "1px solid #ddd",
-                background: active ? "#eee" : "white",
-                cursor: "pointer",
-              }}
-            >
-              {item.icon} {item.label}
-            </button>
-          );
-        })}
+            return (
+              <button
+                key={item.section}
+                type="button"
+                onClick={() => onSectionChange(item.section)}
+                style={{
+                  textAlign: "left",
+                  padding: "8px 10px",
+                  border: active ? "1px solid #222" : "1px solid #ddd",
+                  background: active ? "#eee" : "white",
+                  cursor: "pointer",
+                }}
+              >
+                {item.icon} {item.label}
+              </button>
+            );
+          })}
       </nav>
     </aside>
   );

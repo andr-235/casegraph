@@ -11,6 +11,7 @@ import { ObjectsPage } from "./ObjectsPage";
 import { GraphPage } from "./GraphPage";
 import { RelationsPage } from "./RelationsPage";
 import { TimelinePage } from "./TimelinePage";
+import { SettingsPage } from "../settings/SettingsPage";
 
 type Props = {
   user: CurrentUserDto;
@@ -28,6 +29,7 @@ const sectionTitles: Record<CaseWorkspaceSection, string> = {
   graph: "Граф связей",
   timeline: "Хронология",
   report: "Справка",
+  settings: "Настройки",
 };
 
 export function CaseWorkspacePage({
@@ -76,6 +78,7 @@ export function CaseWorkspacePage({
           activeSection={activeSection}
           onSectionChange={setActiveSection}
           onBackToCases={onBackToCases}
+          showSettings={user.role === "administrator"}
         />
 
         <section style={{ flex: 1, padding: 32 }}>
@@ -112,7 +115,13 @@ export function CaseWorkspacePage({
             />
           )}
 
-          {activeSection !== "overview" && activeSection !== "materials" && activeSection !== "objects" && activeSection !== "relations" && activeSection !== "graph" && activeSection !== "timeline" && (
+          {activeSection === "settings" && user.role === "administrator" && (
+            <SettingsPage
+              onBack={() => setActiveSection("overview")}
+            />
+          )}
+
+          {activeSection !== "overview" && activeSection !== "materials" && activeSection !== "objects" && activeSection !== "relations" && activeSection !== "graph" && activeSection !== "timeline" && activeSection !== "settings" && (
             <PlaceholderSection
               title={sectionTitles[activeSection]}
               caseItem={caseItem}
