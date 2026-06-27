@@ -50,11 +50,15 @@ pub fn changed_fields(fields: &[&str]) -> Value {
     })
 }
 
+pub fn snapshot<T: Serialize>(value: T) -> Option<Value> {
+    to_value(value)
+}
+
 pub fn old_new<T: Serialize, U: Serialize>(
-    old_val: T,
-    new_val: U,
+    old_snapshot: T,
+    new_snapshot: U,
 ) -> (Option<Value>, Option<Value>) {
-    (to_value(old_val), to_value(new_val))
+    (snapshot(old_snapshot), snapshot(new_snapshot))
 }
 
 pub fn old_value<T: Serialize>(value: T) -> Option<Value> {
@@ -63,6 +67,100 @@ pub fn old_value<T: Serialize>(value: T) -> Option<Value> {
 
 pub fn new_value<T: Serialize>(value: T) -> Option<Value> {
     to_value(value)
+}
+
+pub fn push_changed<T: PartialEq>(
+    changed: &mut Vec<&str>,
+    field: &'static str,
+    old_value: &T,
+    new_value: &T,
+) {
+    if old_value != new_value {
+        changed.push(field);
+    }
+}
+
+// SNAPSHOT STANDARD TABLE
+// CREATE:
+//   old_value = None
+//   new_value = snapshot(created_entity)
+//   technical_details = operation context
+//
+// UPDATE:
+//   old_value = snapshot(before)
+//   new_value = snapshot(after)
+//   technical_details = changedFields + operation context
+//
+// TOGGLE:
+//   old_value = snapshot(before)
+//   new_value = snapshot(after)
+//   technical_details = changed flag + operation context
+//
+// DELETE / SOFT_DELETE:
+//   old_value = snapshot(before)
+//   new_value = None
+//   technical_details = operation context
+//
+// ACCESS_DENIED:
+//   old_value = None
+//   new_value = None
+//   technical_details = denial context
+//
+// PASSWORD_RESET:
+//   old_value = safe user snapshot before
+//   new_value = safe user snapshot after
+//   technical_details = target user + mustChangePassword only
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UserAuditSnapshot<'a> {
+    pub username: &'a str,
+    pub display_name: &'a str,
+    pub role_code: &'a str,
+    pub is_active: bool,
+    pub must_change_password: bool,
+}
+
+pub fn user_snapshot<'a>(
+    username: &'a str,
+    display_name: &'a str,
+    role_code: &'a str,
+    is_active: bool,
+    must_change_password: bool,
+) -> UserAuditSnapshot<'a> {
+    UserAuditSnapshot {
+        username,
+        display_name,
+        role_code,
+        is_active,
+        must_change_password,
+    }
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TimelineEventAuditSnapshot<'a> {
+    pub event_code: &'a str,
+    pub title: &'a str,
+    pub description: Option<&'a str>,
+    pub event_date: &'a str,
+    pub include_in_report: bool,
+}
+
+pub fn timeline_event_snapshot<'a>(
+    event_code: &'a str,
+    title: &'a str,
+    description: Option<&'a str>,
+    event_date: &'a str,
+    include_in_report: bool,
+) -> TimelineEventAuditSnapshot<'a> {
+    TimelineEventAuditSnapshot {
+        event_code,
+        title,
+        description,
+        event_date,
+        include_in_report,
+    }
 }
 
 pub fn user_created(user_id: &str, username: &str, role_code: &str) -> Value {
@@ -182,7 +280,7 @@ pub fn audit_log_exported(exported_rows: usize, format: &str, filters_applied: b
 #[cfg(test)]
 mod tests {
     use super::*;
-    use serde_json::json;
+    use serde_json::{json, to_value};
 
     #[test]
     fn sanitize_sensitive_value_removes_password_fields() {
@@ -201,5 +299,32 @@ mod tests {
         assert!(sanitized.get("temporaryPassword").is_none());
         assert!(sanitized["nested"].get("passwordHash").is_none());
         assert_eq!(sanitized["nested"]["role"], "analyst");
+    }
+
+    #[test]
+    fn user_snapshot_does_not_contain_password_fields() {
+        let snapshot_val = user_snapshot("analyst1", "Analyst One", "analyst", true, false);
+
+        let value = to_value(snapshot_val).unwrap();
+
+        assert_eq!(value["username"], "analyst1");
+        assert_eq!(value["roleCode"], "analyst");
+
+        assert!(value.get("password").is_none());
+        assert!(value.get("passwordHash").is_none());
+        assert!(value.get("password_hash").is_none());
+        assert!(value.get("temporaryPassword").is_none());
+        assert!(value.get("currentPassword").is_none());
+        assert!(value.get("newPassword").is_none());
+    }
+
+    #[test]
+    fn push_changed_adds_only_changed_fields() {
+        let mut changed = Vec::new();
+
+        push_changed(&mut changed, "displayName", &"Old", &"New");
+        push_changed(&mut changed, "roleCode", &"analyst", &"analyst");
+
+        assert_eq!(changed, vec!["displayName"]);
     }
 }

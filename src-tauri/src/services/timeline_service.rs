@@ -1,4 +1,4 @@
-use serde_json::json;
+// Removed unused serde_json::json import
 use tauri::AppHandle;
 use uuid::Uuid;
 
@@ -181,6 +181,14 @@ impl TimelineService {
             &normalized.case_id,
         );
 
+        let new_value = audit_metadata::snapshot(audit_metadata::timeline_event_snapshot(
+            &event_item.event_code,
+            &event_item.title,
+            Some(event_item.description.as_str()),
+            &event_item.event_date,
+            event_item.include_in_report,
+        ));
+
         AuditService::write_success_non_blocking(
             app.clone(),
             AuditSuccessInput::new(
@@ -190,7 +198,7 @@ impl TimelineService {
                 Some(&event_item.id),
                 Some(&normalized.case_id),
                 None,
-                audit_metadata::to_value(&event_item),
+                new_value,
                 Some(technical_details),
             ),
         );
@@ -339,18 +347,30 @@ impl TimelineService {
                 })?;
 
         let mut changed = Vec::new();
-        if old_event.title != event_details.event_item.title {
-            changed.push("title");
-        }
-        if old_event.event_type != event_details.event_item.event_type {
-            changed.push("eventType");
-        }
-        if old_event.event_date != event_details.event_item.event_date {
-            changed.push("eventDate");
-        }
-        if old_event.include_in_report != event_details.event_item.include_in_report {
-            changed.push("includeInReport");
-        }
+        audit_metadata::push_changed(
+            &mut changed,
+            "title",
+            &old_event.title,
+            &event_details.event_item.title,
+        );
+        audit_metadata::push_changed(
+            &mut changed,
+            "eventType",
+            &old_event.event_type,
+            &event_details.event_item.event_type,
+        );
+        audit_metadata::push_changed(
+            &mut changed,
+            "eventDate",
+            &old_event.event_date,
+            &event_details.event_item.event_date,
+        );
+        audit_metadata::push_changed(
+            &mut changed,
+            "includeInReport",
+            &old_event.include_in_report,
+            &event_details.event_item.include_in_report,
+        );
 
         let technical_details = audit_metadata::timeline_event_updated(
             &normalized.event_id,
@@ -358,7 +378,22 @@ impl TimelineService {
             &changed,
         );
 
-        let (old_val, new_val) = audit_metadata::old_new(&old_event, &event_details.event_item);
+        let (old_val, new_val) = audit_metadata::old_new(
+            audit_metadata::timeline_event_snapshot(
+                &old_event.event_code,
+                &old_event.title,
+                Some(old_event.description.as_str()),
+                &old_event.event_date,
+                old_event.include_in_report,
+            ),
+            audit_metadata::timeline_event_snapshot(
+                &event_details.event_item.event_code,
+                &event_details.event_item.title,
+                Some(event_details.event_item.description.as_str()),
+                &event_details.event_item.event_date,
+                event_details.event_item.include_in_report,
+            ),
+        );
 
         AuditService::write_success_non_blocking(
             app.clone(),
@@ -406,6 +441,14 @@ impl TimelineService {
         let technical_details =
             audit_metadata::timeline_event_deleted(&event_id, &old_event_item.event_code);
 
+        let old_value = audit_metadata::snapshot(audit_metadata::timeline_event_snapshot(
+            &old_event_item.event_code,
+            &old_event_item.title,
+            Some(old_event_item.description.as_str()),
+            &old_event_item.event_date,
+            old_event_item.include_in_report,
+        ));
+
         AuditService::write_success_non_blocking(
             app.clone(),
             AuditSuccessInput::new(
@@ -414,8 +457,8 @@ impl TimelineService {
                 ENTITY_TYPE_EVENT,
                 Some(&event_id),
                 Some(&case_id),
-                audit_metadata::to_value(&old_event_item),
-                Some(json!({ "archived": true })),
+                old_value,
+                None,
                 Some(technical_details),
             ),
         );
@@ -454,6 +497,23 @@ impl TimelineService {
             event_item.include_in_report,
         );
 
+        let (old_value, new_value) = audit_metadata::old_new(
+            audit_metadata::timeline_event_snapshot(
+                &old_event_item.event_code,
+                &old_event_item.title,
+                Some(old_event_item.description.as_str()),
+                &old_event_item.event_date,
+                old_event_item.include_in_report,
+            ),
+            audit_metadata::timeline_event_snapshot(
+                &event_item.event_code,
+                &event_item.title,
+                Some(event_item.description.as_str()),
+                &event_item.event_date,
+                event_item.include_in_report,
+            ),
+        );
+
         AuditService::write_success_non_blocking(
             app.clone(),
             AuditSuccessInput::new(
@@ -462,8 +522,8 @@ impl TimelineService {
                 ENTITY_TYPE_EVENT,
                 Some(&event_item.id),
                 Some(&normalized.case_id),
-                Some(json!({ "includeInReport": old_event_item.include_in_report })),
-                Some(json!({ "includeInReport": event_item.include_in_report })),
+                old_value,
+                new_value,
                 Some(technical_details),
             ),
         );

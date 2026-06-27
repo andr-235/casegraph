@@ -259,6 +259,9 @@ impl UserManagementService {
             return Err(AppErrorDto::validation("Текущий пароль указан неверно"));
         }
 
+        // Get old user before password update
+        let old_user = UserManagementRepository::get_user_by_id(&conn, &current_user.user_id)?;
+
         let new_password_hash = hash_password(&input.new_password)?;
 
         UserManagementRepository::update_own_password_hash(
@@ -266,6 +269,8 @@ impl UserManagementService {
             &current_user.user_id,
             &new_password_hash,
         )?;
+
+        let updated_user = UserManagementRepository::get_user_by_id(&conn, &current_user.user_id)?;
 
         let updated_dto = CurrentUserDto {
             user_id: auth_user.id,
@@ -278,7 +283,7 @@ impl UserManagementService {
 
         session.set_current_user(updated_dto.clone());
 
-        write_own_password_changed_audit_best_effort(app, &current_user);
+        write_own_password_changed_audit_best_effort(app, &current_user, &old_user, &updated_user);
 
         Ok(ChangeOwnPasswordResponse { user: updated_dto })
     }
@@ -336,6 +341,14 @@ fn write_user_created_audit_best_effort(
         &created_user.role_code,
     );
 
+    let new_value = audit_metadata::snapshot(audit_metadata::user_snapshot(
+        &created_user.username,
+        created_user.display_name.as_deref().unwrap_or(""),
+        &created_user.role_code,
+        created_user.is_active,
+        created_user.must_change_password,
+    ));
+
     let input = AuditSuccessInput::new(
         current_user,
         audit_action::user::CREATED,
@@ -343,7 +356,7 @@ fn write_user_created_audit_best_effort(
         Some(&created_user.id),
         None,
         None,
-        audit_metadata::to_value(created_user),
+        new_value,
         Some(technical_details),
     );
 
@@ -360,26 +373,56 @@ fn write_user_updated_audit_best_effort(
     use crate::services::audit_service::{AuditService, AuditSuccessInput};
 
     let mut changed = Vec::new();
-    if old_user.username != new_user.username {
-        changed.push("username");
-    }
-    if old_user.display_name != new_user.display_name {
-        changed.push("displayName");
-    }
-    if old_user.role_code != new_user.role_code {
-        changed.push("roleCode");
-    }
-    if old_user.is_active != new_user.is_active {
-        changed.push("isActive");
-    }
-    if old_user.must_change_password != new_user.must_change_password {
-        changed.push("mustChangePassword");
-    }
+    audit_metadata::push_changed(
+        &mut changed,
+        "username",
+        &old_user.username,
+        &new_user.username,
+    );
+    audit_metadata::push_changed(
+        &mut changed,
+        "displayName",
+        &old_user.display_name,
+        &new_user.display_name,
+    );
+    audit_metadata::push_changed(
+        &mut changed,
+        "roleCode",
+        &old_user.role_code,
+        &new_user.role_code,
+    );
+    audit_metadata::push_changed(
+        &mut changed,
+        "isActive",
+        &old_user.is_active,
+        &new_user.is_active,
+    );
+    audit_metadata::push_changed(
+        &mut changed,
+        "mustChangePassword",
+        &old_user.must_change_password,
+        &new_user.must_change_password,
+    );
 
     let technical_details =
         audit_metadata::user_updated(&new_user.id, &new_user.username, &changed);
 
-    let (old_val, new_val) = audit_metadata::old_new(old_user, new_user);
+    let (old_val, new_val) = audit_metadata::old_new(
+        audit_metadata::user_snapshot(
+            &old_user.username,
+            old_user.display_name.as_deref().unwrap_or(""),
+            &old_user.role_code,
+            old_user.is_active,
+            old_user.must_change_password,
+        ),
+        audit_metadata::user_snapshot(
+            &new_user.username,
+            new_user.display_name.as_deref().unwrap_or(""),
+            &new_user.role_code,
+            new_user.is_active,
+            new_user.must_change_password,
+        ),
+    );
 
     let input = AuditSuccessInput::new(
         current_user,
@@ -411,7 +454,22 @@ fn write_user_activity_audit_best_effort(
         audit_metadata::user_unblocked(&new_user.id, &new_user.username)
     };
 
-    let (old_val, new_val) = audit_metadata::old_new(old_user, new_user);
+    let (old_val, new_val) = audit_metadata::old_new(
+        audit_metadata::user_snapshot(
+            &old_user.username,
+            old_user.display_name.as_deref().unwrap_or(""),
+            &old_user.role_code,
+            old_user.is_active,
+            old_user.must_change_password,
+        ),
+        audit_metadata::user_snapshot(
+            &new_user.username,
+            new_user.display_name.as_deref().unwrap_or(""),
+            &new_user.role_code,
+            new_user.is_active,
+            new_user.must_change_password,
+        ),
+    );
 
     let input = AuditSuccessInput::new(
         current_user,
@@ -427,12 +485,34 @@ fn write_user_activity_audit_best_effort(
     AuditService::write_success_non_blocking(app.clone(), input);
 }
 
-fn write_own_password_changed_audit_best_effort(app: &AppHandle, current_user: &CurrentUserDto) {
+fn write_own_password_changed_audit_best_effort(
+    app: &AppHandle,
+    current_user: &CurrentUserDto,
+    old_user: &UserListItemDto,
+    new_user: &UserListItemDto,
+) {
     use crate::audit::audit_metadata;
     use crate::services::audit_service::{AuditService, AuditSuccessInput};
 
     let technical_details =
         audit_metadata::user_password_changed(&current_user.user_id, &current_user.username);
+
+    let (old_val, new_val) = audit_metadata::old_new(
+        audit_metadata::user_snapshot(
+            &old_user.username,
+            old_user.display_name.as_deref().unwrap_or(""),
+            &old_user.role_code,
+            old_user.is_active,
+            old_user.must_change_password,
+        ),
+        audit_metadata::user_snapshot(
+            &new_user.username,
+            new_user.display_name.as_deref().unwrap_or(""),
+            &new_user.role_code,
+            new_user.is_active,
+            new_user.must_change_password,
+        ),
+    );
 
     let input = AuditSuccessInput::new(
         current_user,
@@ -440,8 +520,8 @@ fn write_own_password_changed_audit_best_effort(app: &AppHandle, current_user: &
         "user",
         Some(&current_user.user_id),
         None,
-        None,
-        None,
+        old_val,
+        new_val,
         Some(technical_details),
     );
 
@@ -463,7 +543,22 @@ fn write_user_password_reset_audit_best_effort(
         new_user.must_change_password,
     );
 
-    let (old_val, new_val) = audit_metadata::old_new(old_user, new_user);
+    let (old_val, new_val) = audit_metadata::old_new(
+        audit_metadata::user_snapshot(
+            &old_user.username,
+            old_user.display_name.as_deref().unwrap_or(""),
+            &old_user.role_code,
+            old_user.is_active,
+            old_user.must_change_password,
+        ),
+        audit_metadata::user_snapshot(
+            &new_user.username,
+            new_user.display_name.as_deref().unwrap_or(""),
+            &new_user.role_code,
+            new_user.is_active,
+            new_user.must_change_password,
+        ),
+    );
 
     let input = AuditSuccessInput::new(
         current_user,
