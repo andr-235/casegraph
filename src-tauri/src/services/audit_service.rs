@@ -70,6 +70,43 @@ impl AuditService {
         AuditRepository::insert(conn, record)
     }
 
+    pub fn write_success_str(
+        app: &AppHandle,
+        user_id: &str,
+        username: &str,
+        user_role: &str,
+        action: &str,
+        entity_type: &str,
+        entity_id: Option<&str>,
+        case_id: Option<&str>,
+        old_value: Option<&str>,
+        new_value: Option<&str>,
+    ) -> Result<(), AppErrorDto> {
+        let conn = open_connection(app)?;
+
+        let record = CreateAuditLogRecord {
+            user_id: Some(user_id.to_string()),
+            username: username.to_string(),
+            user_role: user_role.to_string(),
+
+            action: action.to_string(),
+            entity_type: entity_type.to_string(),
+            entity_id: entity_id.map(str::to_string),
+            case_id: case_id.map(str::to_string),
+
+            result: AUDIT_RESULT_SUCCESS.to_string(),
+            severity: AUDIT_SEVERITY_INFO.to_string(),
+
+            old_value: old_value.map(str::to_string),
+            new_value: new_value.map(str::to_string),
+            technical_details: None,
+
+            app_version: env!("CARGO_PKG_VERSION").to_string(),
+        };
+
+        AuditRepository::insert(&conn, record)
+    }
+
     pub fn write_success_non_blocking(app: AppHandle, input: AuditSuccessInput) {
         let record = match Self::build_success_record(input) {
             Ok(record) => record,

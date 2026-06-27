@@ -402,35 +402,48 @@ fn write_user_password_reset_audit_best_effort(
     old_user: &UserListItemDto,
     new_user: &UserListItemDto,
 ) {
-    use crate::services::audit_service::{to_json_value, AuditService, AuditSuccessInput};
+    use crate::services::audit_service::AuditService;
 
-    let old_value = to_json_value(&serde_json::json!({
-        "id": old_user.id,
-        "username": old_user.username,
-        "mustChangePassword": old_user.must_change_password,
-    }))
-    .ok();
+    let old_value = format!(
+        r#"{{"id":"{}","username":"{}","mustChangePassword":{}}}"#,
+        escape_json(&old_user.id),
+        escape_json(&old_user.username),
+        old_user.must_change_password,
+    );
 
-    let new_value = to_json_value(&serde_json::json!({
-        "id": new_user.id,
-        "username": new_user.username,
-        "mustChangePassword": new_user.must_change_password,
-        "passwordReset": true,
-    }))
-    .ok();
+    let new_value = format!(
+        r#"{{"id":"{}","username":"{}","mustChangePassword":{},"passwordReset":true}}"#,
+        escape_json(&new_user.id),
+        escape_json(&new_user.username),
+        new_user.must_change_password,
+    );
 
-    let input = AuditSuccessInput::new(
-        current_user,
+    if let Err(error) = AuditService::write_success_str(
+        app,
+        &current_user.user_id,
+        &current_user.username,
+        &current_user.role,
         "USER_PASSWORD_RESET",
         "user",
         Some(&new_user.id),
         None,
-        old_value,
-        new_value,
-        None,
-    );
+        Some(&old_value),
+        Some(&new_value),
+    ) {
+        eprintln!(
+            "Failed to write USER_PASSWORD_RESET audit event: {:?}",
+            error
+        );
+    }
+}
 
-    AuditService::write_success_non_blocking(app.clone(), input);
+fn escape_json(value: &str) -> String {
+    value
+        .replace('\\', "\\\\")
+        .replace('"', "\\\"")
+        .replace('\n', "\\n")
+        .replace('\r', "\\r")
+        .replace('\t', "\\t")
 }
 
 fn normalize_limit(limit: Option<i64>) -> i64 {
