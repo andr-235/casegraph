@@ -297,6 +297,146 @@ pub fn object_snapshot<'a>(
     }
 }
 
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReportDraftAuditSnapshot<'a> {
+    pub draft_code: Option<&'a str>,
+    pub title: &'a str,
+    pub report_type: &'a str,
+    pub status: Option<&'a str>,
+    pub section_count: usize,
+    pub character_count: usize,
+    pub included_materials_count: usize,
+    pub included_objects_count: usize,
+    pub included_relations_count: usize,
+    pub included_events_count: usize,
+    pub exported_at: Option<&'a str>,
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn report_draft_snapshot<'a>(
+    draft_code: Option<&'a str>,
+    title: &'a str,
+    report_type: &'a str,
+    status: Option<&'a str>,
+    section_count: usize,
+    character_count: usize,
+    included_materials_count: usize,
+    included_objects_count: usize,
+    included_relations_count: usize,
+    included_events_count: usize,
+    exported_at: Option<&'a str>,
+) -> ReportDraftAuditSnapshot<'a> {
+    ReportDraftAuditSnapshot {
+        draft_code,
+        title,
+        report_type,
+        status,
+        section_count,
+        character_count,
+        included_materials_count,
+        included_objects_count,
+        included_relations_count,
+        included_events_count,
+        exported_at,
+    }
+}
+
+pub struct ReportDraftAuditMetrics {
+    pub section_count: usize,
+    pub character_count: usize,
+    pub included_materials_count: usize,
+    pub included_objects_count: usize,
+    pub included_relations_count: usize,
+    pub included_events_count: usize,
+}
+
+pub fn report_draft_metrics_from_content(
+    content: &crate::services::report_draft_service::ReportDraftContent,
+) -> ReportDraftAuditMetrics {
+    let section_count = content.sections.len();
+
+    let character_count = content
+        .sections
+        .iter()
+        .map(|section| section.content.chars().count())
+        .sum();
+
+    ReportDraftAuditMetrics {
+        section_count,
+        character_count,
+        included_materials_count: content.materials.len(),
+        included_objects_count: content.objects.len(),
+        included_relations_count: content.relations.len(),
+        included_events_count: content.events.len(),
+    }
+}
+
+pub fn is_sensitive_setting_key(key: &str) -> bool {
+    let normalized = key.to_ascii_lowercase();
+
+    normalized.contains("password")
+        || normalized.contains("secret")
+        || normalized.contains("token")
+        || normalized.contains("key")
+        || normalized.contains("credential")
+}
+
+pub fn is_path_setting_key(key: &str) -> bool {
+    let normalized = key.to_ascii_lowercase();
+
+    normalized.ends_with("_path")
+        || normalized.contains("storage_path")
+        || normalized.contains("backup_path")
+        || normalized.contains("export_path")
+        || normalized.contains("template_path")
+}
+
+pub fn redact_setting_value(key: &str, value: &Value) -> Value {
+    if is_sensitive_setting_key(key) {
+        return Value::String("[redacted:secret]".to_string());
+    }
+
+    if is_path_setting_key(key) {
+        return Value::String("[redacted:path]".to_string());
+    }
+
+    value.clone()
+}
+
+#[derive(Debug, Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct SettingsChangeSnapshot {
+    pub key: String,
+    pub category: String,
+    pub old_value: Value,
+    pub new_value: Value,
+}
+
+#[derive(Debug, Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct SettingsAuditSnapshot {
+    pub changes: Vec<SettingsChangeSnapshot>,
+}
+
+pub fn settings_snapshot(changes: Vec<SettingsChangeSnapshot>) -> SettingsAuditSnapshot {
+    SettingsAuditSnapshot { changes }
+}
+
+pub fn setting_change_snapshot(
+    key: &str,
+    category: &str,
+    old_value: &Value,
+    new_value: &Value,
+) -> SettingsChangeSnapshot {
+    SettingsChangeSnapshot {
+        key: key.to_string(),
+        category: category.to_string(),
+        old_value: redact_setting_value(key, old_value),
+        new_value: redact_setting_value(key, new_value),
+    }
+}
+
 pub fn user_created(user_id: &str, username: &str, role_code: &str) -> Value {
     json!({
         "userId": user_id,
@@ -564,6 +704,64 @@ pub fn object_deleted(object_id: &str, object_code: &str) -> Option<Value> {
     }))
 }
 
+pub fn report_draft_generated(draft_id: &str, case_id: &str, report_type: &str) -> Option<Value> {
+    Some(json!({
+        "draftId": draft_id,
+        "caseId": case_id,
+        "reportType": report_type
+    }))
+}
+
+pub fn report_draft_updated(
+    draft_id: &str,
+    case_id: &str,
+    changed_fields: &[&str],
+) -> Option<Value> {
+    Some(json!({
+        "draftId": draft_id,
+        "caseId": case_id,
+        "changedFields": changed_fields
+    }))
+}
+
+pub fn report_draft_validated(
+    draft_id: &str,
+    case_id: &str,
+    is_valid: bool,
+    warnings_count: usize,
+    errors_count: usize,
+) -> Option<Value> {
+    Some(json!({
+        "draftId": draft_id,
+        "caseId": case_id,
+        "isValid": is_valid,
+        "warningsCount": warnings_count,
+        "errorsCount": errors_count
+    }))
+}
+
+pub fn report_draft_deleted(draft_id: &str, case_id: &str) -> Option<Value> {
+    Some(json!({
+        "draftId": draft_id,
+        "caseId": case_id
+    }))
+}
+
+pub fn settings_updated(changed_keys: &[String], categories: &[String]) -> Option<Value> {
+    Some(json!({
+        "changedKeys": changed_keys,
+        "categories": categories,
+        "changedFields": changed_keys
+    }))
+}
+
+pub fn settings_reset_to_default(changed_keys: &[String]) -> Option<Value> {
+    Some(json!({
+        "changedKeys": changed_keys,
+        "changedFields": changed_keys
+    }))
+}
+
 pub fn access_denied(
     reason: &str,
     command: &str,
@@ -746,5 +944,61 @@ mod tests {
         assert!(value.get("updatedAt").is_none());
         assert!(value.get("deletedAt").is_none());
         assert!(value.get("graphPosition").is_none());
+    }
+
+    #[test]
+    fn report_draft_snapshot_does_not_expose_full_content() {
+        let snapshot = report_draft_snapshot(
+            Some("RPT-001"),
+            "Аналитическая справка",
+            "analytical_report",
+            Some("draft"),
+            8,
+            12000,
+            4,
+            6,
+            3,
+            5,
+            None,
+        );
+
+        let value = to_value(snapshot).unwrap();
+
+        assert_eq!(value["draftCode"], "RPT-001");
+        assert_eq!(value["title"], "Аналитическая справка");
+        assert_eq!(value["sectionCount"], 8);
+        assert_eq!(value["characterCount"], 12000);
+
+        assert!(value.get("content").is_none());
+        assert!(value.get("sections").is_none());
+        assert!(value.get("body").is_none());
+        assert!(value.get("html").is_none());
+        assert!(value.get("markdown").is_none());
+    }
+
+    #[test]
+    fn setting_change_snapshot_redacts_sensitive_values() {
+        let old_value = Value::String("old-secret".to_string());
+        let new_value = Value::String("new-secret".to_string());
+
+        let change = setting_change_snapshot("api_token", "integration", &old_value, &new_value);
+
+        let value = to_value(change).unwrap();
+
+        assert_eq!(value["oldValue"], "[redacted:secret]");
+        assert_eq!(value["newValue"], "[redacted:secret]");
+    }
+
+    #[test]
+    fn setting_change_snapshot_redacts_paths() {
+        let old_value = Value::String("C:\\Users\\Admin\\Documents\\CaseGraph".to_string());
+        let new_value = Value::String("D:\\CaseGraphData".to_string());
+
+        let change = setting_change_snapshot("storage_path", "storage", &old_value, &new_value);
+
+        let value = to_value(change).unwrap();
+
+        assert_eq!(value["oldValue"], "[redacted:path]");
+        assert_eq!(value["newValue"], "[redacted:path]");
     }
 }

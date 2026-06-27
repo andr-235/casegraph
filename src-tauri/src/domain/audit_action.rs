@@ -54,3 +54,15 @@ pub mod object {
     pub const KEY_FLAG_CHANGED: &str = "OBJECT_KEY_FLAG_CHANGED";
     pub const DELETED: &str = "OBJECT_DELETED";
 }
+
+pub mod report {
+    pub const DRAFT_GENERATED: &str = "REPORT_DRAFT_GENERATED";
+    pub const DRAFT_UPDATED: &str = "REPORT_DRAFT_UPDATED";
+    pub const DRAFT_VALIDATED: &str = "REPORT_DRAFT_VALIDATED";
+    pub const DRAFT_DELETED: &str = "REPORT_DRAFT_DELETED";
+}
+
+pub mod settings {
+    pub const UPDATED: &str = "SETTINGS_UPDATED";
+    pub const RESET_TO_DEFAULT: &str = "SETTINGS_RESET_TO_DEFAULT";
+}

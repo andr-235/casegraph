@@ -12,6 +12,8 @@ pub mod protected_service_context;
 pub mod protected_service_guard;
 pub mod relation_service;
 pub mod relation_validation;
+pub mod report_draft_service;
+pub mod settings_service;
 pub mod timeline_service;
 pub mod timeline_validation;
 pub mod user_management_service;
