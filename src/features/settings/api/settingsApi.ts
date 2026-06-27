@@ -24,3 +24,7 @@ export function chooseSettingsDirectory(
     { payload },
   );
 }
+
+export function resetSettingsToDefaults(): Promise<AppSettingsDto> {
+  return invokeCommand<AppSettingsDto>("reset_settings_to_defaults");
+}

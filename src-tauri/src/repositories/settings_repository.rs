@@ -98,6 +98,33 @@ impl SettingsRepository {
             .map_err(|err| AppErrorDto::database(err.to_string()))?;
         Ok(())
     }
+
+    pub fn reset_to_defaults(
+        conn: &mut Connection,
+        defaults: &[crate::models::settings_defaults::DefaultSettingPair],
+    ) -> Result<(), AppErrorDto> {
+        let tx = conn
+            .transaction()
+            .map_err(|err| AppErrorDto::database(err.to_string()))?;
+
+        for pair in defaults {
+            tx.execute(
+                r#"
+                INSERT INTO app_settings (key, value, value_type, category, description)
+                VALUES (?1, ?2, 'string', 'general', '')
+                ON CONFLICT(key) DO UPDATE SET
+                    value = excluded.value,
+                    updated_at = CURRENT_TIMESTAMP
+                "#,
+                params![pair.key, pair.value],
+            )
+            .map_err(|err| AppErrorDto::database(err.to_string()))?;
+        }
+
+        tx.commit()
+            .map_err(|err| AppErrorDto::database(err.to_string()))?;
+        Ok(())
+    }
 }
 
 fn parse_bool(value: &str) -> bool {

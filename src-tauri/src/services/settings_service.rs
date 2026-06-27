@@ -11,26 +11,12 @@ use crate::models::settings::{
     AppSettingsDto, ChooseSettingsDirectoryPayload, ChooseSettingsDirectoryResponse,
     UpdateSettingsPayload,
 };
+use crate::models::settings_keys::*;
 use crate::security::session::SessionState;
 use crate::services::protected_service_context::{
     require_protected_administrator_for, require_protected_user_for,
 };
 use crate::services::settings_path_validator::validate_selected_settings_path;
-
-const KEY_DOCX_DEFAULT_TEMPLATE: &str = "docx.default_template";
-const KEY_DOCX_DEFAULT_EXPORT_DIR: &str = "docx.default_export_dir";
-const KEY_DOCX_INCLUDE_MATERIALS_TABLE: &str = "docx.include_materials_table";
-const KEY_DOCX_INCLUDE_SHA256_TABLE: &str = "docx.include_sha256_table";
-
-const KEY_BACKUP_DEFAULT_DIR: &str = "backup.default_dir";
-const KEY_BACKUP_SAFETY_BEFORE_RESTORE: &str = "backup.safety_before_restore";
-const KEY_BACKUP_VERIFY_AFTER_CREATE: &str = "backup.verify_after_create";
-
-const KEY_INTEGRITY_WARN_BEFORE_DOCX: &str = "integrity.warn_before_docx_export";
-const KEY_INTEGRITY_WARN_BEFORE_BACKUP: &str = "integrity.warn_before_backup";
-
-const KEY_ACCESS_VIEWER_CAN_EXPORT_DOCX: &str = "access.viewer_can_export_docx";
-const KEY_ACCESS_ANALYST_CAN_CREATE_BACKUP: &str = "access.analyst_can_create_backup";
 
 pub struct SettingsRepository;
 
@@ -274,25 +260,37 @@ impl SettingsService {
         Ok(())
     }
 
-    pub fn reset_settings_to_default(
+    pub fn reset_settings_to_defaults(
         app: &AppHandle,
         session: &SessionState,
-    ) -> Result<(), AppErrorDto> {
-        let context = require_protected_user_for(app, session, "RESET_SETTINGS")?;
-        let conn = &context.conn;
+    ) -> Result<AppSettingsDto, AppErrorDto> {
+        let context =
+            require_protected_administrator_for(app, session, "reset_settings_to_defaults")?;
+        let mut conn = context.conn;
 
-        let old_settings = SettingsRepository::get_settings_map(conn)?;
+        // Get old settings
+        let old_settings =
+            crate::repositories::settings_repository::SettingsRepository::get_settings(&conn)?;
+        let old_map = settings_to_map(&old_settings);
 
-        SettingsRepository::reset_to_default(conn)?;
+        // Reset to default in DB
+        let defaults = crate::models::settings_defaults::default_settings_pairs();
+        crate::repositories::settings_repository::SettingsRepository::reset_to_defaults(
+            &mut conn, &defaults,
+        )?;
 
-        let updated_settings = SettingsRepository::get_settings_map(conn)?;
+        // Get new settings
+        let new_settings =
+            crate::repositories::settings_repository::SettingsRepository::get_settings(&conn)?;
+        let new_map = settings_to_map(&new_settings);
 
+        // Diff and Audit
         let mut changes = Vec::new();
         let mut changed_keys = Vec::new();
         let mut categories = Vec::new();
 
-        for (key, new_value) in updated_settings.iter() {
-            let old_value = old_settings.get(key);
+        for (key, new_value) in new_map.iter() {
+            let old_value = old_map.get(key);
 
             if old_value != Some(new_value) {
                 let category = settings_category_for_key(key);
@@ -337,12 +335,10 @@ impl SettingsService {
                 )
                 .collect();
 
-            let old_value =
+            let old_snapshot =
                 crate::audit::audit_metadata::safe_settings_snapshot(old_snapshot_changes)?;
-
-            let new_value =
+            let new_snapshot =
                 crate::audit::audit_metadata::safe_settings_snapshot(new_snapshot_changes)?;
-
             let technical_details =
                 crate::audit::audit_metadata::settings_reset_to_default(&changed_keys)?;
 
@@ -353,12 +349,12 @@ impl SettingsService {
                     crate::domain::audit_action::settings::RESET_TO_DEFAULT,
                 )
                 .with_entity_type("settings")
-                .with_snapshots(Some(old_value), Some(new_value))
+                .with_snapshots(Some(old_snapshot), Some(new_snapshot))
                 .with_details(technical_details),
             );
         }
 
-        Ok(())
+        Ok(new_settings)
     }
 
     pub fn choose_settings_directory(

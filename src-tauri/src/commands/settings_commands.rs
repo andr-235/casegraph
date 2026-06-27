@@ -39,3 +39,14 @@ pub fn choose_settings_directory(
         Err(error) => CommandResult::err(error),
     }
 }
+
+#[tauri::command]
+pub fn reset_settings_to_defaults(
+    app: AppHandle,
+    session: State<SessionState>,
+) -> CommandResult<AppSettingsDto> {
+    match SettingsService::reset_settings_to_defaults(&app, &session) {
+        Ok(settings) => CommandResult::ok(settings),
+        Err(error) => CommandResult::err(error),
+    }
+}

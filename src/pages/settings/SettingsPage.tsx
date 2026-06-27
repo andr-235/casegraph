@@ -1,6 +1,16 @@
 import { useEffect, useState } from "react";
-import { getSettings, updateSettings, chooseSettingsDirectory } from "../../features/settings/api/settingsApi";
-import type { AppSettingsDto, UpdateSettingsPayload, SettingsDirectoryTarget } from "../../features/settings/model/settingsTypes";
+import {
+  chooseSettingsDirectory,
+  getSettings,
+  resetSettingsToDefaults,
+  updateSettings,
+} from "../../features/settings/api/settingsApi";
+import type {
+  AppSettingsDto,
+  SettingsDirectoryTarget,
+  UpdateSettingsPayload,
+} from "../../features/settings/model/settingsTypes";
+import { ConfirmModal } from "../../shared/ui/ConfirmModal";
 import { formatError } from "../../shared/lib/formatError";
 
 type SettingsPageProps = {
@@ -12,9 +22,12 @@ export function SettingsPage({ onBack }: SettingsPageProps) {
   const [draft, setDraft] = useState<UpdateSettingsPayload | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
+  const [isResetConfirmOpen, setIsResetConfirmOpen] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [savedMessage, setSavedMessage] = useState<string | null>(null);
-  const [pickingTarget, setPickingTarget] = useState<SettingsDirectoryTarget | null>(null);
+  const [pickingTarget, setPickingTarget] =
+    useState<SettingsDirectoryTarget | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -23,9 +36,7 @@ export function SettingsPage({ onBack }: SettingsPageProps) {
       try {
         setIsLoading(true);
         setErrorMessage(null);
-
         const data = await getSettings();
-
         if (isMounted) {
           setSettings(data);
           setDraft(toUpdatePayload(data));
@@ -42,7 +53,6 @@ export function SettingsPage({ onBack }: SettingsPageProps) {
     }
 
     void loadSettings();
-
     return () => {
       isMounted = false;
     };
@@ -74,11 +84,9 @@ export function SettingsPage({ onBack }: SettingsPageProps) {
 
   async function handleSave() {
     if (!draft) return;
-
     setIsSaving(true);
     setErrorMessage(null);
     setSavedMessage(null);
-
     try {
       const updated = await updateSettings(draft);
       setSettings(updated);
@@ -93,37 +101,18 @@ export function SettingsPage({ onBack }: SettingsPageProps) {
 
   async function handlePickDirectory(target: SettingsDirectoryTarget) {
     if (!draft) return;
-
     setPickingTarget(target);
     setErrorMessage(null);
     setSavedMessage(null);
-
     try {
       const response = await chooseSettingsDirectory({ target });
-
-      if (!response.path) {
-        return;
-      }
-
+      if (!response.path) return;
       if (target === "docxDefaultExportDir") {
-        setDraft({
-          ...draft,
-          docx: {
-            ...draft.docx,
-            defaultExportDir: response.path,
-          },
-        });
+        setDraft({ ...draft, docx: { ...draft.docx, defaultExportDir: response.path } });
         return;
       }
-
       if (target === "backupDefaultBackupDir") {
-        setDraft({
-          ...draft,
-          backup: {
-            ...draft.backup,
-            defaultBackupDir: response.path,
-          },
-        });
+        setDraft({ ...draft, backup: { ...draft.backup, defaultBackupDir: response.path } });
       }
     } catch (err) {
       setErrorMessage(formatError(err));
@@ -132,10 +121,29 @@ export function SettingsPage({ onBack }: SettingsPageProps) {
     }
   }
 
+  async function handleResetSettingsToDefaults() {
+    setIsResetting(true);
+    setErrorMessage(null);
+    setSavedMessage(null);
+    try {
+      const nextSettings = await resetSettingsToDefaults();
+      setSettings(nextSettings);
+      setDraft(toUpdatePayload(nextSettings));
+      setIsResetConfirmOpen(false);
+      setSavedMessage("Настройки сброшены к значениям по умолчанию.");
+    } catch (err) {
+      setErrorMessage(formatError(err));
+    } finally {
+      setIsResetting(false);
+    }
+  }
+
   const isDirty =
     settings !== null &&
     draft !== null &&
     JSON.stringify(toUpdatePayload(settings)) !== JSON.stringify(draft);
+
+  const isAnyBusy = isSaving || isResetting || pickingTarget !== null || isLoading;
 
   if (isLoading) {
     return (
@@ -150,13 +158,11 @@ export function SettingsPage({ onBack }: SettingsPageProps) {
     return (
       <main className="page" style={{ padding: 32 }}>
         <h1>Настройки</h1>
-        <div className="error-state" style={{ color: "crimson", marginBottom: 16 }}>
+        <div style={{ padding: 12, background: "#fde8e8", color: "#9b1c1c", borderRadius: 6, marginBottom: 16 }}>
           <strong>Не удалось загрузить настройки.</strong>
           <p>{errorMessage}</p>
         </div>
-        <button type="button" onClick={onBack}>
-          Назад к делам
-        </button>
+        <button type="button" onClick={onBack}>Назад к делам</button>
       </main>
     );
   }
@@ -166,53 +172,84 @@ export function SettingsPage({ onBack }: SettingsPageProps) {
       <main className="page" style={{ padding: 32 }}>
         <h1>Настройки</h1>
         <p>Настройки не найдены.</p>
-        <button type="button" onClick={onBack}>
-          Назад к делам
-        </button>
+        <button type="button" onClick={onBack}>Назад к делам</button>
       </main>
     );
   }
 
   return (
     <main className="page" style={{ padding: 32 }}>
-      <header className="page-header" style={{ display: "flex", justifyContent: "space-between", marginBottom: 24 }}>
+      {/* ─── Header ─── */}
+      <header
+        className="page-header"
+        style={{ display: "flex", justifyContent: "space-between", marginBottom: 24 }}
+      >
         <div>
           <h1 style={{ margin: 0 }}>Настройки</h1>
-          <p style={{ margin: "4px 0 0", color: "#667085" }}>Локальные параметры приложения CaseGraph.</p>
+          <p style={{ margin: "4px 0 0", color: "#667085" }}>
+            Локальные параметры приложения CaseGraph.
+          </p>
         </div>
 
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <button
+            id="settings-save-btn"
             type="button"
             className="btn btn-primary"
             onClick={handleSave}
-            disabled={!isDirty || isSaving}
-            style={{ padding: "8px 16px", cursor: isDirty && !isSaving ? "pointer" : "default" }}
+            disabled={!isDirty || isAnyBusy}
+            style={{ padding: "8px 16px" }}
           >
             {isSaving ? "Сохранение..." : "Сохранить настройки"}
           </button>
-          <button type="button" onClick={onBack} style={{ padding: "8px 16px", cursor: "pointer" }}>
+
+          <button
+            id="settings-reset-btn"
+            type="button"
+            onClick={() => setIsResetConfirmOpen(true)}
+            disabled={isAnyBusy}
+            style={{
+              padding: "8px 16px",
+              background: "transparent",
+              border: "1px solid #ef4444",
+              color: "#ef4444",
+              borderRadius: 6,
+              cursor: isAnyBusy ? "default" : "pointer",
+              fontWeight: 500,
+            }}
+          >
+            Сбросить настройки
+          </button>
+
+          <button
+            type="button"
+            onClick={onBack}
+            style={{ padding: "8px 16px", cursor: "pointer" }}
+          >
             Назад к делам
           </button>
         </div>
       </header>
 
+      {/* ─── Alerts ─── */}
       {errorMessage && (
         <div style={{ padding: 12, background: "#fde8e8", color: "#9b1c1c", borderRadius: 6, marginBottom: 16 }}>
           {errorMessage}
         </div>
       )}
-
       {savedMessage && (
         <div style={{ padding: 12, background: "#edf7ed", color: "#1e4620", borderRadius: 6, marginBottom: 16 }}>
           {savedMessage}
         </div>
       )}
 
+      {/* ─── Settings form ─── */}
       <section className="settings-grid">
+
+        {/* Storage paths */}
         <SettingsSection title="Хранилище данных">
           <SettingField label="Папка экспорта DOCX">
-            <div className="settings-path-row" style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <div className="settings-path-row">
               <input
                 id="docx-export-dir"
                 type="text"
@@ -224,8 +261,8 @@ export function SettingsPage({ onBack }: SettingsPageProps) {
               <button
                 type="button"
                 onClick={() => handlePickDirectory("docxDefaultExportDir")}
-                disabled={pickingTarget !== null || isSaving}
-                style={{ padding: "8px 12px", cursor: pickingTarget === null && !isSaving ? "pointer" : "default" }}
+                disabled={isAnyBusy}
+                style={{ padding: "8px 12px", cursor: isAnyBusy ? "default" : "pointer" }}
               >
                 {pickingTarget === "docxDefaultExportDir" ? "Выбор..." : "Выбрать папку"}
               </button>
@@ -233,7 +270,7 @@ export function SettingsPage({ onBack }: SettingsPageProps) {
           </SettingField>
 
           <SettingField label="Папка резервных копий">
-            <div className="settings-path-row" style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <div className="settings-path-row">
               <input
                 id="backup-dir"
                 type="text"
@@ -245,8 +282,8 @@ export function SettingsPage({ onBack }: SettingsPageProps) {
               <button
                 type="button"
                 onClick={() => handlePickDirectory("backupDefaultBackupDir")}
-                disabled={pickingTarget !== null || isSaving}
-                style={{ padding: "8px 12px", cursor: pickingTarget === null && !isSaving ? "pointer" : "default" }}
+                disabled={isAnyBusy}
+                style={{ padding: "8px 12px", cursor: isAnyBusy ? "default" : "pointer" }}
               >
                 {pickingTarget === "backupDefaultBackupDir" ? "Выбор..." : "Выбрать папку"}
               </button>
@@ -254,18 +291,13 @@ export function SettingsPage({ onBack }: SettingsPageProps) {
           </SettingField>
         </SettingsSection>
 
+        {/* DOCX template & options */}
         <SettingsSection title="Шаблоны и экспорт DOCX">
-          <SettingField label="Шаблон отчета по умолчанию">
+          <SettingField label="Шаблон отчёта по умолчанию">
             <select
               value={draft.docx.defaultTemplate}
               onChange={(e) =>
-                setDraft({
-                  ...draft,
-                  docx: {
-                    ...draft.docx,
-                    defaultTemplate: e.target.value,
-                  },
-                })
+                setDraft({ ...draft, docx: { ...draft.docx, defaultTemplate: e.target.value } })
               }
               style={{ width: "100%", padding: 8, boxSizing: "border-box", borderRadius: 4, border: "1px solid #ccc" }}
             >
@@ -275,162 +307,120 @@ export function SettingsPage({ onBack }: SettingsPageProps) {
             </select>
           </SettingField>
 
-          <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", marginTop: 8 }}>
-            <input
-              type="checkbox"
-              checked={draft.docx.includeMaterialsTable}
-              onChange={(e) =>
-                setDraft({
-                  ...draft,
-                  docx: {
-                    ...draft.docx,
-                    includeMaterialsTable: e.target.checked,
-                  },
-                })
-              }
-            />
-            <span>Включать таблицу материалов в DOCX</span>
-          </label>
+          <CheckboxField
+            id="docx-materials"
+            label="Включать таблицу материалов в DOCX"
+            checked={draft.docx.includeMaterialsTable}
+            onChange={(v) =>
+              setDraft({ ...draft, docx: { ...draft.docx, includeMaterialsTable: v } })
+            }
+          />
 
-          <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
-            <input
-              type="checkbox"
-              checked={draft.docx.includeSha256Table}
-              onChange={(e) =>
-                setDraft({
-                  ...draft,
-                  docx: {
-                    ...draft.docx,
-                    includeSha256Table: e.target.checked,
-                  },
-                })
-              }
-            />
-            <span>Включать таблицу контрольных сумм SHA-256</span>
-          </label>
+          <CheckboxField
+            id="docx-sha256"
+            label="Включать таблицу контрольных сумм SHA-256"
+            checked={draft.docx.includeSha256Table}
+            onChange={(v) =>
+              setDraft({ ...draft, docx: { ...draft.docx, includeSha256Table: v } })
+            }
+          />
         </SettingsSection>
 
+        {/* Backup */}
         <SettingsSection title="Резервное копирование">
-          <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
-            <input
-              type="checkbox"
-              checked={draft.backup.safetyBackupBeforeRestore}
-              onChange={(e) =>
-                setDraft({
-                  ...draft,
-                  backup: {
-                    ...draft.backup,
-                    safetyBackupBeforeRestore: e.target.checked,
-                  },
-                })
-              }
-            />
-            <span>Создавать бэкап безопасности перед восстановлением</span>
-          </label>
-
-          <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
-            <input
-              type="checkbox"
-              checked={draft.backup.verifyBackupAfterCreate}
-              onChange={(e) =>
-                setDraft({
-                  ...draft,
-                  backup: {
-                    ...draft.backup,
-                    verifyBackupAfterCreate: e.target.checked,
-                  },
-                })
-              }
-            />
-            <span>Проверять целостность бэкапа после создания</span>
-          </label>
+          <CheckboxField
+            id="backup-safety"
+            label="Создавать бэкап безопасности перед восстановлением"
+            checked={draft.backup.safetyBackupBeforeRestore}
+            onChange={(v) =>
+              setDraft({ ...draft, backup: { ...draft.backup, safetyBackupBeforeRestore: v } })
+            }
+          />
+          <CheckboxField
+            id="backup-verify"
+            label="Проверять целостность бэкапа после создания"
+            checked={draft.backup.verifyBackupAfterCreate}
+            onChange={(v) =>
+              setDraft({ ...draft, backup: { ...draft.backup, verifyBackupAfterCreate: v } })
+            }
+          />
         </SettingsSection>
 
+        {/* Integrity warnings */}
         <SettingsSection title="Предупреждения и целостность">
-          <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
-            <input
-              type="checkbox"
-              checked={draft.integrity.warnBeforeDocxExport}
-              onChange={(e) =>
-                setDraft({
-                  ...draft,
-                  integrity: {
-                    ...draft.integrity,
-                    warnBeforeDocxExport: e.target.checked,
-                  },
-                })
-              }
-            />
-            <span>Предупреждать перед экспортом DOCX при невалидной целостности</span>
-          </label>
-
-          <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
-            <input
-              type="checkbox"
-              checked={draft.integrity.warnBeforeBackup}
-              onChange={(e) =>
-                setDraft({
-                  ...draft,
-                  integrity: {
-                    ...draft.integrity,
-                    warnBeforeBackup: e.target.checked,
-                  },
-                })
-              }
-            />
-            <span>Предупреждать перед резервным копированием при ошибках</span>
-          </label>
+          <CheckboxField
+            id="integrity-docx"
+            label="Предупреждать перед экспортом DOCX при невалидной целостности"
+            checked={draft.integrity.warnBeforeDocxExport}
+            onChange={(v) =>
+              setDraft({ ...draft, integrity: { ...draft.integrity, warnBeforeDocxExport: v } })
+            }
+          />
+          <CheckboxField
+            id="integrity-backup"
+            label="Предупреждать перед резервным копированием при ошибках"
+            checked={draft.integrity.warnBeforeBackup}
+            onChange={(v) =>
+              setDraft({ ...draft, integrity: { ...draft.integrity, warnBeforeBackup: v } })
+            }
+          />
         </SettingsSection>
 
+        {/* Role policies */}
         <SettingsSection title="Политика доступа (Роли)">
-          <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
-            <input
-              type="checkbox"
-              checked={draft.access.viewerCanExportDocx}
-              onChange={(e) =>
-                setDraft({
-                  ...draft,
-                  access: {
-                    ...draft.access,
-                    viewerCanExportDocx: e.target.checked,
-                  },
-                })
-              }
-            />
-            <span>Разрешить наблюдателю (viewer) экспорт в DOCX</span>
-          </label>
-
-          <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
-            <input
-              type="checkbox"
-              checked={draft.access.analystCanCreateBackup}
-              onChange={(e) =>
-                setDraft({
-                  ...draft,
-                  access: {
-                    ...draft.access,
-                    analystCanCreateBackup: e.target.checked,
-                  },
-                })
-              }
-            />
-            <span>Разрешить аналитику (analyst) создание резервных копий</span>
-          </label>
+          <CheckboxField
+            id="access-viewer-docx"
+            label="Разрешить наблюдателю (viewer) экспорт в DOCX"
+            checked={draft.access.viewerCanExportDocx}
+            onChange={(v) =>
+              setDraft({ ...draft, access: { ...draft.access, viewerCanExportDocx: v } })
+            }
+          />
+          <CheckboxField
+            id="access-analyst-backup"
+            label="Разрешить аналитику (analyst) создание резервных копий"
+            checked={draft.access.analystCanCreateBackup}
+            onChange={(v) =>
+              setDraft({ ...draft, access: { ...draft.access, analystCanCreateBackup: v } })
+            }
+          />
         </SettingsSection>
       </section>
+
+      {/* ─── Reset confirmation modal ─── */}
+      {isResetConfirmOpen && (
+        <ConfirmModal
+          title="Сбросить настройки?"
+          confirmText={isResetting ? "Сброс..." : "Сбросить"}
+          cancelText="Отмена"
+          tone="danger"
+          disabled={isResetting}
+          onCancel={() => setIsResetConfirmOpen(false)}
+          onConfirm={() => void handleResetSettingsToDefaults()}
+        >
+          <p>
+            Будут восстановлены значения по умолчанию для DOCX, backup,
+            проверки целостности и политик доступа.
+          </p>
+          <p>
+            Дела, материалы, пользователи, журнал действий и резервные
+            копии не будут удалены.
+          </p>
+        </ConfirmModal>
+      )}
     </main>
   );
 }
 
-type SettingsSectionProps = {
-  title: string;
-  children: React.ReactNode;
-};
+/* ─── Helper sub-components ─── */
 
+type SettingsSectionProps = { title: string; children: React.ReactNode };
 function SettingsSection({ title, children }: SettingsSectionProps) {
   return (
     <section className="settings-section" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-      <h2 style={{ margin: 0, borderBottom: "1px solid #eee", paddingBottom: 8, fontSize: "1.1rem" }}>{title}</h2>
+      <h2 style={{ margin: 0, borderBottom: "1px solid #eee", paddingBottom: 8, fontSize: "1.1rem" }}>
+        {title}
+      </h2>
       <div className="settings-section-body" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         {children}
       </div>
@@ -438,16 +428,35 @@ function SettingsSection({ title, children }: SettingsSectionProps) {
   );
 }
 
-type SettingFieldProps = {
-  label: string;
-  children: React.ReactNode;
-};
-
+type SettingFieldProps = { label: string; children: React.ReactNode };
 function SettingField({ label, children }: SettingFieldProps) {
   return (
     <div className="setting-field" style={{ display: "flex", flexDirection: "column", gap: 4 }}>
       <label style={{ fontSize: "0.9rem", color: "#475467" }}>{label}</label>
       {children}
     </div>
+  );
+}
+
+type CheckboxFieldProps = {
+  id: string;
+  label: string;
+  checked: boolean;
+  onChange: (value: boolean) => void;
+};
+function CheckboxField({ id, label, checked, onChange }: CheckboxFieldProps) {
+  return (
+    <label
+      htmlFor={id}
+      style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}
+    >
+      <input
+        id={id}
+        type="checkbox"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+      />
+      <span>{label}</span>
+    </label>
   );
 }
