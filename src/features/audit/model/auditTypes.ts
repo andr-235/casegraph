@@ -31,6 +31,7 @@ export type GetAuditLogsPayload = {
   severity?: string;
   caseId?: string;
   entityType?: string;
+  userId?: string;
   dateFrom?: string;
   dateTo?: string;
   page?: number;
@@ -67,4 +68,24 @@ export type GetAuditLogByIdPayload = {
 
 export type GetAuditLogByIdResponse = {
   item: AuditLogDetailsDto;
+};
+
+export type AuditActionOptionDto = {
+  action: string;
+  count: number;
+};
+
+export type GetAuditActionsResponse = {
+  items: AuditActionOptionDto[];
+};
+
+export type AuditUserOptionDto = {
+  userId: string;
+  username: string;
+  userRole: string;
+  count: number;
+};
+
+export type GetAuditUsersResponse = {
+  items: AuditUserOptionDto[];
 };

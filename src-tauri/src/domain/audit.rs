@@ -9,6 +9,7 @@ pub struct GetAuditLogsPayload {
     pub severity: Option<String>,
     pub case_id: Option<String>,
     pub entity_type: Option<String>,
+    pub user_id: Option<String>,
     pub date_from: Option<String>,
     pub date_to: Option<String>,
     pub page: Option<i64>,
@@ -84,4 +85,32 @@ pub struct AuditLogDetailsDto {
 #[serde(rename_all = "camelCase")]
 pub struct GetAuditLogByIdResponse {
     pub item: AuditLogDetailsDto,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AuditActionOptionDto {
+    pub action: String,
+    pub count: i64,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GetAuditActionsResponse {
+    pub items: Vec<AuditActionOptionDto>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AuditUserOptionDto {
+    pub user_id: String,
+    pub username: String,
+    pub user_role: String,
+    pub count: i64,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GetAuditUsersResponse {
+    pub items: Vec<AuditUserOptionDto>,
 }

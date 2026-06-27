@@ -1,7 +1,7 @@
 use rusqlite::{params, Connection, OptionalExtension};
 use uuid::Uuid;
 
-use crate::domain::audit::AuditLogDto;
+use crate::domain::audit::{AuditActionOptionDto, AuditLogDto, AuditUserOptionDto};
 use crate::errors::app_error::AppErrorDto;
 
 #[derive(Debug)]
@@ -115,14 +115,14 @@ impl AuditRepository {
         let rows = stmt
             .query_map(
                 params![
-                    filters.action,
-                    filters.result,
-                    filters.severity,
-                    filters.case_id,
-                    filters.entity_type,
-                    filters.date_from,
-                    filters.date_to,
-                    filters.user_id,
+                    filters.action.as_deref(),
+                    filters.result.as_deref(),
+                    filters.severity.as_deref(),
+                    filters.case_id.as_deref(),
+                    filters.entity_type.as_deref(),
+                    filters.date_from.as_deref(),
+                    filters.date_to.as_deref(),
+                    filters.user_id.as_deref(),
                     filters.limit,
                     filters.offset,
                 ],
@@ -208,6 +208,77 @@ impl AuditRepository {
         .map_err(|err| AppErrorDto::database(err.to_string()))
     }
 
+    pub fn get_audit_actions(
+        conn: &Connection,
+        restricted_user_id: Option<&str>,
+    ) -> Result<Vec<AuditActionOptionDto>, AppErrorDto> {
+        let mut stmt = conn
+            .prepare(
+                "
+                SELECT action, COUNT(*) as count
+                FROM audit_logs
+                WHERE (?1 IS NULL OR user_id = ?1)
+                GROUP BY action
+                ORDER BY action ASC
+                ",
+            )
+            .map_err(|err| AppErrorDto::database(err.to_string()))?;
+
+        let rows = stmt
+            .query_map(params![restricted_user_id], |row| {
+                Ok(AuditActionOptionDto {
+                    action: row.get(0)?,
+                    count: row.get(1)?,
+                })
+            })
+            .map_err(|err| AppErrorDto::database(err.to_string()))?;
+
+        let mut items = Vec::new();
+
+        for row in rows {
+            items.push(row.map_err(|err| AppErrorDto::database(err.to_string()))?);
+        }
+
+        Ok(items)
+    }
+
+    pub fn get_audit_users(conn: &Connection) -> Result<Vec<AuditUserOptionDto>, AppErrorDto> {
+        let mut stmt = conn
+            .prepare(
+                "
+                SELECT
+                    user_id,
+                    username,
+                    user_role,
+                    COUNT(*) as count
+                FROM audit_logs
+                WHERE user_id IS NOT NULL AND TRIM(user_id) != ''
+                GROUP BY user_id, username, user_role
+                ORDER BY username ASC, user_role ASC
+                ",
+            )
+            .map_err(|err| AppErrorDto::database(err.to_string()))?;
+
+        let rows = stmt
+            .query_map([], |row| {
+                Ok(AuditUserOptionDto {
+                    user_id: row.get(0)?,
+                    username: row.get(1)?,
+                    user_role: row.get(2)?,
+                    count: row.get(3)?,
+                })
+            })
+            .map_err(|err| AppErrorDto::database(err.to_string()))?;
+
+        let mut items = Vec::new();
+
+        for row in rows {
+            items.push(row.map_err(|err| AppErrorDto::database(err.to_string()))?);
+        }
+
+        Ok(items)
+    }
+
     pub fn count_audit_logs(
         conn: &Connection,
         filters: &AuditLogFilters,
@@ -227,14 +298,14 @@ impl AuditRepository {
                 AND (?8 IS NULL OR user_id = ?8)
             ",
             params![
-                filters.action,
-                filters.result,
-                filters.severity,
-                filters.case_id,
-                filters.entity_type,
-                filters.date_from,
-                filters.date_to,
-                filters.user_id,
+                filters.action.as_deref(),
+                filters.result.as_deref(),
+                filters.severity.as_deref(),
+                filters.case_id.as_deref(),
+                filters.entity_type.as_deref(),
+                filters.date_from.as_deref(),
+                filters.date_to.as_deref(),
+                filters.user_id.as_deref(),
             ],
             |row| row.get(0),
         )

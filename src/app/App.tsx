@@ -122,7 +122,12 @@ export function App() {
   }
 
   if (showAuditLog) {
-    return <AuditLogPage onBack={() => setShowAuditLog(false)} />;
+    return (
+      <AuditLogPage
+        user={currentUser}
+        onBack={() => setShowAuditLog(false)}
+      />
+    );
   }
 
   return (

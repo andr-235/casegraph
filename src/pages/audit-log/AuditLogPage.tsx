@@ -1,9 +1,17 @@
 import { useEffect, useState } from "react";
 
-import { getAuditLogById, getAuditLogs } from "../../features/audit/api/auditApi";
+import type { CurrentUserDto } from "../../features/auth/model/authTypes";
+import {
+  getAuditActions,
+  getAuditLogById,
+  getAuditLogs,
+  getAuditUsers,
+} from "../../features/audit/api/auditApi";
 import type {
+  AuditActionOptionDto,
   AuditLogDetailsDto,
   AuditLogDto,
+  AuditUserOptionDto,
   GetAuditLogsPayload,
 } from "../../features/audit/model/auditTypes";
 import {
@@ -19,6 +27,7 @@ type AuditFilters = {
   action: string;
   result: string;
   severity: string;
+  userId: string;
   dateFrom: string;
   dateTo: string;
 };
@@ -27,15 +36,19 @@ const emptyFilters: AuditFilters = {
   action: "",
   result: "",
   severity: "",
+  userId: "",
   dateFrom: "",
   dateTo: "",
 };
 
 type Props = {
+  user: CurrentUserDto;
   onBack: () => void;
 };
 
-export function AuditLogPage({ onBack }: Props) {
+export function AuditLogPage({ user, onBack }: Props) {
+  const isAdmin = user.role === "administrator";
+
   const [items, setItems] = useState<AuditLogDto[]>([]);
   const [filters, setFilters] = useState<AuditFilters>(emptyFilters);
   const [total, setTotal] = useState(0);
@@ -50,19 +63,24 @@ export function AuditLogPage({ onBack }: Props) {
   const [detailsLoading, setDetailsLoading] = useState(false);
   const [detailsErrorMessage, setDetailsErrorMessage] = useState("");
 
-  async function loadAuditLogs(nextPage = page) {
+  const [actionOptions, setActionOptions] = useState<AuditActionOptionDto[]>([]);
+  const [userOptions, setUserOptions] = useState<AuditUserOptionDto[]>([]);
+  const [dictionaryErrorMessage, setDictionaryErrorMessage] = useState("");
+
+  async function loadAuditLogs(
+    nextPage = page,
+    overrideFilters: AuditFilters = filters,
+  ) {
     setLoading(true);
     setErrorMessage("");
-    setSelectedAuditLogId(null);
-    setSelectedAuditLog(null);
-    setDetailsErrorMessage("");
 
     const payload: GetAuditLogsPayload = {
-      action: filters.action || undefined,
-      result: filters.result || undefined,
-      severity: filters.severity || undefined,
-      dateFrom: filters.dateFrom || undefined,
-      dateTo: filters.dateTo || undefined,
+      action: overrideFilters.action || undefined,
+      result: overrideFilters.result || undefined,
+      severity: overrideFilters.severity || undefined,
+      userId: isAdmin && overrideFilters.userId ? overrideFilters.userId : undefined,
+      dateFrom: overrideFilters.dateFrom || undefined,
+      dateTo: overrideFilters.dateTo || undefined,
       page: nextPage,
       pageSize: DEFAULT_PAGE_SIZE,
     };
@@ -78,10 +96,39 @@ export function AuditLogPage({ onBack }: Props) {
     } finally {
       setLoading(false);
     }
+
+    closeDetailsPanel();
+  }
+
+  async function loadDictionaries() {
+    setDictionaryErrorMessage("");
+
+    try {
+      const actionsResponse = await getAuditActions();
+
+      setActionOptions(actionsResponse.items);
+    } catch (err) {
+      setDictionaryErrorMessage(formatError(err));
+      return;
+    }
+
+    if (!isAdmin) {
+      setUserOptions([]);
+      return;
+    }
+
+    try {
+      const usersResponse = await getAuditUsers();
+
+      setUserOptions(usersResponse.items);
+    } catch (err) {
+      setDictionaryErrorMessage(formatError(err));
+    }
   }
 
   useEffect(() => {
     void loadAuditLogs(1);
+    void loadDictionaries();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -93,15 +140,14 @@ export function AuditLogPage({ onBack }: Props) {
   }
 
   function applyFilters() {
-    void loadAuditLogs(1);
+    setPage(1);
+    void loadAuditLogs(1, filters);
   }
 
   function resetFilters() {
     setFilters(emptyFilters);
     setPage(1);
-    setTimeout(() => {
-      void loadAuditLogs(1);
-    }, 0);
+    void loadAuditLogs(1, emptyFilters);
   }
 
   async function selectAuditLog(auditLogId: string) {
@@ -155,17 +201,23 @@ export function AuditLogPage({ onBack }: Props) {
         <div className="audit-log-layout">
           <div className="audit-log-main">
             <div className="audit-log-toolbar">
-              <label>
-                Действие
-                <input
+              <label className="field">
+                <span>Действие</span>
+                <select
                   value={filters.action}
                   onChange={(event) => updateFilter("action", event.target.value)}
-                  placeholder="EVENT_CREATED"
-                />
+                >
+                  <option value="">Все действия</option>
+                  {actionOptions.map((option) => (
+                    <option key={option.action} value={option.action}>
+                      {option.action} ({option.count})
+                    </option>
+                  ))}
+                </select>
               </label>
 
-              <label>
-                Результат
+              <label className="field">
+                <span>Результат</span>
                 <select
                   value={filters.result}
                   onChange={(event) => updateFilter("result", event.target.value)}
@@ -177,8 +229,8 @@ export function AuditLogPage({ onBack }: Props) {
                 </select>
               </label>
 
-              <label>
-                Важность
+              <label className="field">
+                <span>Важность</span>
                 <select
                   value={filters.severity}
                   onChange={(event) => updateFilter("severity", event.target.value)}
@@ -191,8 +243,25 @@ export function AuditLogPage({ onBack }: Props) {
                 </select>
               </label>
 
-              <label>
-                С даты
+              {isAdmin ? (
+                <label className="field">
+                  <span>Пользователь</span>
+                  <select
+                    value={filters.userId}
+                    onChange={(event) => updateFilter("userId", event.target.value)}
+                  >
+                    <option value="">Все пользователи</option>
+                    {userOptions.map((option) => (
+                      <option key={option.userId} value={option.userId}>
+                        {option.username} · {option.userRole} ({option.count})
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
+
+              <label className="field">
+                <span>С даты</span>
                 <input
                   type="date"
                   value={filters.dateFrom}
@@ -200,8 +269,8 @@ export function AuditLogPage({ onBack }: Props) {
                 />
               </label>
 
-              <label>
-                По дату
+              <label className="field">
+                <span>По дату</span>
                 <input
                   type="date"
                   value={filters.dateTo}
@@ -217,6 +286,10 @@ export function AuditLogPage({ onBack }: Props) {
                 Сбросить
               </button>
             </div>
+
+            {dictionaryErrorMessage ? (
+              <div className="warning-box">{dictionaryErrorMessage}</div>
+            ) : null}
 
             {errorMessage ? <div className="error-box">{errorMessage}</div> : null}
 

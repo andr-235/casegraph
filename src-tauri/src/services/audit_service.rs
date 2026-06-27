@@ -5,8 +5,8 @@ use tauri::AppHandle;
 
 use crate::db::connection::open_connection;
 use crate::domain::audit::{
-    AuditLogDetailsDto, GetAuditLogByIdPayload, GetAuditLogByIdResponse, GetAuditLogsPayload,
-    GetAuditLogsResponse,
+    AuditLogDetailsDto, GetAuditActionsResponse, GetAuditLogByIdPayload, GetAuditLogByIdResponse,
+    GetAuditLogsPayload, GetAuditLogsResponse, GetAuditUsersResponse,
 };
 use crate::errors::app_error::AppErrorDto;
 use crate::repositories::audit_repository::{
@@ -102,8 +102,10 @@ impl AuditService {
         let page_size = payload.page_size.unwrap_or(50).clamp(10, 200);
         let offset = (page - 1) * page_size;
 
-        let restricted_user_id = if user_role == "administrator" {
-            None
+        let requested_user_id = normalize_optional_filter(payload.user_id);
+
+        let user_id_filter = if user_role == "administrator" {
+            requested_user_id
         } else {
             Some(current_user.user_id.clone())
         };
@@ -116,7 +118,7 @@ impl AuditService {
             entity_type: normalize_optional_filter(payload.entity_type),
             date_from: normalize_optional_filter(payload.date_from),
             date_to: normalize_optional_filter(payload.date_to),
-            user_id: restricted_user_id,
+            user_id: user_id_filter,
             limit: page_size,
             offset,
         };
@@ -130,6 +132,46 @@ impl AuditService {
             page,
             page_size,
         })
+    }
+
+    pub fn get_audit_actions(
+        conn: &Connection,
+        current_user: &CurrentUserDto,
+    ) -> Result<GetAuditActionsResponse, AppErrorDto> {
+        let user_role = current_user.role.as_str();
+
+        if user_role == "viewer" {
+            return Err(AppErrorDto::access_denied(
+                "Недостаточно прав для просмотра журнала действий.",
+            ));
+        }
+
+        let restricted_user_id = if user_role == "administrator" {
+            None
+        } else {
+            Some(current_user.user_id.as_str())
+        };
+
+        let items = AuditRepository::get_audit_actions(conn, restricted_user_id)?;
+
+        Ok(GetAuditActionsResponse { items })
+    }
+
+    pub fn get_audit_users(
+        conn: &Connection,
+        current_user: &CurrentUserDto,
+    ) -> Result<GetAuditUsersResponse, AppErrorDto> {
+        let user_role = current_user.role.as_str();
+
+        if user_role != "administrator" {
+            return Err(AppErrorDto::access_denied(
+                "Фильтр по пользователям доступен только администратору.",
+            ));
+        }
+
+        let items = AuditRepository::get_audit_users(conn)?;
+
+        Ok(GetAuditUsersResponse { items })
     }
 
     pub fn get_audit_log_by_id(
