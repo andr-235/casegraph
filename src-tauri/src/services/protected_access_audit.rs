@@ -7,7 +7,7 @@ use crate::security::session::CurrentUserDto;
 
 #[derive(Debug, Clone)]
 pub struct ProtectedAccessDeniedAudit<'a> {
-    pub action: &'a str,
+    pub command_name: &'a str,
     pub reason: &'a str,
     pub required_role: Option<&'a str>,
     pub case_id: Option<&'a str>,
@@ -16,9 +16,9 @@ pub struct ProtectedAccessDeniedAudit<'a> {
 }
 
 impl<'a> ProtectedAccessDeniedAudit<'a> {
-    pub fn new(action: &'a str, reason: &'a str) -> Self {
+    pub fn new(command_name: &'a str, reason: &'a str) -> Self {
         Self {
-            action,
+            command_name,
             reason,
             required_role: None,
             case_id: None,
@@ -58,11 +58,11 @@ pub fn write_protected_access_denied_best_effort(
 
         let description = format!(
             "Access denied for action '{}'. Reason: {}.",
-            audit.action, audit.reason
+            audit.command_name, audit.reason
         );
 
         let input = AuditAccessDeniedInput {
-            command_name: audit.action.to_string(),
+            command_name: audit.command_name.to_string(),
             entity_type: entity_type_str.to_string(),
             entity_id: entity_id_str,
             description,

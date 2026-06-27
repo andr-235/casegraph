@@ -327,16 +327,14 @@ fn write_user_created_audit_best_effort(
     current_user: &CurrentUserDto,
     created_user: &UserListItemDto,
 ) {
-    use crate::services::audit_service::{to_json_value, AuditService, AuditSuccessInput};
+    use crate::audit::audit_metadata;
+    use crate::services::audit_service::{AuditService, AuditSuccessInput};
 
-    let new_value = match to_json_value(&serde_json::json!({
-        "id": created_user.id,
-        "username": created_user.username,
-        "roleCode": created_user.role_code,
-    })) {
-        Ok(value) => Some(value),
-        Err(_) => None,
-    };
+    let technical_details = audit_metadata::user_created(
+        &created_user.id,
+        &created_user.username,
+        &created_user.role_code,
+    );
 
     let input = AuditSuccessInput::new(
         current_user,
@@ -345,8 +343,8 @@ fn write_user_created_audit_best_effort(
         Some(&created_user.id),
         None,
         None,
-        new_value,
-        None,
+        audit_metadata::to_value(created_user),
+        Some(technical_details),
     );
 
     AuditService::write_success_non_blocking(app.clone(), input);
@@ -358,27 +356,30 @@ fn write_user_updated_audit_best_effort(
     old_user: &UserListItemDto,
     new_user: &UserListItemDto,
 ) {
-    use crate::services::audit_service::{to_json_value, AuditService, AuditSuccessInput};
+    use crate::audit::audit_metadata;
+    use crate::services::audit_service::{AuditService, AuditSuccessInput};
 
-    let old_value = to_json_value(&serde_json::json!({
-        "id": old_user.id,
-        "username": old_user.username,
-        "displayName": old_user.display_name,
-        "roleCode": old_user.role_code,
-        "isActive": old_user.is_active,
-        "mustChangePassword": old_user.must_change_password,
-    }))
-    .ok();
+    let mut changed = Vec::new();
+    if old_user.username != new_user.username {
+        changed.push("username");
+    }
+    if old_user.display_name != new_user.display_name {
+        changed.push("displayName");
+    }
+    if old_user.role_code != new_user.role_code {
+        changed.push("roleCode");
+    }
+    if old_user.is_active != new_user.is_active {
+        changed.push("isActive");
+    }
+    if old_user.must_change_password != new_user.must_change_password {
+        changed.push("mustChangePassword");
+    }
 
-    let new_value = to_json_value(&serde_json::json!({
-        "id": new_user.id,
-        "username": new_user.username,
-        "displayName": new_user.display_name,
-        "roleCode": new_user.role_code,
-        "isActive": new_user.is_active,
-        "mustChangePassword": new_user.must_change_password,
-    }))
-    .ok();
+    let technical_details =
+        audit_metadata::user_updated(&new_user.id, &new_user.username, &changed);
+
+    let (old_val, new_val) = audit_metadata::old_new(old_user, new_user);
 
     let input = AuditSuccessInput::new(
         current_user,
@@ -386,9 +387,9 @@ fn write_user_updated_audit_best_effort(
         "user",
         Some(&new_user.id),
         None,
-        old_value,
-        new_value,
-        None,
+        old_val,
+        new_val,
+        Some(technical_details),
     );
 
     AuditService::write_success_non_blocking(app.clone(), input);
@@ -401,27 +402,16 @@ fn write_user_activity_audit_best_effort(
     old_user: &UserListItemDto,
     new_user: &UserListItemDto,
 ) {
-    use crate::services::audit_service::{to_json_value, AuditService, AuditSuccessInput};
+    use crate::audit::audit_metadata;
+    use crate::services::audit_service::{AuditService, AuditSuccessInput};
 
-    let old_value = to_json_value(&serde_json::json!({
-        "id": old_user.id,
-        "username": old_user.username,
-        "displayName": old_user.display_name,
-        "roleCode": old_user.role_code,
-        "isActive": old_user.is_active,
-        "mustChangePassword": old_user.must_change_password,
-    }))
-    .ok();
+    let technical_details = if action == audit_action::user::BLOCKED {
+        audit_metadata::user_blocked(&new_user.id, &new_user.username)
+    } else {
+        audit_metadata::user_unblocked(&new_user.id, &new_user.username)
+    };
 
-    let new_value = to_json_value(&serde_json::json!({
-        "id": new_user.id,
-        "username": new_user.username,
-        "displayName": new_user.display_name,
-        "roleCode": new_user.role_code,
-        "isActive": new_user.is_active,
-        "mustChangePassword": new_user.must_change_password,
-    }))
-    .ok();
+    let (old_val, new_val) = audit_metadata::old_new(old_user, new_user);
 
     let input = AuditSuccessInput::new(
         current_user,
@@ -429,34 +419,33 @@ fn write_user_activity_audit_best_effort(
         "user",
         Some(&new_user.id),
         None,
-        old_value,
-        new_value,
-        None,
+        old_val,
+        new_val,
+        Some(technical_details),
     );
 
     AuditService::write_success_non_blocking(app.clone(), input);
 }
 
 fn write_own_password_changed_audit_best_effort(app: &AppHandle, current_user: &CurrentUserDto) {
-    use crate::services::audit_service::AuditService;
+    use crate::audit::audit_metadata;
+    use crate::services::audit_service::{AuditService, AuditSuccessInput};
 
-    if let Err(error) = AuditService::write_success_str(
-        app,
-        &current_user.user_id,
-        &current_user.username,
-        &current_user.role,
+    let technical_details =
+        audit_metadata::user_password_changed(&current_user.user_id, &current_user.username);
+
+    let input = AuditSuccessInput::new(
+        current_user,
         audit_action::user::PASSWORD_CHANGED,
         "user",
         Some(&current_user.user_id),
         None,
         None,
-        Some(r#"{"passwordChanged":true,"mustChangePassword":false}"#),
-    ) {
-        eprintln!(
-            "Failed to write USER_PASSWORD_CHANGED audit event: {:?}",
-            error
-        );
-    }
+        None,
+        Some(technical_details),
+    );
+
+    AuditService::write_success_non_blocking(app.clone(), input);
 }
 
 fn write_user_password_reset_audit_best_effort(
@@ -465,48 +454,29 @@ fn write_user_password_reset_audit_best_effort(
     old_user: &UserListItemDto,
     new_user: &UserListItemDto,
 ) {
-    use crate::services::audit_service::AuditService;
+    use crate::audit::audit_metadata;
+    use crate::services::audit_service::{AuditService, AuditSuccessInput};
 
-    let old_value = format!(
-        r#"{{"id":"{}","username":"{}","mustChangePassword":{}}}"#,
-        escape_json(&old_user.id),
-        escape_json(&old_user.username),
-        old_user.must_change_password,
-    );
-
-    let new_value = format!(
-        r#"{{"id":"{}","username":"{}","mustChangePassword":{},"passwordReset":true}}"#,
-        escape_json(&new_user.id),
-        escape_json(&new_user.username),
+    let technical_details = audit_metadata::user_password_reset(
+        &new_user.id,
+        &new_user.username,
         new_user.must_change_password,
     );
 
-    if let Err(error) = AuditService::write_success_str(
-        app,
-        &current_user.user_id,
-        &current_user.username,
-        &current_user.role,
+    let (old_val, new_val) = audit_metadata::old_new(old_user, new_user);
+
+    let input = AuditSuccessInput::new(
+        current_user,
         audit_action::user::PASSWORD_RESET,
         "user",
         Some(&new_user.id),
         None,
-        Some(&old_value),
-        Some(&new_value),
-    ) {
-        eprintln!(
-            "Failed to write USER_PASSWORD_RESET audit event: {:?}",
-            error
-        );
-    }
-}
+        old_val,
+        new_val,
+        Some(technical_details),
+    );
 
-fn escape_json(value: &str) -> String {
-    value
-        .replace('\\', "\\\\")
-        .replace('"', "\\\"")
-        .replace('\n', "\\n")
-        .replace('\r', "\\r")
-        .replace('\t', "\\t")
+    AuditService::write_success_non_blocking(app.clone(), input);
 }
 
 fn normalize_limit(limit: Option<i64>) -> i64 {
