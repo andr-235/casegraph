@@ -1,8 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { getGraphData } from "../../features/graph/api/graphApi";
 import type { GraphEdge, GraphNode } from "../../features/graph/model/graphTypes";
 import { getObjectTypeLabel } from "../../features/objects/model/objectOptions";
+import { ObjectCardModal } from "../../features/objects/ui/ObjectCardModal";
+import { RelationCardModal } from "../../features/relations/ui/RelationCardModal";
 import { GraphVisualPreview } from "../../features/graph/ui/GraphVisualPreview";
 import {
   getRelationConfidenceLabel,
@@ -25,8 +27,10 @@ export function GraphPage({ caseId }: GraphPageProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [errorText, setErrorText] = useState<string | null>(null);
   const [filters, setFilters] = useState<GraphFilters>(defaultGraphFilters);
+  const [selectedObjectId, setSelectedObjectId] = useState<string | null>(null);
+  const [selectedRelationId, setSelectedRelationId] = useState<string | null>(null);
 
-  async function loadGraphData() {
+  const loadGraphData = useCallback(async () => {
     setIsLoading(true);
     setErrorText(null);
 
@@ -40,11 +44,11 @@ export function GraphPage({ caseId }: GraphPageProps) {
     } finally {
       setIsLoading(false);
     }
-  }
+  }, [caseId]);
 
   useEffect(() => {
     void loadGraphData();
-  }, [caseId]);
+  }, [loadGraphData]);
 
   const filteredGraphData = useMemo(() => {
     return filterGraphData(nodes, edges, filters);
@@ -102,6 +106,8 @@ export function GraphPage({ caseId }: GraphPageProps) {
           <GraphVisualPreview
             nodes={filteredGraphData.nodes}
             edges={filteredGraphData.edges}
+            onNodeClick={setSelectedObjectId}
+            onEdgeClick={setSelectedRelationId}
           />
 
           {nodes.length === 0 ? (
@@ -130,7 +136,11 @@ export function GraphPage({ caseId }: GraphPageProps) {
 
                   <tbody>
                     {filteredGraphData.nodes.map((node) => (
-                      <tr key={node.id}>
+                      <tr
+                        key={node.id}
+                        className="graph-table-row-clickable"
+                        onClick={() => setSelectedObjectId(node.id)}
+                      >
                         <td>{node.objectCode}</td>
                         <td>{getObjectTypeLabel(node.objectType)}</td>
                         <td>
@@ -168,7 +178,11 @@ export function GraphPage({ caseId }: GraphPageProps) {
                         const targetNode = filteredNodeById.get(edge.targetObjectId);
 
                         return (
-                          <tr key={edge.id}>
+                          <tr
+                            key={edge.id}
+                            className="graph-table-row-clickable"
+                            onClick={() => setSelectedRelationId(edge.id)}
+                          >
                             <td>{edge.relationCode}</td>
                             <td>
                               <strong>
@@ -194,6 +208,40 @@ export function GraphPage({ caseId }: GraphPageProps) {
             </div>
           )}
         </>
+      ) : null}
+
+      {selectedObjectId ? (
+        <ObjectCardModal
+          caseId={caseId}
+          objectId={selectedObjectId}
+          onClose={() => setSelectedObjectId(null)}
+          onUpdated={() => {
+            setSelectedObjectId(null);
+            void loadGraphData();
+          }}
+          onDeleted={() => {
+            setSelectedObjectId(null);
+            void loadGraphData();
+          }}
+        />
+      ) : null}
+
+      {selectedRelationId ? (
+        <RelationCardModal
+          caseId={caseId}
+          relationId={selectedRelationId}
+          materials={[]}
+          canEdit
+          onClose={() => setSelectedRelationId(null)}
+          onUpdated={() => {
+            setSelectedRelationId(null);
+            void loadGraphData();
+          }}
+          onDeleted={() => {
+            setSelectedRelationId(null);
+            void loadGraphData();
+          }}
+        />
       ) : null}
     </section>
   );

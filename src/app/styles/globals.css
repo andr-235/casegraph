@@ -121,6 +121,20 @@
   padding: 10px;
   background: #ffffff;
   box-shadow: 0 4px 14px rgba(16, 24, 40, 0.08);
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  font-size: inherit;
+}
+
+.graph-preview-node:hover {
+  border-color: #98a2b3;
+  box-shadow: 0 8px 20px rgb(16 24 40 / 10%);
+}
+
+.graph-preview-node:focus-visible {
+  outline: 2px solid #2f6fed;
+  outline-offset: 2px;
 }
 
 .graph-preview-node-key {
@@ -236,6 +250,31 @@
 
 .graph-filter-checkbox input {
   margin: 0;
+}
+
+.graph-preview-edge-clickable {
+  cursor: pointer;
+}
+
+.graph-preview-edge-clickable line {
+  pointer-events: stroke;
+  stroke-width: 2.5;
+}
+
+.graph-preview-edge-clickable:hover line {
+  stroke-width: 3.5;
+}
+
+.graph-preview-edge-clickable:hover text {
+  font-weight: 600;
+}
+
+.graph-table-row-clickable {
+  cursor: pointer;
+}
+
+.graph-table-row-clickable:hover {
+  background: #f8fafc;
 }
 
 @media (max-width: 1200px) {

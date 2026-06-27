@@ -10,6 +10,8 @@ import {
 type GraphVisualPreviewProps = {
   nodes: GraphNode[];
   edges: GraphEdge[];
+  onNodeClick?: (nodeId: string) => void;
+  onEdgeClick?: (edgeId: string) => void;
 };
 
 type PositionedNode = GraphNode & {
@@ -22,7 +24,12 @@ const CANVAS_HEIGHT = 460;
 const NODE_WIDTH = 168;
 const NODE_HEIGHT = 76;
 
-export function GraphVisualPreview({ nodes, edges }: GraphVisualPreviewProps) {
+export function GraphVisualPreview({
+  nodes,
+  edges,
+  onNodeClick,
+  onEdgeClick,
+}: GraphVisualPreviewProps) {
   if (nodes.length === 0) {
     return (
       <div className="graph-preview-empty">
@@ -91,7 +98,15 @@ export function GraphVisualPreview({ nodes, edges }: GraphVisualPreviewProps) {
             const labelPoint = getMidpoint(sourcePoint, targetPoint);
 
             return (
-              <g key={edge.id} className="graph-preview-edge">
+              <g
+                key={edge.id}
+                className={
+                  onEdgeClick
+                    ? "graph-preview-edge graph-preview-edge-clickable"
+                    : "graph-preview-edge"
+                }
+                onClick={() => onEdgeClick?.(edge.id)}
+              >
                 <line
                   x1={sourcePoint.x}
                   y1={sourcePoint.y}
@@ -109,8 +124,9 @@ export function GraphVisualPreview({ nodes, edges }: GraphVisualPreviewProps) {
         </svg>
 
         {positionedNodes.map((node) => (
-          <article
+          <button
             key={node.id}
+            type="button"
             className={[
               "graph-preview-node",
               node.isKey ? "graph-preview-node-key" : "",
@@ -123,19 +139,21 @@ export function GraphVisualPreview({ nodes, edges }: GraphVisualPreviewProps) {
               width: `${NODE_WIDTH}px`,
               minHeight: `${NODE_HEIGHT}px`,
             }}
+            onClick={() => onNodeClick?.(node.id)}
           >
             <div className="graph-preview-node-top">
-              <strong>{node.objectCode}</strong>
-              {node.isKey ? <span>Ключевой</span> : null}
+              <span>{node.objectCode}</span>
+              {node.isKey ? <span>★</span> : null}
             </div>
 
-            <div className="graph-preview-node-title">{node.title}</div>
+            <strong className="graph-preview-node-title">
+              {node.title}
+            </strong>
 
-            <div className="graph-preview-node-meta">
+            <span className="graph-preview-node-meta">
               {getObjectTypeLabel(node.objectType)}
-              {node.value ? ` · ${node.value}` : ""}
-            </div>
-          </article>
+            </span>
+          </button>
         ))}
       </div>
 
