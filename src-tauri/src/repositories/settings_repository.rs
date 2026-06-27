@@ -1,4 +1,4 @@
-use rusqlite::Connection;
+use rusqlite::{params, Connection};
 
 use crate::errors::app_error::AppErrorDto;
 use crate::models::settings::AppSettingsDto;
@@ -30,24 +30,40 @@ impl SettingsRepository {
             let (key, value) = row.map_err(|err| AppErrorDto::database(err.to_string()))?;
 
             match key.as_str() {
-                "storage_path" => settings.storage_path = empty_to_none(value),
-                "docx_default_template" => {
+                "docx.default_template" => {
                     if !value.trim().is_empty() {
-                        settings.docx_default_template = value;
+                        settings.docx.default_template = value;
                     }
                 }
-                "backup_default_path" => settings.backup_default_path = empty_to_none(value),
-                "integrity_check_on_startup" => {
-                    settings.integrity_check_on_startup = parse_bool(&value);
+                "docx.default_export_dir" => {
+                    settings.docx.default_export_dir = value;
                 }
-                "viewer_can_export_docx" => {
-                    settings.viewer_can_export_docx = parse_bool(&value);
+                "docx.include_materials_table" => {
+                    settings.docx.include_materials_table = parse_bool(&value);
                 }
-                "analyst_can_create_backup" => {
-                    settings.analyst_can_create_backup = parse_bool(&value);
+                "docx.include_sha256_table" => {
+                    settings.docx.include_sha256_table = parse_bool(&value);
                 }
-                "audit_strict_mode" => {
-                    settings.audit_strict_mode = parse_bool(&value);
+                "backup.default_dir" => {
+                    settings.backup.default_backup_dir = value;
+                }
+                "backup.safety_before_restore" => {
+                    settings.backup.safety_backup_before_restore = parse_bool(&value);
+                }
+                "backup.verify_after_create" => {
+                    settings.backup.verify_backup_after_create = parse_bool(&value);
+                }
+                "integrity.warn_before_docx_export" => {
+                    settings.integrity.warn_before_docx_export = parse_bool(&value);
+                }
+                "integrity.warn_before_backup" => {
+                    settings.integrity.warn_before_backup = parse_bool(&value);
+                }
+                "access.viewer_can_export_docx" => {
+                    settings.access.viewer_can_export_docx = parse_bool(&value);
+                }
+                "access.analyst_can_create_backup" => {
+                    settings.access.analyst_can_create_backup = parse_bool(&value);
                 }
                 _ => {}
             }
@@ -55,18 +71,35 @@ impl SettingsRepository {
 
         Ok(settings)
     }
+
+    pub fn upsert_many(
+        conn: &mut Connection,
+        settings: &[(String, String)],
+    ) -> Result<(), AppErrorDto> {
+        let tx = conn
+            .transaction()
+            .map_err(|err| AppErrorDto::database(err.to_string()))?;
+
+        for (key, value) in settings {
+            tx.execute(
+                r#"
+                INSERT INTO app_settings (key, value, value_type, category, description)
+                VALUES (?1, ?2, 'string', 'general', '')
+                ON CONFLICT(key) DO UPDATE SET
+                    value = excluded.value,
+                    updated_at = CURRENT_TIMESTAMP
+                "#,
+                params![key, value],
+            )
+            .map_err(|err| AppErrorDto::database(err.to_string()))?;
+        }
+
+        tx.commit()
+            .map_err(|err| AppErrorDto::database(err.to_string()))?;
+        Ok(())
+    }
 }
 
 fn parse_bool(value: &str) -> bool {
     matches!(value.trim().to_lowercase().as_str(), "1" | "true" | "yes")
-}
-
-fn empty_to_none(value: String) -> Option<String> {
-    let trimmed = value.trim();
-
-    if trimmed.is_empty() {
-        None
-    } else {
-        Some(trimmed.to_string())
-    }
 }

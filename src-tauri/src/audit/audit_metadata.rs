@@ -746,10 +746,14 @@ pub fn is_path_setting_key(key: &str) -> bool {
     let normalized = key.to_ascii_lowercase();
 
     normalized.ends_with("_path")
+        || normalized.ends_with("_dir")
         || normalized.contains("storage_path")
         || normalized.contains("backup_path")
         || normalized.contains("export_path")
         || normalized.contains("template_path")
+        || normalized.contains("default_dir")
+        || normalized.contains("export_dir")
+        || normalized.contains("backup_dir")
 }
 
 pub fn redact_setting_value(key: &str, value: &Value) -> Value {

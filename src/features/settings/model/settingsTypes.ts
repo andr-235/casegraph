@@ -1,9 +1,43 @@
 export type AppSettingsDto = {
-  storagePath: string | null;
-  docxDefaultTemplate: string;
-  backupDefaultPath: string | null;
-  integrityCheckOnStartup: boolean;
-  viewerCanExportDocx: boolean;
-  analystCanCreateBackup: boolean;
-  auditStrictMode: boolean;
+  docx: {
+    defaultTemplate: string;
+    defaultExportDir: string;
+    includeMaterialsTable: boolean;
+    includeSha256Table: boolean;
+  };
+  backup: {
+    defaultBackupDir: string;
+    safetyBackupBeforeRestore: boolean;
+    verifyBackupAfterCreate: boolean;
+  };
+  integrity: {
+    warnBeforeDocxExport: boolean;
+    warnBeforeBackup: boolean;
+  };
+  access: {
+    viewerCanExportDocx: boolean;
+    analystCanCreateBackup: boolean;
+  };
+};
+
+export type UpdateSettingsPayload = {
+  docx: {
+    defaultTemplate: string;
+    defaultExportDir: string;
+    includeMaterialsTable: boolean;
+    includeSha256Table: boolean;
+  };
+  backup: {
+    defaultBackupDir: string;
+    safetyBackupBeforeRestore: boolean;
+    verifyBackupAfterCreate: boolean;
+  };
+  integrity: {
+    warnBeforeDocxExport: boolean;
+    warnBeforeBackup: boolean;
+  };
+  access: {
+    viewerCanExportDocx: boolean;
+    analystCanCreateBackup: boolean;
+  };
 };
