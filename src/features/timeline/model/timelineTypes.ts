@@ -65,3 +65,44 @@ export type CreateEventPayload = {
 export type CreateEventResponse = {
   eventItem: TimelineEventDto;
 };
+
+export type EventLinkedObjectDto = {
+  id: string;
+  objectId: string;
+  objectCode: string;
+  objectType: string;
+  title: string;
+  linkNote: string;
+};
+
+export type EventLinkedMaterialDto = {
+  id: string;
+  materialId: string;
+  materialCode: string;
+  title: string;
+  materialType: string;
+  linkNote: string;
+};
+
+export type EventDetailsDto = {
+  eventItem: TimelineEventDto;
+  linkedObjects: EventLinkedObjectDto[];
+  linkedMaterials: EventLinkedMaterialDto[];
+};
+
+export type GetEventByIdPayload = {
+  caseId: string;
+  eventId: string;
+};
+
+export type GetEventByIdResponse = {
+  eventDetails: EventDetailsDto;
+};
+
+export type UpdateEventPayload = CreateEventPayload & {
+  eventId: string;
+};
+
+export type UpdateEventResponse = {
+  eventDetails: EventDetailsDto;
+};

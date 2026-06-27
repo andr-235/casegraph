@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use crate::domain::event_date_precision::{is_valid_date_precision, DATE_PRECISION_PERIOD};
 use crate::domain::event_type::is_valid_event_type;
-use crate::domain::timeline::CreateEventPayload;
+use crate::domain::timeline::{CreateEventPayload, UpdateEventPayload};
 use crate::errors::app_error::AppErrorDto;
 
 const MAX_EVENT_TITLE_LEN: usize = 200;
@@ -28,6 +28,80 @@ pub struct NormalizedCreateEventInput {
     pub object_ids: Vec<String>,
     pub material_ids: Vec<String>,
     pub link_note: String,
+}
+
+#[derive(Debug)]
+pub struct NormalizedUpdateEventInput {
+    pub case_id: String,
+    pub event_id: String,
+    pub event_type: String,
+    pub title: String,
+    pub description: String,
+    pub event_date: String,
+    pub event_time: Option<String>,
+    pub date_precision: String,
+    pub period_start: Option<String>,
+    pub period_end: Option<String>,
+    pub source_note: String,
+    pub analyst_comment: String,
+    pub include_in_report: bool,
+    pub object_ids: Vec<String>,
+    pub material_ids: Vec<String>,
+    pub link_note: String,
+}
+
+pub fn normalize_update_event_payload(
+    payload: UpdateEventPayload,
+) -> Result<NormalizedUpdateEventInput, AppErrorDto> {
+    let case_id = normalize_required_id(
+        &payload.case_id,
+        "ERR_INVALID_CASE_ID",
+        "ID дела обязателен",
+    )?;
+
+    let event_id = normalize_required_id(
+        &payload.event_id,
+        "ERR_INVALID_EVENT_ID",
+        "ID события обязателен",
+    )?;
+
+    let event_type = normalize_event_type(&payload.event_type)?;
+    let title = normalize_event_title(&payload.title)?;
+    let description = normalize_event_description(&payload.description)?;
+    let event_date = normalize_event_date(&payload.event_date)?;
+    let event_time = normalize_event_time(payload.event_time)?;
+    let date_precision = normalize_date_precision(&payload.date_precision)?;
+
+    let period_start = normalize_optional_date(payload.period_start);
+    let period_end = normalize_optional_date(payload.period_end);
+
+    validate_period(&date_precision, &period_start, &period_end)?;
+
+    let source_note = normalize_event_source_note(&payload.source_note)?;
+    let analyst_comment = normalize_event_analyst_comment(&payload.analyst_comment)?;
+    let link_note = normalize_event_link_note(&payload.link_note)?;
+
+    let object_ids = normalize_id_list(payload.object_ids);
+    let material_ids = normalize_id_list(payload.material_ids);
+
+    Ok(NormalizedUpdateEventInput {
+        case_id,
+        event_id,
+        event_type,
+        title,
+        description,
+        event_date,
+        event_time,
+        date_precision,
+        period_start,
+        period_end,
+        source_note,
+        analyst_comment,
+        include_in_report: payload.include_in_report,
+        object_ids,
+        material_ids,
+        link_note,
+    })
 }
 
 pub fn normalize_create_event_payload(

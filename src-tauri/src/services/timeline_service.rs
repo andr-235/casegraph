@@ -3,13 +3,18 @@ use uuid::Uuid;
 
 use crate::db::connection::open_connection;
 use crate::domain::timeline::{
-    CreateEventPayload, CreateEventResponse, GetTimelinePayload, GetTimelineResponse,
+    CreateEventPayload, CreateEventResponse, GetEventByIdPayload, GetEventByIdResponse,
+    GetTimelinePayload, GetTimelineResponse, UpdateEventPayload, UpdateEventResponse,
 };
 use crate::errors::app_error::AppErrorDto;
-use crate::repositories::timeline_repository::{CreateEventRecord, TimelineRepository};
+use crate::repositories::timeline_repository::{
+    CreateEventRecord, TimelineRepository, UpdateEventRecord,
+};
 use crate::security::session::SessionState;
 
-use super::timeline_validation::{normalize_create_event_payload, normalize_required_id};
+use super::timeline_validation::{
+    normalize_create_event_payload, normalize_required_id, normalize_update_event_payload,
+};
 
 pub struct TimelineService;
 
@@ -146,5 +151,153 @@ impl TimelineService {
             })?;
 
         Ok(CreateEventResponse { event_item })
+    }
+
+    pub fn get_event_by_id(
+        app: &AppHandle,
+        session: &SessionState,
+        payload: GetEventByIdPayload,
+    ) -> Result<GetEventByIdResponse, AppErrorDto> {
+        let _current_user = session.get_current_user().ok_or_else(|| {
+            AppErrorDto::new("ERR_UNAUTHORIZED", "Требуется вход в систему.", None)
+        })?;
+
+        let case_id = normalize_required_id(
+            &payload.case_id,
+            "ERR_INVALID_CASE_ID",
+            "ID дела обязателен",
+        )?;
+
+        let event_id = normalize_required_id(
+            &payload.event_id,
+            "ERR_INVALID_EVENT_ID",
+            "ID события обязателен",
+        )?;
+
+        let conn = open_connection(app)?;
+        let event_details = TimelineRepository::get_event_by_id(&conn, &case_id, &event_id)?
+            .ok_or_else(|| AppErrorDto::new("ERR_EVENT_NOT_FOUND", "Событие не найдено", None))?;
+
+        Ok(GetEventByIdResponse { event_details })
+    }
+
+    pub fn update_event(
+        app: &AppHandle,
+        session: &SessionState,
+        payload: UpdateEventPayload,
+    ) -> Result<UpdateEventResponse, AppErrorDto> {
+        let current_user = session.get_current_user().ok_or_else(|| {
+            AppErrorDto::new("ERR_UNAUTHORIZED", "Требуется вход в систему.", None)
+        })?;
+
+        if current_user.role == "viewer" {
+            return Err(AppErrorDto::new(
+                "ERR_ACCESS_DENIED",
+                "Недостаточно прав для изменения события",
+                None,
+            ));
+        }
+
+        let normalized = normalize_update_event_payload(payload)?;
+
+        let mut conn = open_connection(app)?;
+        let tx = conn
+            .transaction()
+            .map_err(|err| AppErrorDto::database(err.to_string()))?;
+
+        let exists = TimelineRepository::event_belongs_to_case(
+            &tx,
+            &normalized.case_id,
+            &normalized.event_id,
+        )?;
+
+        if !exists {
+            return Err(AppErrorDto::new(
+                "ERR_EVENT_NOT_FOUND",
+                "Событие не найдено",
+                None,
+            ));
+        }
+
+        for object_id in &normalized.object_ids {
+            let belongs =
+                TimelineRepository::object_belongs_to_case(&tx, &normalized.case_id, object_id)?;
+
+            if !belongs {
+                return Err(AppErrorDto::new(
+                    "ERR_EVENT_OBJECT_CASE_MISMATCH",
+                    "Один из объектов не принадлежит выбранному делу",
+                    None,
+                ));
+            }
+        }
+
+        for material_id in &normalized.material_ids {
+            let belongs = TimelineRepository::material_belongs_to_case(
+                &tx,
+                &normalized.case_id,
+                material_id,
+            )?;
+
+            if !belongs {
+                return Err(AppErrorDto::new(
+                    "ERR_EVENT_MATERIAL_CASE_MISMATCH",
+                    "Один из материалов не принадлежит выбранному делу",
+                    None,
+                ));
+            }
+        }
+
+        let record = UpdateEventRecord {
+            id: normalized.event_id.clone(),
+            case_id: normalized.case_id.clone(),
+            event_type: normalized.event_type,
+            title: normalized.title,
+            description: normalized.description,
+            event_date: normalized.event_date,
+            event_time: normalized.event_time,
+            date_precision: normalized.date_precision,
+            period_start: normalized.period_start,
+            period_end: normalized.period_end,
+            source_note: normalized.source_note,
+            analyst_comment: normalized.analyst_comment,
+            include_in_report: normalized.include_in_report,
+        };
+
+        TimelineRepository::update_event(&tx, &record)?;
+
+        TimelineRepository::replace_event_object_links(
+            &tx,
+            &normalized.case_id,
+            &normalized.event_id,
+            &normalized.object_ids,
+            &normalized.link_note,
+            &current_user.user_id,
+        )?;
+
+        TimelineRepository::replace_event_material_links(
+            &tx,
+            &normalized.case_id,
+            &normalized.event_id,
+            &normalized.material_ids,
+            &normalized.link_note,
+            &current_user.user_id,
+        )?;
+
+        tx.commit()
+            .map_err(|err| AppErrorDto::database(err.to_string()))?;
+
+        let conn = open_connection(app)?;
+        let event_details =
+            TimelineRepository::get_event_by_id(&conn, &normalized.case_id, &normalized.event_id)?
+                .ok_or_else(|| {
+                    AppErrorDto::new(
+                        "ERR_EVENT_NOT_FOUND_AFTER_UPDATE",
+                        "Событие обновлено, но не найдено после сохранения",
+                        None,
+                    )
+                })?;
+
+        Ok(UpdateEventResponse { event_details })
     }
 }

@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { getMaterials } from "../../features/materials/api/materialsApi";
 import { getObjects } from "../../features/objects/api/objectsApi";
 import { CreateEventModal } from "../../features/timeline/ui/CreateEventModal";
+import { EventCardModal } from "../../features/timeline/ui/EventCardModal";
 import { getTimeline } from "../../features/timeline/api/timelineApi";
 import {
   getDatePrecisionLabel,
@@ -27,6 +28,7 @@ export function TimelinePage({ caseId, readonly = false }: TimelinePageProps) {
 
   const [isLoading, setIsLoading] = useState(true);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
 
   async function loadTimeline() {
@@ -124,6 +126,7 @@ export function TimelinePage({ caseId, readonly = false }: TimelinePageProps) {
               <th>Объекты</th>
               <th>Материалы</th>
               <th>DOCX</th>
+              <th>Действия</th>
             </tr>
           </thead>
           <tbody>
@@ -147,6 +150,14 @@ export function TimelinePage({ caseId, readonly = false }: TimelinePageProps) {
                 <td>{item.linkedObjectCount}</td>
                 <td>{item.linkedMaterialCount}</td>
                 <td>{item.includeInReport ? "Да" : "Нет"}</td>
+                <td>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedEventId(item.id)}
+                  >
+                    Открыть
+                  </button>
+                </td>
               </tr>
             ))}
           </tbody>
@@ -161,6 +172,21 @@ export function TimelinePage({ caseId, readonly = false }: TimelinePageProps) {
           onClose={() => setIsCreateOpen(false)}
           onCreated={() => {
             setIsCreateOpen(false);
+            void loadTimeline();
+          }}
+        />
+      )}
+
+      {selectedEventId && (
+        <EventCardModal
+          caseId={caseId}
+          eventId={selectedEventId}
+          objectOptions={objectOptions}
+          materialOptions={materialOptions}
+          readonly={readonly}
+          onClose={() => setSelectedEventId(null)}
+          onSaved={() => {
+            setSelectedEventId(null);
             void loadTimeline();
           }}
         />
