@@ -1114,6 +1114,68 @@ pub fn integrity_material_verified(
     }))
 }
 
+// ── Safe failure details builder ─────────────────────────────────────────
+//
+// Use this instead of `json!({ "error": err.to_string() })` in failure
+// audit events.  All field values are safe by construction; the result is
+// additionally passed through `sanitize_audit_details` as a defence-in-depth
+// measure.
+
+use serde_json::to_value as serde_to_value;
+
+use crate::audit::audit_error_sanitizer::sanitize_audit_details;
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AuditErrorTechnicalDetails<'a> {
+    pub operation: &'a str,
+    pub error_code: &'a str,
+    pub safe_reason: &'a str,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub entity_type: Option<&'a str>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub entity_id: Option<&'a str>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub case_id: Option<&'a str>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub material_code: Option<&'a str>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub backup_code: Option<&'a str>,
+}
+
+/// Build safe `technical_details` for a failure audit event.
+///
+/// All path / secret / content keys are absent by design.
+/// The resulting value is additionally sanitized as a defence-in-depth measure.
+pub fn audit_error_details(
+    operation: &str,
+    error_code: &str,
+    safe_reason: &str,
+    entity_type: Option<&str>,
+    entity_id: Option<&str>,
+    case_id: Option<&str>,
+    material_code: Option<&str>,
+    backup_code: Option<&str>,
+) -> Result<serde_json::Value, serde_json::Error> {
+    let value = serde_to_value(AuditErrorTechnicalDetails {
+        operation,
+        error_code,
+        safe_reason,
+        entity_type,
+        entity_id,
+        case_id,
+        material_code,
+        backup_code,
+    })?;
+
+    Ok(sanitize_audit_details(value))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

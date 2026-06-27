@@ -66,6 +66,35 @@ impl AppErrorDto {
             ),
         )
     }
+
+    /// Returns a sanitized view of this error safe to embed in audit
+    /// `technical_details`.  The `details` field — which may contain raw OS
+    /// or filesystem error text — is scrubbed for path tokens before use.
+    pub fn to_safe_audit_error(&self) -> SafeAuditErrorDto {
+        SafeAuditErrorDto {
+            code: self.code.clone(),
+            message: self.message.clone(),
+            details: self
+                .details
+                .as_deref()
+                .map(crate::audit::audit_error_sanitizer::sanitize_error_text),
+        }
+    }
+}
+
+/// A sanitized error representation safe for inclusion in audit records.
+///
+/// Unlike `AppErrorDto`, the `details` field has all filesystem path tokens
+/// replaced with `[redacted:path]`, so it will never leak OS-level paths
+/// into the audit log.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SafeAuditErrorDto {
+    pub code: String,
+    pub message: String,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub details: Option<String>,
 }
 
 #[derive(Debug, Serialize)]

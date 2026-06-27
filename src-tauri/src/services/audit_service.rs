@@ -7,6 +7,7 @@ use serde::Serialize;
 use serde_json::Value;
 use tauri::{AppHandle, Manager};
 
+use crate::audit::audit_error_sanitizer::sanitize_audit_details;
 use crate::db::connection::open_connection;
 use crate::domain::audit::{
     AuditLogDetailsDto, AuditLogDto, ExportAuditLogPayload, ExportAuditLogResponse,
@@ -64,7 +65,9 @@ impl AuditService {
 
             old_value: serialize_optional_json(old_value)?,
             new_value: serialize_optional_json(new_value)?,
-            technical_details: serialize_optional_json(technical_details)?,
+            technical_details: serialize_optional_json(
+                technical_details.map(sanitize_audit_details),
+            )?,
 
             app_version: env!("CARGO_PKG_VERSION").to_string(),
         };
@@ -371,7 +374,9 @@ impl AuditService {
 
             old_value: serialize_optional_json(input.old_value)?,
             new_value: serialize_optional_json(input.new_value)?,
-            technical_details: serialize_optional_json(input.technical_details)?,
+            technical_details: serialize_optional_json(
+                input.technical_details.map(sanitize_audit_details),
+            )?,
 
             app_version: env!("CARGO_PKG_VERSION").to_string(),
         })
