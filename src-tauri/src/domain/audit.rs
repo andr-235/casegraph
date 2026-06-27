@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -46,4 +47,41 @@ pub struct GetAuditLogsResponse {
     pub total: i64,
     pub page: i64,
     pub page_size: i64,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GetAuditLogByIdPayload {
+    pub audit_log_id: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AuditLogDetailsDto {
+    pub id: String,
+
+    pub user_id: Option<String>,
+    pub username: String,
+    pub user_role: String,
+
+    pub action: String,
+    pub entity_type: String,
+    pub entity_id: Option<String>,
+    pub case_id: Option<String>,
+
+    pub result: String,
+    pub severity: String,
+
+    pub old_value: Option<Value>,
+    pub new_value: Option<Value>,
+    pub technical_details: Option<Value>,
+
+    pub app_version: String,
+    pub created_at: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GetAuditLogByIdResponse {
+    pub item: AuditLogDetailsDto,
 }

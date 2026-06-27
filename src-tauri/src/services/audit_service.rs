@@ -4,7 +4,10 @@ use serde_json::Value;
 use tauri::AppHandle;
 
 use crate::db::connection::open_connection;
-use crate::domain::audit::{GetAuditLogsPayload, GetAuditLogsResponse};
+use crate::domain::audit::{
+    AuditLogDetailsDto, GetAuditLogByIdPayload, GetAuditLogByIdResponse, GetAuditLogsPayload,
+    GetAuditLogsResponse,
+};
 use crate::errors::app_error::AppErrorDto;
 use crate::repositories::audit_repository::{
     AuditLogFilters, AuditRepository, CreateAuditLogRecord,
@@ -129,6 +132,59 @@ impl AuditService {
         })
     }
 
+    pub fn get_audit_log_by_id(
+        conn: &Connection,
+        current_user: &CurrentUserDto,
+        payload: GetAuditLogByIdPayload,
+    ) -> Result<GetAuditLogByIdResponse, AppErrorDto> {
+        let user_role = current_user.role.as_str();
+
+        if user_role == "viewer" {
+            return Err(AppErrorDto::access_denied(
+                "Недостаточно прав для просмотра журнала действий.",
+            ));
+        }
+
+        let audit_log_id = payload.audit_log_id.trim();
+
+        if audit_log_id.is_empty() {
+            return Err(AppErrorDto::validation(
+                "Не указан идентификатор записи журнала.",
+            ));
+        }
+
+        let item = AuditRepository::get_audit_log_by_id(conn, audit_log_id)?
+            .ok_or_else(|| AppErrorDto::not_found("Запись журнала не найдена."))?;
+
+        if user_role != "administrator"
+            && item.user_id.as_deref() != Some(current_user.user_id.as_str())
+        {
+            return Err(AppErrorDto::access_denied(
+                "Недостаточно прав для просмотра этой записи журнала.",
+            ));
+        }
+
+        Ok(GetAuditLogByIdResponse {
+            item: AuditLogDetailsDto {
+                id: item.id,
+                user_id: item.user_id,
+                username: item.username,
+                user_role: item.user_role,
+                action: item.action,
+                entity_type: item.entity_type,
+                entity_id: item.entity_id,
+                case_id: item.case_id,
+                result: item.result,
+                severity: item.severity,
+                old_value: parse_optional_audit_json(item.old_value),
+                new_value: parse_optional_audit_json(item.new_value),
+                technical_details: parse_optional_audit_json(item.technical_details),
+                app_version: item.app_version,
+                created_at: item.created_at,
+            },
+        })
+    }
+
     fn build_success_record(input: AuditSuccessInput) -> Result<CreateAuditLogRecord, AppErrorDto> {
         Ok(CreateAuditLogRecord {
             user_id: Some(input.user_id),
@@ -194,6 +250,10 @@ impl AuditSuccessInput {
             technical_details,
         }
     }
+}
+
+fn parse_optional_audit_json(raw: Option<String>) -> Option<Value> {
+    raw.map(|value| serde_json::from_str::<Value>(&value).unwrap_or(Value::String(value)))
 }
 
 fn normalize_optional_filter(value: Option<String>) -> Option<String> {

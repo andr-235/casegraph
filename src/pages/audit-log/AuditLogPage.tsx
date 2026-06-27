@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 
-import { getAuditLogs } from "../../features/audit/api/auditApi";
+import { getAuditLogById, getAuditLogs } from "../../features/audit/api/auditApi";
 import type {
+  AuditLogDetailsDto,
   AuditLogDto,
   GetAuditLogsPayload,
 } from "../../features/audit/model/auditTypes";
@@ -9,6 +10,7 @@ import {
   AuditResultBadge,
   AuditSeverityBadge,
 } from "../../features/audit/ui/AuditBadges";
+import { AuditLogDetailsPanel } from "../../features/audit/ui/AuditLogDetailsPanel";
 import { formatError } from "../../shared/lib/formatError";
 
 const DEFAULT_PAGE_SIZE = 50;
@@ -42,9 +44,18 @@ export function AuditLogPage({ onBack }: Props) {
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
+  const [selectedAuditLogId, setSelectedAuditLogId] = useState<string | null>(null);
+  const [selectedAuditLog, setSelectedAuditLog] =
+    useState<AuditLogDetailsDto | null>(null);
+  const [detailsLoading, setDetailsLoading] = useState(false);
+  const [detailsErrorMessage, setDetailsErrorMessage] = useState("");
+
   async function loadAuditLogs(nextPage = page) {
     setLoading(true);
     setErrorMessage("");
+    setSelectedAuditLogId(null);
+    setSelectedAuditLog(null);
+    setDetailsErrorMessage("");
 
     const payload: GetAuditLogsPayload = {
       action: filters.action || undefined,
@@ -93,6 +104,30 @@ export function AuditLogPage({ onBack }: Props) {
     }, 0);
   }
 
+  async function selectAuditLog(auditLogId: string) {
+    setSelectedAuditLogId(auditLogId);
+    setSelectedAuditLog(null);
+    setDetailsLoading(true);
+    setDetailsErrorMessage("");
+
+    try {
+      const response = await getAuditLogById({ auditLogId });
+
+      setSelectedAuditLog(response.item);
+    } catch (err) {
+      setDetailsErrorMessage(formatError(err));
+    } finally {
+      setDetailsLoading(false);
+    }
+  }
+
+  function closeDetailsPanel() {
+    setSelectedAuditLogId(null);
+    setSelectedAuditLog(null);
+    setDetailsErrorMessage("");
+    setDetailsLoading(false);
+  }
+
   const hasNextPage = page * DEFAULT_PAGE_SIZE < total;
   const hasPreviousPage = page > 1;
 
@@ -117,148 +152,163 @@ export function AuditLogPage({ onBack }: Props) {
           </div>
         </header>
 
-        <div className="audit-log-toolbar">
-          <label>
-            Действие
-            <input
-              value={filters.action}
-              onChange={(event) => updateFilter("action", event.target.value)}
-              placeholder="EVENT_CREATED"
-            />
-          </label>
+        <div className="audit-log-layout">
+          <div className="audit-log-main">
+            <div className="audit-log-toolbar">
+              <label>
+                Действие
+                <input
+                  value={filters.action}
+                  onChange={(event) => updateFilter("action", event.target.value)}
+                  placeholder="EVENT_CREATED"
+                />
+              </label>
 
-          <label>
-            Результат
-            <select
-              value={filters.result}
-              onChange={(event) => updateFilter("result", event.target.value)}
-            >
-              <option value="">Все</option>
-              <option value="success">success</option>
-              <option value="error">error</option>
-              <option value="denied">denied</option>
-            </select>
-          </label>
+              <label>
+                Результат
+                <select
+                  value={filters.result}
+                  onChange={(event) => updateFilter("result", event.target.value)}
+                >
+                  <option value="">Все</option>
+                  <option value="success">success</option>
+                  <option value="error">error</option>
+                  <option value="denied">denied</option>
+                </select>
+              </label>
 
-          <label>
-            Важность
-            <select
-              value={filters.severity}
-              onChange={(event) => updateFilter("severity", event.target.value)}
-            >
-              <option value="">Все</option>
-              <option value="info">info</option>
-              <option value="warning">warning</option>
-              <option value="error">error</option>
-              <option value="critical">critical</option>
-            </select>
-          </label>
+              <label>
+                Важность
+                <select
+                  value={filters.severity}
+                  onChange={(event) => updateFilter("severity", event.target.value)}
+                >
+                  <option value="">Все</option>
+                  <option value="info">info</option>
+                  <option value="warning">warning</option>
+                  <option value="error">error</option>
+                  <option value="critical">critical</option>
+                </select>
+              </label>
 
-          <label>
-            С даты
-            <input
-              type="date"
-              value={filters.dateFrom}
-              onChange={(event) => updateFilter("dateFrom", event.target.value)}
-            />
-          </label>
+              <label>
+                С даты
+                <input
+                  type="date"
+                  value={filters.dateFrom}
+                  onChange={(event) => updateFilter("dateFrom", event.target.value)}
+                />
+              </label>
 
-          <label>
-            По дату
-            <input
-              type="date"
-              value={filters.dateTo}
-              onChange={(event) => updateFilter("dateTo", event.target.value)}
-            />
-          </label>
+              <label>
+                По дату
+                <input
+                  type="date"
+                  value={filters.dateTo}
+                  onChange={(event) => updateFilter("dateTo", event.target.value)}
+                />
+              </label>
 
-          <button type="button" onClick={applyFilters}>
-            Применить
-          </button>
+              <button type="button" onClick={applyFilters}>
+                Применить
+              </button>
 
-          <button type="button" onClick={resetFilters}>
-            Сбросить
-          </button>
+              <button type="button" onClick={resetFilters}>
+                Сбросить
+              </button>
+            </div>
+
+            {errorMessage ? <div className="error-box">{errorMessage}</div> : null}
+
+            {loading ? <div className="loading-state">Загрузка журнала...</div> : null}
+
+            {!loading && items.length === 0 ? (
+              <div className="empty-state">Записей журнала пока нет.</div>
+            ) : null}
+
+            {!loading && items.length > 0 ? (
+              <>
+                <table className="data-table audit-log-table">
+                  <thead>
+                    <tr>
+                      <th>Время</th>
+                      <th>Пользователь</th>
+                      <th>Роль</th>
+                      <th>Действие</th>
+                      <th>Сущность</th>
+                      <th>Дело</th>
+                      <th>Результат</th>
+                      <th>Важность</th>
+                    </tr>
+                  </thead>
+
+                  <tbody>
+                    {items.map((item) => (
+                      <tr
+                        key={item.id}
+                        className={selectedAuditLogId === item.id ? "selected-row" : undefined}
+                        onClick={() => void selectAuditLog(item.id)}
+                      >
+                        <td>{item.createdAt}</td>
+                        <td>{item.username}</td>
+                        <td>{item.userRole}</td>
+                        <td>
+                          <code>{item.action}</code>
+                        </td>
+                        <td>
+                          <code>{item.entityType}</code>
+                          {item.entityId ? (
+                            <div className="muted-text">{item.entityId}</div>
+                          ) : null}
+                        </td>
+                        <td>{item.caseId ?? "\u2014"}</td>
+                        <td>
+                          <AuditResultBadge value={item.result} />
+                        </td>
+                        <td>
+                          <AuditSeverityBadge value={item.severity} />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+
+                <footer className="table-footer">
+                  <span>
+                    Показано {items.length} из {total}
+                  </span>
+
+                  <div className="pagination">
+                    <button
+                      type="button"
+                      disabled={!hasPreviousPage}
+                      onClick={() => void loadAuditLogs(page - 1)}
+                    >
+                      Назад
+                    </button>
+
+                    <span>Страница {page}</span>
+
+                    <button
+                      type="button"
+                      disabled={!hasNextPage}
+                      onClick={() => void loadAuditLogs(page + 1)}
+                    >
+                      Вперёд
+                    </button>
+                  </div>
+                </footer>
+              </>
+            ) : null}
+          </div>
+
+          <AuditLogDetailsPanel
+            item={selectedAuditLog}
+            loading={detailsLoading}
+            errorMessage={detailsErrorMessage}
+            onClose={closeDetailsPanel}
+          />
         </div>
-
-        {errorMessage ? <div className="error-box">{errorMessage}</div> : null}
-
-        {loading ? <div className="loading-state">Загрузка журнала...</div> : null}
-
-        {!loading && items.length === 0 ? (
-          <div className="empty-state">Записей журнала пока нет.</div>
-        ) : null}
-
-        {!loading && items.length > 0 ? (
-          <>
-            <table className="data-table audit-log-table">
-              <thead>
-                <tr>
-                  <th>Время</th>
-                  <th>Пользователь</th>
-                  <th>Роль</th>
-                  <th>Действие</th>
-                  <th>Сущность</th>
-                  <th>Дело</th>
-                  <th>Результат</th>
-                  <th>Важность</th>
-                </tr>
-              </thead>
-
-              <tbody>
-                {items.map((item) => (
-                  <tr key={item.id}>
-                    <td>{item.createdAt}</td>
-                    <td>{item.username}</td>
-                    <td>{item.userRole}</td>
-                    <td>
-                      <code>{item.action}</code>
-                    </td>
-                    <td>
-                      <code>{item.entityType}</code>
-                      {item.entityId ? (
-                        <div className="muted-text">{item.entityId}</div>
-                      ) : null}
-                    </td>
-                    <td>{item.caseId ?? "\u2014"}</td>
-                    <td>
-                      <AuditResultBadge value={item.result} />
-                    </td>
-                    <td>
-                      <AuditSeverityBadge value={item.severity} />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-
-            <footer className="table-footer">
-              <span>
-                Показано {items.length} из {total}
-              </span>
-
-              <div className="pagination">
-                <button
-                  type="button"
-                  disabled={!hasPreviousPage}
-                  onClick={() => void loadAuditLogs(page - 1)}
-                >
-                  Назад
-                </button>
-
-                <span>Страница {page}</span>
-
-                <button
-                  type="button"
-                  disabled={!hasNextPage}
-                  onClick={() => void loadAuditLogs(page + 1)}
-                >
-                  Вперёд
-                </button>
-              </div>
-            </footer>
-          </>
-        ) : null}
       </section>
     </main>
   );

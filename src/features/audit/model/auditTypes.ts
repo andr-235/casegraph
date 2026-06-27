@@ -43,3 +43,28 @@ export type GetAuditLogsResponse = {
   page: number;
   pageSize: number;
 };
+
+export type AuditJsonValue =
+  | null
+  | string
+  | number
+  | boolean
+  | AuditJsonValue[]
+  | { [key: string]: AuditJsonValue };
+
+export type AuditLogDetailsDto = Omit<
+  AuditLogDto,
+  "oldValue" | "newValue" | "technicalDetails"
+> & {
+  oldValue?: AuditJsonValue;
+  newValue?: AuditJsonValue;
+  technicalDetails?: AuditJsonValue;
+};
+
+export type GetAuditLogByIdPayload = {
+  auditLogId: string;
+};
+
+export type GetAuditLogByIdResponse = {
+  item: AuditLogDetailsDto;
+};

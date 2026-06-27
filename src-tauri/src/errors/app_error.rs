@@ -39,6 +39,14 @@ impl AppErrorDto {
     pub fn unauthorized(message: &str) -> Self {
         Self::new("ERR_UNAUTHORIZED", message, None)
     }
+
+    pub fn validation(message: &str) -> Self {
+        Self::new("ERR_VALIDATION", message, None)
+    }
+
+    pub fn not_found(message: &str) -> Self {
+        Self::new("ERR_NOT_FOUND", message, None)
+    }
 }
 
 #[derive(Debug, Serialize)]

@@ -1,4 +1,4 @@
-use rusqlite::{params, Connection};
+use rusqlite::{params, Connection, OptionalExtension};
 use uuid::Uuid;
 
 use crate::domain::audit::AuditLogDto;
@@ -155,6 +155,57 @@ impl AuditRepository {
         }
 
         Ok(items)
+    }
+
+    pub fn get_audit_log_by_id(
+        conn: &Connection,
+        audit_log_id: &str,
+    ) -> Result<Option<AuditLogDto>, AppErrorDto> {
+        conn.query_row(
+            "
+            SELECT
+                id,
+                user_id,
+                username,
+                user_role,
+                action,
+                entity_type,
+                entity_id,
+                case_id,
+                result,
+                severity,
+                old_value,
+                new_value,
+                technical_details,
+                app_version,
+                created_at
+            FROM audit_logs
+            WHERE id = ?1
+            LIMIT 1
+            ",
+            params![audit_log_id],
+            |row| {
+                Ok(AuditLogDto {
+                    id: row.get(0)?,
+                    user_id: row.get(1)?,
+                    username: row.get(2)?,
+                    user_role: row.get(3)?,
+                    action: row.get(4)?,
+                    entity_type: row.get(5)?,
+                    entity_id: row.get(6)?,
+                    case_id: row.get(7)?,
+                    result: row.get(8)?,
+                    severity: row.get(9)?,
+                    old_value: row.get(10)?,
+                    new_value: row.get(11)?,
+                    technical_details: row.get(12)?,
+                    app_version: row.get(13)?,
+                    created_at: row.get(14)?,
+                })
+            },
+        )
+        .optional()
+        .map_err(|err| AppErrorDto::database(err.to_string()))
     }
 
     pub fn count_audit_logs(
