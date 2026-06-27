@@ -42,6 +42,22 @@
   margin-bottom: 16px;
 }
 
+.error-box {
+  padding: 10px 12px;
+  border: 1px solid #e8aaab;
+  border-radius: 6px;
+  background: #ffebee;
+  margin-bottom: 16px;
+}
+
+.success-box {
+  padding: 10px 12px;
+  border: 1px solid #a3d9b1;
+  border-radius: 6px;
+  background: #e8f5e9;
+  margin-bottom: 16px;
+}
+
 .audit-log-table code {
   font-size: 12px;
 }

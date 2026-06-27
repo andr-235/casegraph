@@ -89,3 +89,20 @@ export type AuditUserOptionDto = {
 export type GetAuditUsersResponse = {
   items: AuditUserOptionDto[];
 };
+
+export type ExportAuditLogPayload = {
+  action?: string;
+  result?: string;
+  severity?: string;
+  caseId?: string;
+  entityType?: string;
+  userId?: string;
+  dateFrom?: string;
+  dateTo?: string;
+};
+
+export type ExportAuditLogResponse = {
+  filePath: string;
+  exportedCount: number;
+  format: string;
+};

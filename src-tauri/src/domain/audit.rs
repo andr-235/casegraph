@@ -114,3 +114,24 @@ pub struct AuditUserOptionDto {
 pub struct GetAuditUsersResponse {
     pub items: Vec<AuditUserOptionDto>,
 }
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExportAuditLogPayload {
+    pub action: Option<String>,
+    pub result: Option<String>,
+    pub severity: Option<String>,
+    pub case_id: Option<String>,
+    pub entity_type: Option<String>,
+    pub user_id: Option<String>,
+    pub date_from: Option<String>,
+    pub date_to: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExportAuditLogResponse {
+    pub file_path: String,
+    pub exported_count: i64,
+    pub format: String,
+}

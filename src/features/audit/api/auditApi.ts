@@ -1,5 +1,7 @@
 import { invokeCommand } from "../../../shared/api/invoke";
 import type {
+  ExportAuditLogPayload,
+  ExportAuditLogResponse,
   GetAuditActionsResponse,
   GetAuditLogByIdPayload,
   GetAuditLogByIdResponse,
@@ -24,4 +26,8 @@ export function getAuditActions() {
 
 export function getAuditUsers() {
   return invokeCommand<GetAuditUsersResponse>("get_audit_users", {});
+}
+
+export function exportAuditLog(payload: ExportAuditLogPayload) {
+  return invokeCommand<ExportAuditLogResponse>("export_audit_log", { payload });
 }

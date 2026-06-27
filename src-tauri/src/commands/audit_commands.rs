@@ -2,8 +2,8 @@ use tauri::{AppHandle, State};
 
 use crate::db::connection::open_connection;
 use crate::domain::audit::{
-    GetAuditActionsResponse, GetAuditLogByIdPayload, GetAuditLogByIdResponse, GetAuditLogsPayload,
-    GetAuditLogsResponse, GetAuditUsersResponse,
+    ExportAuditLogPayload, ExportAuditLogResponse, GetAuditActionsResponse, GetAuditLogByIdPayload,
+    GetAuditLogByIdResponse, GetAuditLogsPayload, GetAuditLogsResponse, GetAuditUsersResponse,
 };
 use crate::errors::app_error::CommandResult;
 use crate::security::session::SessionState;
@@ -106,6 +106,27 @@ pub fn get_audit_users(
     };
 
     match AuditService::get_audit_users(&conn, &current_user) {
+        Ok(response) => CommandResult::ok(response),
+        Err(error) => CommandResult::err(error),
+    }
+}
+
+#[tauri::command]
+pub fn export_audit_log(
+    app: AppHandle,
+    session: State<SessionState>,
+    payload: ExportAuditLogPayload,
+) -> CommandResult<ExportAuditLogResponse> {
+    let current_user = match session.get_current_user() {
+        Some(user) => user,
+        None => {
+            return CommandResult::err(crate::errors::app_error::AppErrorDto::unauthorized(
+                "Необходимо войти в систему.",
+            ));
+        }
+    };
+
+    match AuditService::export_audit_log(&app, &current_user, payload) {
         Ok(response) => CommandResult::ok(response),
         Err(error) => CommandResult::err(error),
     }

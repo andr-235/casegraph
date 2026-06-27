@@ -1,12 +1,17 @@
+use std::fs;
+use std::path::PathBuf;
+use std::time::{SystemTime, UNIX_EPOCH};
+
 use rusqlite::Connection;
 use serde::Serialize;
 use serde_json::Value;
-use tauri::AppHandle;
+use tauri::{AppHandle, Manager};
 
 use crate::db::connection::open_connection;
 use crate::domain::audit::{
-    AuditLogDetailsDto, GetAuditActionsResponse, GetAuditLogByIdPayload, GetAuditLogByIdResponse,
-    GetAuditLogsPayload, GetAuditLogsResponse, GetAuditUsersResponse,
+    AuditLogDetailsDto, AuditLogDto, ExportAuditLogPayload, ExportAuditLogResponse,
+    GetAuditActionsResponse, GetAuditLogByIdPayload, GetAuditLogByIdResponse, GetAuditLogsPayload,
+    GetAuditLogsResponse, GetAuditUsersResponse,
 };
 use crate::errors::app_error::AppErrorDto;
 use crate::repositories::audit_repository::{
@@ -227,6 +232,81 @@ impl AuditService {
         })
     }
 
+    pub fn export_audit_log(
+        app: &AppHandle,
+        current_user: &CurrentUserDto,
+        payload: ExportAuditLogPayload,
+    ) -> Result<ExportAuditLogResponse, AppErrorDto> {
+        let user_role = current_user.role.as_str();
+
+        if user_role != "administrator" {
+            return Err(AppErrorDto::access_denied(
+                "Экспорт журнала действий доступен только администратору.",
+            ));
+        }
+
+        let conn = open_connection(app)?;
+
+        let filters = AuditLogFilters {
+            action: normalize_optional_filter(payload.action),
+            result: normalize_optional_filter(payload.result),
+            severity: normalize_optional_filter(payload.severity),
+            case_id: normalize_optional_filter(payload.case_id),
+            entity_type: normalize_optional_filter(payload.entity_type),
+            date_from: normalize_optional_filter(payload.date_from),
+            date_to: normalize_optional_filter(payload.date_to),
+            user_id: normalize_optional_filter(payload.user_id),
+            limit: i64::MAX,
+            offset: 0,
+        };
+
+        let items = AuditRepository::export_audit_logs(&conn, &filters)?;
+
+        if items.is_empty() {
+            return Err(AppErrorDto::validation(
+                "Не найдено записей для экспорта с указанными фильтрами.",
+            ));
+        }
+
+        let csv_content = build_audit_log_csv(&items);
+        let export_dir = resolve_audit_export_dir(app)?;
+        let timestamp = unix_timestamp_for_filename()?;
+        let file_name = format!("audit-log-{}.csv", timestamp);
+        let file_path = export_dir.join(&file_name);
+
+        fs::write(&file_path, &csv_content)
+            .map_err(|err| AppErrorDto::filesystem(err.to_string()))?;
+
+        let exported_count = items.len() as i64;
+
+        Self::write_audit_export_event_best_effort(app.clone(), current_user, exported_count);
+
+        Ok(ExportAuditLogResponse {
+            file_path: file_path.to_string_lossy().to_string(),
+            exported_count,
+            format: "csv".to_string(),
+        })
+    }
+
+    fn write_audit_export_event_best_effort(
+        app: AppHandle,
+        user: &CurrentUserDto,
+        exported_count: i64,
+    ) {
+        let input = AuditSuccessInput::new(
+            user,
+            "AUDIT_LOG_EXPORTED",
+            "audit",
+            None,
+            None,
+            None,
+            to_json_value(&serde_json::json!({ "exported_count": exported_count })).ok(),
+            None,
+        );
+
+        Self::write_success_non_blocking(app, input);
+    }
+
     fn build_success_record(input: AuditSuccessInput) -> Result<CreateAuditLogRecord, AppErrorDto> {
         Ok(CreateAuditLogRecord {
             user_id: Some(input.user_id),
@@ -292,6 +372,70 @@ impl AuditSuccessInput {
             technical_details,
         }
     }
+}
+
+fn csv_cell(value: &str) -> String {
+    let escaped = value.replace('"', "\"\"");
+    format!("\"{}\"", escaped)
+}
+
+fn csv_optional_cell(value: Option<&str>) -> String {
+    csv_cell(value.unwrap_or(""))
+}
+
+fn build_audit_log_csv(items: &[AuditLogDto]) -> String {
+    let mut output = String::new();
+
+    output.push_str(
+        "id,created_at,user_id,username,user_role,action,entity_type,entity_id,case_id,result,severity,old_value,new_value,technical_details,app_version\n",
+    );
+
+    for item in items {
+        let row = [
+            csv_cell(&item.id),
+            csv_cell(&item.created_at),
+            csv_optional_cell(item.user_id.as_deref()),
+            csv_cell(&item.username),
+            csv_cell(&item.user_role),
+            csv_cell(&item.action),
+            csv_cell(&item.entity_type),
+            csv_optional_cell(item.entity_id.as_deref()),
+            csv_optional_cell(item.case_id.as_deref()),
+            csv_cell(&item.result),
+            csv_cell(&item.severity),
+            csv_optional_cell(item.old_value.as_deref()),
+            csv_optional_cell(item.new_value.as_deref()),
+            csv_optional_cell(item.technical_details.as_deref()),
+            csv_cell(&item.app_version),
+        ];
+
+        output.push_str(&row.join(","));
+        output.push('\n');
+    }
+
+    output
+}
+
+fn resolve_audit_export_dir(app: &AppHandle) -> Result<PathBuf, AppErrorDto> {
+    let mut export_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|err| AppErrorDto::internal(err.to_string()))?;
+
+    export_dir.push("exports");
+    export_dir.push("audit-log");
+
+    fs::create_dir_all(&export_dir)
+        .map_err(|err| AppErrorDto::filesystem(err.to_string()))?;
+
+    Ok(export_dir)
+}
+
+fn unix_timestamp_for_filename() -> Result<u64, AppErrorDto> {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_secs())
+        .map_err(|err| AppErrorDto::internal(err.to_string()))
 }
 
 fn parse_optional_audit_json(raw: Option<String>) -> Option<Value> {

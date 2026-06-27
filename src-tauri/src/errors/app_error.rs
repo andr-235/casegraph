@@ -47,6 +47,14 @@ impl AppErrorDto {
     pub fn not_found(message: &str) -> Self {
         Self::new("ERR_NOT_FOUND", message, None)
     }
+
+    pub fn internal(details: impl ToString) -> Self {
+        Self::new(
+            "ERR_INTERNAL",
+            "Внутренняя ошибка приложения.",
+            Some(details.to_string()),
+        )
+    }
 }
 
 #[derive(Debug, Serialize)]

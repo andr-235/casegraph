@@ -1,4 +1,4 @@
-import type { GetAuditLogsPayload } from "./auditTypes";
+import type { ExportAuditLogPayload, GetAuditLogsPayload } from "./auditTypes";
 
 export type AuditLogFilters = {
   action: string;
@@ -48,5 +48,27 @@ export function buildAuditLogsPayload({
     dateTo: emptyToUndefined(filters.dateTo),
     page,
     pageSize,
+  };
+}
+
+type BuildAuditLogExportPayloadParams = {
+  filters: AuditLogFilters;
+  isAdministrator: boolean;
+};
+
+export function buildAuditLogExportPayload({
+  filters,
+  isAdministrator,
+}: BuildAuditLogExportPayloadParams): ExportAuditLogPayload {
+  return {
+    action: emptyToUndefined(filters.action),
+    result: emptyToUndefined(filters.result),
+    severity: emptyToUndefined(filters.severity),
+    userId:
+      isAdministrator && filters.userId
+        ? emptyToUndefined(filters.userId)
+        : undefined,
+    dateFrom: emptyToUndefined(filters.dateFrom),
+    dateTo: emptyToUndefined(filters.dateTo),
   };
 }

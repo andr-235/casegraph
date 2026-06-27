@@ -279,6 +279,87 @@ impl AuditRepository {
         Ok(items)
     }
 
+    pub fn export_audit_logs(
+        conn: &Connection,
+        filters: &AuditLogFilters,
+    ) -> Result<Vec<AuditLogDto>, AppErrorDto> {
+        let mut stmt = conn
+            .prepare(
+                "
+                SELECT
+                    id,
+                    user_id,
+                    username,
+                    user_role,
+                    action,
+                    entity_type,
+                    entity_id,
+                    case_id,
+                    result,
+                    severity,
+                    old_value,
+                    new_value,
+                    technical_details,
+                    app_version,
+                    created_at
+                FROM audit_logs
+                WHERE
+                    (?1 IS NULL OR action = ?1)
+                    AND (?2 IS NULL OR result = ?2)
+                    AND (?3 IS NULL OR severity = ?3)
+                    AND (?4 IS NULL OR case_id = ?4)
+                    AND (?5 IS NULL OR entity_type = ?5)
+                    AND (?6 IS NULL OR created_at >= ?6)
+                    AND (?7 IS NULL OR created_at <= ?7)
+                    AND (?8 IS NULL OR user_id = ?8)
+                ORDER BY created_at DESC
+                ",
+            )
+            .map_err(|err| AppErrorDto::database(err.to_string()))?;
+
+        let rows = stmt
+            .query_map(
+                params![
+                    filters.action.as_deref(),
+                    filters.result.as_deref(),
+                    filters.severity.as_deref(),
+                    filters.case_id.as_deref(),
+                    filters.entity_type.as_deref(),
+                    filters.date_from.as_deref(),
+                    filters.date_to.as_deref(),
+                    filters.user_id.as_deref(),
+                ],
+                |row| {
+                    Ok(AuditLogDto {
+                        id: row.get(0)?,
+                        user_id: row.get(1)?,
+                        username: row.get(2)?,
+                        user_role: row.get(3)?,
+                        action: row.get(4)?,
+                        entity_type: row.get(5)?,
+                        entity_id: row.get(6)?,
+                        case_id: row.get(7)?,
+                        result: row.get(8)?,
+                        severity: row.get(9)?,
+                        old_value: row.get(10)?,
+                        new_value: row.get(11)?,
+                        technical_details: row.get(12)?,
+                        app_version: row.get(13)?,
+                        created_at: row.get(14)?,
+                    })
+                },
+            )
+            .map_err(|err| AppErrorDto::database(err.to_string()))?;
+
+        let mut items = Vec::new();
+
+        for row in rows {
+            items.push(row.map_err(|err| AppErrorDto::database(err.to_string()))?);
+        }
+
+        Ok(items)
+    }
+
     pub fn count_audit_logs(
         conn: &Connection,
         filters: &AuditLogFilters,

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 
 import type { CurrentUserDto } from "../../features/auth/model/authTypes";
 import {
+  exportAuditLog,
   getAuditActions,
   getAuditLogById,
   getAuditLogs,
@@ -12,8 +13,10 @@ import type {
   AuditLogDetailsDto,
   AuditLogDto,
   AuditUserOptionDto,
+  ExportAuditLogResponse,
 } from "../../features/audit/model/auditTypes";
 import {
+  buildAuditLogExportPayload,
   buildAuditLogsPayload,
   emptyAuditLogFilters,
   type AuditLogFilters,
@@ -52,6 +55,10 @@ export function AuditLogPage({ user, onBack }: Props) {
     useState<AuditLogDetailsDto | null>(null);
   const [detailsLoading, setDetailsLoading] = useState(false);
   const [detailsErrorMessage, setDetailsErrorMessage] = useState("");
+
+  const [exporting, setExporting] = useState(false);
+  const [exportErrorMessage, setExportErrorMessage] = useState("");
+  const [exportResponse, setExportResponse] = useState<ExportAuditLogResponse | null>(null);
 
   function closeDetailsPanel() {
     setSelectedAuditLogId(null);
@@ -136,6 +143,27 @@ export function AuditLogPage({ user, onBack }: Props) {
     void loadAuditLogs(nextPage, filters);
   }
 
+  async function exportLog() {
+    setExporting(true);
+    setExportErrorMessage("");
+    setExportResponse(null);
+
+    const payload = buildAuditLogExportPayload({
+      filters,
+      isAdministrator,
+    });
+
+    try {
+      const response = await exportAuditLog(payload);
+
+      setExportResponse(response);
+    } catch (err) {
+      setExportErrorMessage(formatError(err));
+    } finally {
+      setExporting(false);
+    }
+  }
+
   async function selectAuditLog(auditLogId: string) {
     setSelectedAuditLogId(auditLogId);
     setSelectedAuditLog(null);
@@ -162,6 +190,15 @@ export function AuditLogPage({ user, onBack }: Props) {
         </div>
 
         <div style={{ display: "flex", gap: 8 }}>
+          {isAdministrator ? (
+            <button
+              type="button"
+              disabled={exporting}
+              onClick={() => void exportLog()}
+            >
+              {exporting ? "Экспорт..." : "Экспорт CSV"}
+            </button>
+          ) : null}
           <button
             type="button"
             onClick={() => {
@@ -178,6 +215,17 @@ export function AuditLogPage({ user, onBack }: Props) {
       </header>
 
       {errorMessage ? <div className="error-box">{errorMessage}</div> : null}
+
+      {exportErrorMessage ? (
+        <div className="error-box">{exportErrorMessage}</div>
+      ) : null}
+
+      {exportResponse ? (
+        <div className="success-box">
+          Экспорт завершён: {exportResponse.exportedCount} записей,
+          файл: {exportResponse.filePath}
+        </div>
+      ) : null}
 
       <AuditLogToolbar
         filters={filters}
