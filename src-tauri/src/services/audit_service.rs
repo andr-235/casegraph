@@ -9,9 +9,9 @@ use tauri::{AppHandle, Manager};
 
 use crate::db::connection::open_connection;
 use crate::domain::audit::{
-    AuditLogDetailsDto, AuditLogDto, ExportAuditLogPayload, ExportAuditLogResponse,
-    GetAuditActionsResponse, GetAuditLogByIdPayload, GetAuditLogByIdResponse, GetAuditLogsPayload,
-    GetAuditLogsResponse, GetAuditUsersResponse,
+    AuditAccessDeniedInput, AuditLogDetailsDto, AuditLogDto, ExportAuditLogPayload,
+    ExportAuditLogResponse, GetAuditActionsResponse, GetAuditLogByIdPayload,
+    GetAuditLogByIdResponse, GetAuditLogsPayload, GetAuditLogsResponse, GetAuditUsersResponse,
 };
 use crate::errors::app_error::AppErrorDto;
 use crate::repositories::audit_repository::{
@@ -91,15 +91,32 @@ impl AuditService {
     }
 
     pub fn get_audit_logs(
+        app: &AppHandle,
         conn: &Connection,
         current_user: &CurrentUserDto,
         payload: GetAuditLogsPayload,
     ) -> Result<GetAuditLogsResponse, AppErrorDto> {
-        let user_role = current_user.role.as_str();
-
-        if user_role == "viewer" {
-            return Err(AppErrorDto::access_denied(
+        if !Self::can_read_audit_log(current_user) {
+            return Err(Self::access_denied_error(
+                app,
+                current_user,
+                "get_audit_logs",
+                "audit_log",
+                None,
+                "administrator|analyst",
                 "Недостаточно прав для просмотра журнала действий.",
+            ));
+        }
+
+        if Self::is_analyst(current_user) && payload.user_id.is_some() {
+            return Err(Self::access_denied_error(
+                app,
+                current_user,
+                "get_audit_logs",
+                "audit_log",
+                None,
+                "administrator",
+                "Фильтр журнала по пользователю доступен только администратору.",
             ));
         }
 
@@ -107,10 +124,8 @@ impl AuditService {
         let page_size = payload.page_size.unwrap_or(50).clamp(10, 200);
         let offset = (page - 1) * page_size;
 
-        let requested_user_id = normalize_optional_filter(payload.user_id);
-
-        let user_id_filter = if user_role == "administrator" {
-            requested_user_id
+        let user_id_filter = if Self::is_administrator(current_user) {
+            normalize_optional_filter(payload.user_id)
         } else {
             Some(current_user.user_id.clone())
         };
@@ -140,18 +155,23 @@ impl AuditService {
     }
 
     pub fn get_audit_actions(
+        app: &AppHandle,
         conn: &Connection,
         current_user: &CurrentUserDto,
     ) -> Result<GetAuditActionsResponse, AppErrorDto> {
-        let user_role = current_user.role.as_str();
-
-        if user_role == "viewer" {
-            return Err(AppErrorDto::access_denied(
-                "Недостаточно прав для просмотра журнала действий.",
+        if !Self::can_read_audit_log(current_user) {
+            return Err(Self::access_denied_error(
+                app,
+                current_user,
+                "get_audit_actions",
+                "audit_log",
+                None,
+                "administrator|analyst",
+                "Недостаточно прав для получения словаря действий журнала.",
             ));
         }
 
-        let restricted_user_id = if user_role == "administrator" {
+        let restricted_user_id: Option<&str> = if Self::is_administrator(current_user) {
             None
         } else {
             Some(current_user.user_id.as_str())
@@ -163,14 +183,19 @@ impl AuditService {
     }
 
     pub fn get_audit_users(
+        app: &AppHandle,
         conn: &Connection,
         current_user: &CurrentUserDto,
     ) -> Result<GetAuditUsersResponse, AppErrorDto> {
-        let user_role = current_user.role.as_str();
-
-        if user_role != "administrator" {
-            return Err(AppErrorDto::access_denied(
-                "Фильтр по пользователям доступен только администратору.",
+        if !Self::is_administrator(current_user) {
+            return Err(Self::access_denied_error(
+                app,
+                current_user,
+                "get_audit_users",
+                "audit_log",
+                None,
+                "administrator",
+                "Словарь пользователей журнала доступен только администратору.",
             ));
         }
 
@@ -180,15 +205,20 @@ impl AuditService {
     }
 
     pub fn get_audit_log_by_id(
+        app: &AppHandle,
         conn: &Connection,
         current_user: &CurrentUserDto,
         payload: GetAuditLogByIdPayload,
     ) -> Result<GetAuditLogByIdResponse, AppErrorDto> {
-        let user_role = current_user.role.as_str();
-
-        if user_role == "viewer" {
-            return Err(AppErrorDto::access_denied(
-                "Недостаточно прав для просмотра журнала действий.",
+        if !Self::can_read_audit_log(current_user) {
+            return Err(Self::access_denied_error(
+                app,
+                current_user,
+                "get_audit_log_by_id",
+                "audit_log",
+                Some(payload.audit_log_id.clone()),
+                "administrator|analyst",
+                "Недостаточно прав для просмотра события журнала.",
             ));
         }
 
@@ -203,11 +233,17 @@ impl AuditService {
         let item = AuditRepository::get_audit_log_by_id(conn, audit_log_id)?
             .ok_or_else(|| AppErrorDto::not_found("Запись журнала не найдена."))?;
 
-        if user_role != "administrator"
+        if Self::is_analyst(current_user)
             && item.user_id.as_deref() != Some(current_user.user_id.as_str())
         {
-            return Err(AppErrorDto::access_denied(
-                "Недостаточно прав для просмотра этой записи журнала.",
+            return Err(Self::access_denied_error(
+                app,
+                current_user,
+                "get_audit_log_by_id",
+                "audit_log",
+                Some(payload.audit_log_id.clone()),
+                "administrator",
+                "Аналитик может просматривать только собственные записи журнала.",
             ));
         }
 
@@ -237,10 +273,14 @@ impl AuditService {
         current_user: &CurrentUserDto,
         payload: ExportAuditLogPayload,
     ) -> Result<ExportAuditLogResponse, AppErrorDto> {
-        let user_role = current_user.role.as_str();
-
-        if user_role != "administrator" {
-            return Err(AppErrorDto::access_denied(
+        if !Self::is_administrator(current_user) {
+            return Err(Self::access_denied_error(
+                app,
+                current_user,
+                "export_audit_log",
+                "audit_log",
+                None,
+                "administrator",
                 "Экспорт журнала действий доступен только администратору.",
             ));
         }
@@ -305,6 +345,60 @@ impl AuditService {
         );
 
         Self::write_success_non_blocking(app, input);
+    }
+
+    fn write_access_denied_best_effort(
+        app: &AppHandle,
+        current_user: &CurrentUserDto,
+        input: AuditAccessDeniedInput,
+    ) {
+        let conn = match open_connection(app) {
+            Ok(conn) => conn,
+            Err(error) => {
+                eprintln!("[audit] access_denied write skipped: {:?}", error);
+                return;
+            }
+        };
+
+        if let Err(error) = AuditRepository::insert_access_denied(&conn, current_user, &input) {
+            eprintln!("[audit] access_denied write failed: {:?}", error);
+        }
+    }
+
+    fn access_denied_error(
+        app: &AppHandle,
+        current_user: &CurrentUserDto,
+        command_name: &str,
+        entity_type: &str,
+        entity_id: Option<String>,
+        required_role: &str,
+        message: &str,
+    ) -> AppErrorDto {
+        Self::write_access_denied_best_effort(
+            app,
+            current_user,
+            AuditAccessDeniedInput {
+                command_name: command_name.to_string(),
+                entity_type: entity_type.to_string(),
+                entity_id,
+                description: message.to_string(),
+                required_role: required_role.to_string(),
+            },
+        );
+
+        AppErrorDto::access_denied(message)
+    }
+
+    fn is_administrator(current_user: &CurrentUserDto) -> bool {
+        current_user.role.as_str() == "administrator"
+    }
+
+    fn is_analyst(current_user: &CurrentUserDto) -> bool {
+        current_user.role.as_str() == "analyst"
+    }
+
+    fn can_read_audit_log(current_user: &CurrentUserDto) -> bool {
+        Self::is_administrator(current_user) || Self::is_analyst(current_user)
     }
 
     fn build_success_record(input: AuditSuccessInput) -> Result<CreateAuditLogRecord, AppErrorDto> {
@@ -425,8 +519,7 @@ fn resolve_audit_export_dir(app: &AppHandle) -> Result<PathBuf, AppErrorDto> {
     export_dir.push("exports");
     export_dir.push("audit-log");
 
-    fs::create_dir_all(&export_dir)
-        .map_err(|err| AppErrorDto::filesystem(err.to_string()))?;
+    fs::create_dir_all(&export_dir).map_err(|err| AppErrorDto::filesystem(err.to_string()))?;
 
     Ok(export_dir)
 }

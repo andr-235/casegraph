@@ -1,8 +1,11 @@
 use rusqlite::{params, Connection, OptionalExtension};
 use uuid::Uuid;
 
-use crate::domain::audit::{AuditActionOptionDto, AuditLogDto, AuditUserOptionDto};
+use crate::domain::audit::{
+    AuditAccessDeniedInput, AuditActionOptionDto, AuditLogDto, AuditUserOptionDto,
+};
 use crate::errors::app_error::AppErrorDto;
+use crate::security::session::CurrentUserDto;
 
 #[derive(Debug)]
 pub struct CreateAuditLogRecord {
@@ -28,6 +31,50 @@ pub struct CreateAuditLogRecord {
 pub struct AuditRepository;
 
 impl AuditRepository {
+    pub fn insert_access_denied(
+        conn: &Connection,
+        current_user: &CurrentUserDto,
+        input: &AuditAccessDeniedInput,
+    ) -> Result<(), AppErrorDto> {
+        let audit_id = Uuid::new_v4().to_string();
+
+        let technical_details = format!(
+            r#"{{"command":"{}","requiredRole":"{}","actualRole":"{}","description":"{}"}}"#,
+            input.command_name.replace('"', "\\\""),
+            input.required_role.replace('"', "\\\""),
+            current_user.role.replace('"', "\\\""),
+            input.description.replace('"', "\\\""),
+        );
+
+        conn.execute(
+            "
+            INSERT INTO audit_logs (
+                id, user_id, username, user_role,
+                action, entity_type, entity_id,
+                result, severity,
+                technical_details, app_version
+            )
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
+            ",
+            params![
+                audit_id,
+                current_user.user_id,
+                current_user.username,
+                current_user.role,
+                "ACCESS_DENIED",
+                input.entity_type,
+                input.entity_id,
+                "denied",
+                "warning",
+                technical_details,
+                env!("CARGO_PKG_VERSION"),
+            ],
+        )
+        .map_err(|err| AppErrorDto::database(err.to_string()))?;
+
+        Ok(())
+    }
+
     pub fn insert(conn: &Connection, record: CreateAuditLogRecord) -> Result<(), AppErrorDto> {
         let id = Uuid::new_v4().to_string();
 

@@ -29,7 +29,7 @@ pub fn get_audit_logs(
         Err(error) => return CommandResult::err(error),
     };
 
-    match AuditService::get_audit_logs(&conn, &current_user, payload) {
+    match AuditService::get_audit_logs(&app, &conn, &current_user, payload) {
         Ok(response) => CommandResult::ok(response),
         Err(error) => CommandResult::err(error),
     }
@@ -55,7 +55,7 @@ pub fn get_audit_log_by_id(
         Err(error) => return CommandResult::err(error),
     };
 
-    match AuditService::get_audit_log_by_id(&conn, &current_user, payload) {
+    match AuditService::get_audit_log_by_id(&app, &conn, &current_user, payload) {
         Ok(response) => CommandResult::ok(response),
         Err(error) => CommandResult::err(error),
     }
@@ -80,7 +80,7 @@ pub fn get_audit_actions(
         Err(error) => return CommandResult::err(error),
     };
 
-    match AuditService::get_audit_actions(&conn, &current_user) {
+    match AuditService::get_audit_actions(&app, &conn, &current_user) {
         Ok(response) => CommandResult::ok(response),
         Err(error) => CommandResult::err(error),
     }
@@ -105,7 +105,7 @@ pub fn get_audit_users(
         Err(error) => return CommandResult::err(error),
     };
 
-    match AuditService::get_audit_users(&conn, &current_user) {
+    match AuditService::get_audit_users(&app, &conn, &current_user) {
         Ok(response) => CommandResult::ok(response),
         Err(error) => CommandResult::err(error),
     }

@@ -135,3 +135,12 @@ pub struct ExportAuditLogResponse {
     pub exported_count: i64,
     pub format: String,
 }
+
+#[derive(Debug)]
+pub struct AuditAccessDeniedInput {
+    pub command_name: String,
+    pub entity_type: String,
+    pub entity_id: Option<String>,
+    pub description: String,
+    pub required_role: String,
+}
