@@ -15,3 +15,11 @@ export function AuditSeverityBadge({ value }: BadgeProps) {
     </span>
   );
 }
+
+export function AuditActionBadge({ value }: BadgeProps) {
+  return (
+    <span className={`audit-badge audit-badge--action`}>
+      <code>{value}</code>
+    </span>
+  );
+}

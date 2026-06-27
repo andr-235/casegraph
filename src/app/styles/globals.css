@@ -1,10 +1,21 @@
 
-.audit-log-toolbar {
+.audit-toolbar-section {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.audit-toolbar {
   display: flex;
+  flex-wrap: wrap;
   gap: 12px;
   align-items: end;
-  flex-wrap: wrap;
-  margin-bottom: 16px;
+}
+
+.audit-toolbar-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
 }
 
 .field {
@@ -44,17 +55,21 @@
   font-size: 12px;
 }
 
-.table-footer {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-top: 12px;
+.table-wrapper {
+  overflow: auto;
 }
 
 .pagination {
   display: flex;
-  gap: 8px;
+  justify-content: space-between;
   align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.pagination-actions {
+  display: flex;
+  gap: 8px;
 }
 
 .muted-text {
@@ -73,11 +88,11 @@
   min-width: 0;
 }
 
-.data-table tr {
-  cursor: default;
+.audit-log-table tbody tr {
+  cursor: pointer;
 }
 
-.data-table tr.selected-row {
+.audit-log-table tbody tr.selected-row {
   outline: 2px solid currentColor;
   outline-offset: -2px;
 }
