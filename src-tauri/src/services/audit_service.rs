@@ -13,6 +13,7 @@ use crate::domain::audit::{
     GetAuditActionsResponse, GetAuditLogByIdPayload, GetAuditLogByIdResponse, GetAuditLogsPayload,
     GetAuditLogsResponse, GetAuditUsersResponse,
 };
+use crate::domain::audit_action;
 use crate::errors::app_error::AppErrorDto;
 use crate::repositories::audit_repository::{
     AuditLogFilters, AuditRepository, CreateAuditLogRecord,
@@ -29,10 +30,10 @@ pub const AUDIT_SEVERITY_INFO: &str = "info";
 
 pub const ENTITY_TYPE_EVENT: &str = "event";
 
-pub const EVENT_CREATED: &str = "EVENT_CREATED";
-pub const EVENT_UPDATED: &str = "EVENT_UPDATED";
-pub const EVENT_DELETED: &str = "EVENT_DELETED";
-pub const EVENT_REPORT_FLAG_CHANGED: &str = "EVENT_REPORT_FLAG_CHANGED";
+pub const EVENT_CREATED: &str = audit_action::timeline::EVENT_CREATED;
+pub const EVENT_UPDATED: &str = audit_action::timeline::EVENT_UPDATED;
+pub const EVENT_DELETED: &str = audit_action::timeline::EVENT_DELETED;
+pub const EVENT_REPORT_FLAG_CHANGED: &str = audit_action::timeline::EVENT_REPORT_INCLUDE_CHANGED;
 
 pub struct AuditService;
 
@@ -342,7 +343,7 @@ impl AuditService {
     ) {
         let input = AuditSuccessInput::new(
             user,
-            "AUDIT_LOG_EXPORTED",
+            audit_action::audit::LOG_EXPORTED,
             "audit",
             None,
             None,

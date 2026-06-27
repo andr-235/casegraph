@@ -1,3 +1,5 @@
+import { formatAuditAction } from "../model/auditActionLabels";
+
 type BadgeProps = {
   value: string;
 };
@@ -18,8 +20,8 @@ export function AuditSeverityBadge({ value }: BadgeProps) {
 
 export function AuditActionBadge({ value }: BadgeProps) {
   return (
-    <span className={`audit-badge audit-badge--action`}>
-      <code>{value}</code>
+    <span className="audit-badge audit-badge--action" title={value}>
+      {formatAuditAction(value)}
     </span>
   );
 }

@@ -4,6 +4,8 @@ import type {
 } from "../model/auditTypes";
 import type { AuditLogFilters } from "../model/auditLogFilters";
 
+import { formatAuditAction } from "../model/auditActionLabels";
+
 type AuditLogToolbarProps = {
   filters: AuditLogFilters;
   actionOptions: AuditActionOptionDto[];
@@ -51,7 +53,7 @@ export function AuditLogToolbar({
             <option value="">Все действия</option>
             {actionOptions.map((option) => (
               <option key={option.action} value={option.action}>
-                {option.action} ({option.count})
+                {formatAuditAction(option.action)} ({option.count})
               </option>
             ))}
           </select>

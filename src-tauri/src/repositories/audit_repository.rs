@@ -4,6 +4,7 @@ use uuid::Uuid;
 use crate::domain::audit::{
     AuditAccessDeniedInput, AuditActionOptionDto, AuditLogDto, AuditUserOptionDto,
 };
+use crate::domain::audit_action_label::normalize_legacy_action;
 use crate::errors::app_error::AppErrorDto;
 use crate::security::session::CurrentUserDto;
 
@@ -61,7 +62,7 @@ impl AuditRepository {
                 current_user.user_id,
                 current_user.username,
                 current_user.role,
-                "ACCESS_DENIED",
+                crate::domain::audit_action::audit::ACCESS_DENIED,
                 input.entity_type,
                 input.entity_id,
                 "denied",
@@ -179,7 +180,7 @@ impl AuditRepository {
                         user_id: row.get(1)?,
                         username: row.get(2)?,
                         user_role: row.get(3)?,
-                        action: row.get(4)?,
+                        action: normalize_legacy_action(&row.get::<_, String>(4)?).to_string(),
                         entity_type: row.get(5)?,
                         entity_id: row.get(6)?,
                         case_id: row.get(7)?,
@@ -237,7 +238,7 @@ impl AuditRepository {
                     user_id: row.get(1)?,
                     username: row.get(2)?,
                     user_role: row.get(3)?,
-                    action: row.get(4)?,
+                    action: normalize_legacy_action(&row.get::<_, String>(4)?).to_string(),
                     entity_type: row.get(5)?,
                     entity_id: row.get(6)?,
                     case_id: row.get(7)?,
@@ -382,7 +383,7 @@ impl AuditRepository {
                         user_id: row.get(1)?,
                         username: row.get(2)?,
                         user_role: row.get(3)?,
-                        action: row.get(4)?,
+                        action: normalize_legacy_action(&row.get::<_, String>(4)?).to_string(),
                         entity_type: row.get(5)?,
                         entity_id: row.get(6)?,
                         case_id: row.get(7)?,

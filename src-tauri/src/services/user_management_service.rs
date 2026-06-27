@@ -1,6 +1,7 @@
 use tauri::AppHandle;
 
 use crate::db::connection::open_connection;
+use crate::domain::audit_action;
 use crate::domain::user_management::{
     BlockUserPayload, BlockUserResponse, ChangeOwnPasswordPayload, ChangeOwnPasswordResponse,
     CreateUserPayload, CreateUserResponse, GetRolesResponse, GetUserByIdPayload,
@@ -192,7 +193,13 @@ impl UserManagementService {
 
         let user = UserManagementRepository::get_user_by_id(conn, &user_id)?;
 
-        write_user_activity_audit_best_effort(app, current_user, "USER_BLOCKED", &old_user, &user);
+        write_user_activity_audit_best_effort(
+            app,
+            current_user,
+            audit_action::user::BLOCKED,
+            &old_user,
+            &user,
+        );
 
         Ok(BlockUserResponse { user })
     }
@@ -220,7 +227,7 @@ impl UserManagementService {
         write_user_activity_audit_best_effort(
             app,
             current_user,
-            "USER_UNBLOCKED",
+            audit_action::user::UNBLOCKED,
             &old_user,
             &user,
         );
@@ -333,7 +340,7 @@ fn write_user_created_audit_best_effort(
 
     let input = AuditSuccessInput::new(
         current_user,
-        "USER_CREATED",
+        audit_action::user::CREATED,
         "user",
         Some(&created_user.id),
         None,
@@ -375,7 +382,7 @@ fn write_user_updated_audit_best_effort(
 
     let input = AuditSuccessInput::new(
         current_user,
-        "USER_UPDATED",
+        audit_action::user::UPDATED,
         "user",
         Some(&new_user.id),
         None,
@@ -438,7 +445,7 @@ fn write_own_password_changed_audit_best_effort(app: &AppHandle, current_user: &
         &current_user.user_id,
         &current_user.username,
         &current_user.role,
-        "USER_PASSWORD_CHANGED",
+        audit_action::user::PASSWORD_CHANGED,
         "user",
         Some(&current_user.user_id),
         None,
@@ -479,7 +486,7 @@ fn write_user_password_reset_audit_best_effort(
         &current_user.user_id,
         &current_user.username,
         &current_user.role,
-        "USER_PASSWORD_RESET",
+        audit_action::user::PASSWORD_RESET,
         "user",
         Some(&new_user.id),
         None,

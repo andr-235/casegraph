@@ -4,6 +4,7 @@ import {
   AuditSeverityBadge,
 } from "./AuditBadges";
 import type { AuditLogDetailsDto } from "../model/auditTypes";
+import { formatAuditAction } from "../model/auditActionLabels";
 
 type AuditLogDetailsPanelProps = {
   item: AuditLogDetailsDto | null;
@@ -33,7 +34,7 @@ export function AuditLogDetailsPanel({
       <header className="details-panel-header">
         <div>
           <h2>Детали события</h2>
-          {item ? <p>{item.action}</p> : null}
+          {item ? <p>{formatAuditAction(item.action)}</p> : null}
         </div>
 
         <button type="button" onClick={onClose} aria-label="Закрыть">
@@ -60,6 +61,11 @@ export function AuditLogDetailsPanel({
 
               <div>
                 <dt>Действие</dt>
+                <dd>{formatAuditAction(item.action)}</dd>
+              </div>
+
+              <div>
+                <dt>Код действия</dt>
                 <dd>
                   <code>{item.action}</code>
                 </dd>
