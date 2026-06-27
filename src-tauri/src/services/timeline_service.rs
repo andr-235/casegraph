@@ -333,16 +333,6 @@ impl TimelineService {
 
         let conn = open_connection(app)?;
 
-        let exists = TimelineRepository::event_belongs_to_case(&conn, &case_id, &event_id)?;
-
-        if !exists {
-            return Err(AppErrorDto::new(
-                "ERR_EVENT_NOT_FOUND",
-                "Событие не найдено",
-                None,
-            ));
-        }
-
         TimelineRepository::soft_delete_event(&conn, &case_id, &event_id)?;
 
         Ok(SoftDeleteEventResponse { event_id })

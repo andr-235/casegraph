@@ -1,4 +1,4 @@
-use rusqlite::{params, Connection};
+use rusqlite::{params, Connection, Row};
 use uuid::Uuid;
 
 use crate::domain::timeline::{
@@ -40,6 +40,32 @@ pub struct UpdateEventRecord {
     pub source_note: String,
     pub analyst_comment: String,
     pub include_in_report: bool,
+}
+
+fn map_timeline_event_row(row: &Row<'_>) -> rusqlite::Result<TimelineEventDto> {
+    let include_in_report: i64 = row.get(13)?;
+
+    Ok(TimelineEventDto {
+        id: row.get(0)?,
+        case_id: row.get(1)?,
+        event_code: row.get(2)?,
+        event_type: row.get(3)?,
+        title: row.get(4)?,
+        description: row.get(5)?,
+        event_date: row.get(6)?,
+        event_time: row.get(7)?,
+        date_precision: row.get(8)?,
+        period_start: row.get(9)?,
+        period_end: row.get(10)?,
+        source_note: row.get(11)?,
+        analyst_comment: row.get(12)?,
+        include_in_report: include_in_report == 1,
+        linked_object_count: row.get(14)?,
+        linked_material_count: row.get(15)?,
+        created_by_user_id: row.get(16)?,
+        created_at: row.get(17)?,
+        updated_at: row.get(18)?,
+    })
 }
 
 pub struct TimelineRepository;
@@ -231,29 +257,7 @@ impl TimelineRepository {
             .map_err(|err| AppErrorDto::database(err.to_string()))?;
 
         let rows = stmt
-            .query_map(params![case_id], |row| {
-                Ok(TimelineEventDto {
-                    id: row.get(0)?,
-                    case_id: row.get(1)?,
-                    event_code: row.get(2)?,
-                    event_type: row.get(3)?,
-                    title: row.get(4)?,
-                    description: row.get(5)?,
-                    event_date: row.get(6)?,
-                    event_time: row.get(7)?,
-                    date_precision: row.get(8)?,
-                    period_start: row.get(9)?,
-                    period_end: row.get(10)?,
-                    source_note: row.get(11)?,
-                    analyst_comment: row.get(12)?,
-                    include_in_report: row.get::<_, i32>(13)? == 1,
-                    linked_object_count: row.get(14)?,
-                    linked_material_count: row.get(15)?,
-                    created_by_user_id: row.get(16)?,
-                    created_at: row.get(17)?,
-                    updated_at: row.get(18)?,
-                })
-            })
+            .query_map(params![case_id], map_timeline_event_row)
             .map_err(|err| AppErrorDto::database(err.to_string()))?;
 
         let mut items = Vec::new();

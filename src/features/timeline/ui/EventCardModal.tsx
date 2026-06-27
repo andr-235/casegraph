@@ -10,6 +10,10 @@ import {
   datePrecisionOptions,
   eventTypeOptions,
 } from "../model/timelineOptions";
+import {
+  createUpdateEventPayloadFromDetails,
+  sanitizeUpdateEventPayload,
+} from "../model/eventFormMappers";
 import type {
   EventDetailsDto,
   UpdateEventPayload,
@@ -54,29 +58,9 @@ export function EventCardModal({
     try {
       const response = await getEventById({ caseId, eventId });
       const details = response.eventDetails;
-      setEventDetails(details);
 
-      setForm({
-        caseId,
-        eventId,
-        eventType: details.eventItem.eventType,
-        title: details.eventItem.title,
-        description: details.eventItem.description,
-        eventDate: details.eventItem.eventDate,
-        eventTime: details.eventItem.eventTime ?? undefined,
-        datePrecision: details.eventItem.datePrecision,
-        periodStart: details.eventItem.periodStart ?? undefined,
-        periodEnd: details.eventItem.periodEnd ?? undefined,
-        sourceNote: details.eventItem.sourceNote,
-        analystComment: details.eventItem.analystComment,
-        includeInReport: details.eventItem.includeInReport,
-        objectIds: details.linkedObjects.map((item) => item.objectId),
-        materialIds: details.linkedMaterials.map((item) => item.materialId),
-        linkNote:
-          details.linkedObjects[0]?.linkNote ??
-          details.linkedMaterials[0]?.linkNote ??
-          "",
-      });
+      setEventDetails(details);
+      setForm(createUpdateEventPayloadFromDetails(caseId, eventId, details));
     } catch (unknownError) {
       setErrorMessage(
         unknownError instanceof Error
@@ -116,18 +100,19 @@ export function EventCardModal({
     setIsSaving(true);
     setErrorMessage("");
 
-    const payload: UpdateEventPayload = {
-      ...form,
-      title: form.title.trim(),
-      description: form.description.trim(),
-      sourceNote: form.sourceNote.trim(),
-      analystComment: form.analystComment.trim(),
-      linkNote: form.linkNote.trim(),
-      eventDate: form.eventDate.trim(),
-      eventTime: form.eventTime?.trim() || undefined,
-      periodStart: form.periodStart?.trim() || undefined,
-      periodEnd: form.periodEnd?.trim() || undefined,
-    };
+    const payload = sanitizeUpdateEventPayload(form);
+
+    if (!payload.title) {
+      setErrorMessage("Название события обязательно");
+      setIsSaving(false);
+      return;
+    }
+
+    if (!payload.eventDate) {
+      setErrorMessage("Дата события обязательна");
+      setIsSaving(false);
+      return;
+    }
 
     try {
       await updateEvent(payload);

@@ -49,6 +49,15 @@ export function TimelinePage({ caseId, readonly = false }: TimelinePageProps) {
     }
   }
 
+  function closeEventModal() {
+    setSelectedEventId(null);
+  }
+
+  function refreshTimelineAndCloseEventModal() {
+    setSelectedEventId(null);
+    void loadTimeline();
+  }
+
   async function loadSelectOptions() {
     try {
       const [objectsResult, materialsResult] = await Promise.all([
@@ -184,15 +193,9 @@ export function TimelinePage({ caseId, readonly = false }: TimelinePageProps) {
           objectOptions={objectOptions}
           materialOptions={materialOptions}
           readonly={readonly}
-          onClose={() => setSelectedEventId(null)}
-          onSaved={() => {
-            setSelectedEventId(null);
-            void loadTimeline();
-          }}
-          onDeleted={() => {
-            setSelectedEventId(null);
-            void loadTimeline();
-          }}
+          onClose={closeEventModal}
+          onSaved={refreshTimelineAndCloseEventModal}
+          onDeleted={refreshTimelineAndCloseEventModal}
         />
       )}
     </section>
