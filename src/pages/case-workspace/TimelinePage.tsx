@@ -5,7 +5,7 @@ import { getObjects } from "../../features/objects/api/objectsApi";
 import { TimelineFiltersPanel } from "../../features/timeline/ui/TimelineFiltersPanel";
 import { CreateEventModal } from "../../features/timeline/ui/CreateEventModal";
 import { EventCardModal } from "../../features/timeline/ui/EventCardModal";
-import { getTimeline } from "../../features/timeline/api/timelineApi";
+import { getTimeline, toggleEventReportInclude } from "../../features/timeline/api/timelineApi";
 import {
   getDatePrecisionLabel,
   getEventTypeLabel,
@@ -38,6 +38,7 @@ export function TimelinePage({ caseId, readonly = false }: TimelinePageProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
+  const [togglingEventId, setTogglingEventId] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
 
   async function loadTimelineWithFilters(nextFilters: TimelineFiltersState) {
@@ -105,6 +106,42 @@ export function TimelinePage({ caseId, readonly = false }: TimelinePageProps) {
       );
     } catch {
       // Silently fail - options will just be empty
+    }
+  }
+
+  async function handleToggleIncludeInReport(
+    eventId: string,
+    nextValue: boolean,
+  ) {
+    if (readonly || togglingEventId) {
+      return;
+    }
+
+    setTogglingEventId(eventId);
+    setErrorMessage("");
+
+    try {
+      const result = await toggleEventReportInclude({
+        caseId,
+        eventId,
+        includeInReport: nextValue,
+      });
+
+      setItems((current) =>
+        current.map((eventItem) =>
+          eventItem.id === result.eventItem.id
+            ? result.eventItem
+            : eventItem,
+        ),
+      );
+    } catch (unknownError) {
+      setErrorMessage(
+        unknownError instanceof Error
+          ? unknownError.message
+          : "Не удалось изменить включение события в DOCX",
+      );
+    } finally {
+      setTogglingEventId(null);
     }
   }
 
@@ -192,7 +229,21 @@ export function TimelinePage({ caseId, readonly = false }: TimelinePageProps) {
                 </td>
                 <td>{item.linkedObjectCount}</td>
                 <td>{item.linkedMaterialCount}</td>
-                <td>{item.includeInReport ? "Да" : "Нет"}</td>
+                <td>
+                  <button
+                    type="button"
+                    className="link-button"
+                    disabled={readonly || togglingEventId === item.id}
+                    onClick={() =>
+                      void handleToggleIncludeInReport(
+                        item.id,
+                        !item.includeInReport,
+                      )
+                    }
+                  >
+                    {item.includeInReport ? "Да" : "Нет"}
+                  </button>
+                </td>
                 <td>
                   <button
                     type="button"

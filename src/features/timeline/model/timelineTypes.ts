@@ -122,3 +122,13 @@ export type SoftDeleteEventPayload = {
 export type SoftDeleteEventResponse = {
   eventId: string;
 };
+
+export type ToggleEventReportIncludePayload = {
+  caseId: string;
+  eventId: string;
+  includeInReport: boolean;
+};
+
+export type ToggleEventReportIncludeResponse = {
+  eventItem: TimelineEventDto;
+};

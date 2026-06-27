@@ -3,7 +3,8 @@ use tauri::{AppHandle, State};
 use crate::domain::timeline::{
     CreateEventPayload, CreateEventResponse, GetEventByIdPayload, GetEventByIdResponse,
     GetTimelinePayload, GetTimelineResponse, SoftDeleteEventPayload, SoftDeleteEventResponse,
-    UpdateEventPayload, UpdateEventResponse,
+    ToggleEventReportIncludePayload, ToggleEventReportIncludeResponse, UpdateEventPayload,
+    UpdateEventResponse,
 };
 use crate::errors::app_error::CommandResult;
 use crate::security::session::SessionState;
@@ -64,6 +65,18 @@ pub fn soft_delete_event(
     payload: SoftDeleteEventPayload,
 ) -> CommandResult<SoftDeleteEventResponse> {
     match TimelineService::soft_delete_event(&app, &session, payload) {
+        Ok(response) => CommandResult::ok(response),
+        Err(error) => CommandResult::err(error),
+    }
+}
+
+#[tauri::command]
+pub fn toggle_event_report_include(
+    app: AppHandle,
+    session: State<SessionState>,
+    payload: ToggleEventReportIncludePayload,
+) -> CommandResult<ToggleEventReportIncludeResponse> {
+    match TimelineService::toggle_event_report_include(&app, &session, payload) {
         Ok(response) => CommandResult::ok(response),
         Err(error) => CommandResult::err(error),
     }

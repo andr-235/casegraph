@@ -634,6 +634,92 @@ impl TimelineRepository {
         Ok(())
     }
 
+    pub fn toggle_event_report_include(
+        conn: &Connection,
+        case_id: &str,
+        event_id: &str,
+        include_in_report: bool,
+    ) -> Result<TimelineEventDto, AppErrorDto> {
+        let include_value: i64 = if include_in_report { 1 } else { 0 };
+
+        let affected = conn
+            .execute(
+                "
+                UPDATE events
+                SET include_in_report = ?1,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?2
+                  AND case_id = ?3
+                  AND archived_at IS NULL
+                ",
+                params![include_value, event_id, case_id],
+            )
+            .map_err(|err| AppErrorDto::database(err.to_string()))?;
+
+        if affected == 0 {
+            return Err(AppErrorDto::new(
+                "ERR_EVENT_NOT_FOUND",
+                "Событие не найдено",
+                None,
+            ));
+        }
+
+        Self::get_event_list_item_by_id(conn, case_id, event_id)
+    }
+
+    pub fn get_event_list_item_by_id(
+        conn: &Connection,
+        case_id: &str,
+        event_id: &str,
+    ) -> Result<TimelineEventDto, AppErrorDto> {
+        conn.query_row(
+            "
+            SELECT
+                e.id,
+                e.case_id,
+                e.event_code,
+                e.event_type,
+                e.title,
+                e.description,
+                e.event_date,
+                e.event_time,
+                e.date_precision,
+                e.period_start,
+                e.period_end,
+                e.source_note,
+                e.analyst_comment,
+                e.include_in_report,
+                (
+                    SELECT COUNT(*)
+                    FROM event_objects eo
+                    WHERE eo.event_id = e.id
+                ) AS linked_object_count,
+                (
+                    SELECT COUNT(*)
+                    FROM event_materials em
+                    WHERE em.event_id = e.id
+                ) AS linked_material_count,
+                e.created_by_user_id,
+                e.created_at,
+                e.updated_at
+            FROM events e
+            WHERE e.id = ?1
+              AND e.case_id = ?2
+              AND e.archived_at IS NULL
+            LIMIT 1
+            ",
+            params![event_id, case_id],
+            map_timeline_event_row,
+        )
+        .map_err(|err| {
+            if matches!(err, rusqlite::Error::QueryReturnedNoRows) {
+                AppErrorDto::new("ERR_EVENT_NOT_FOUND", "Событие не найдено", None)
+            } else {
+                AppErrorDto::database(err.to_string())
+            }
+        })
+    }
+
     fn get_event_materials(
         conn: &Connection,
         case_id: &str,

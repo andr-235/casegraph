@@ -157,3 +157,17 @@ pub struct SoftDeleteEventPayload {
 pub struct SoftDeleteEventResponse {
     pub event_id: String,
 }
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ToggleEventReportIncludePayload {
+    pub case_id: String,
+    pub event_id: String,
+    pub include_in_report: bool,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ToggleEventReportIncludeResponse {
+    pub event_item: TimelineEventDto,
+}

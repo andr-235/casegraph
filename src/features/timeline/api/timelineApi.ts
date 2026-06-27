@@ -8,6 +8,8 @@ import type {
   GetTimelineResponse,
   SoftDeleteEventPayload,
   SoftDeleteEventResponse,
+  ToggleEventReportIncludePayload,
+  ToggleEventReportIncludeResponse,
   UpdateEventPayload,
   UpdateEventResponse,
 } from "../model/timelineTypes";
@@ -32,4 +34,13 @@ export function softDeleteEvent(payload: SoftDeleteEventPayload) {
   return invokeCommand<SoftDeleteEventResponse>("soft_delete_event", {
     payload,
   });
+}
+
+export function toggleEventReportInclude(
+  payload: ToggleEventReportIncludePayload,
+) {
+  return invokeCommand<ToggleEventReportIncludeResponse>(
+    "toggle_event_report_include",
+    { payload },
+  );
 }

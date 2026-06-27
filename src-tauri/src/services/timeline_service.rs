@@ -5,7 +5,8 @@ use crate::db::connection::open_connection;
 use crate::domain::timeline::{
     CreateEventPayload, CreateEventResponse, GetEventByIdPayload, GetEventByIdResponse,
     GetTimelinePayload, GetTimelineResponse, SoftDeleteEventPayload, SoftDeleteEventResponse,
-    UpdateEventPayload, UpdateEventResponse,
+    ToggleEventReportIncludePayload, ToggleEventReportIncludeResponse, UpdateEventPayload,
+    UpdateEventResponse,
 };
 use crate::errors::app_error::AppErrorDto;
 use crate::repositories::timeline_repository::{
@@ -361,5 +362,46 @@ impl TimelineService {
         TimelineRepository::soft_delete_event(&conn, &case_id, &event_id)?;
 
         Ok(SoftDeleteEventResponse { event_id })
+    }
+
+    pub fn toggle_event_report_include(
+        app: &AppHandle,
+        session: &SessionState,
+        payload: ToggleEventReportIncludePayload,
+    ) -> Result<ToggleEventReportIncludeResponse, AppErrorDto> {
+        let current_user = session.get_current_user().ok_or_else(|| {
+            AppErrorDto::new("ERR_UNAUTHORIZED", "Пользователь не авторизован", None)
+        })?;
+
+        if current_user.role != "administrator" && current_user.role != "analyst" {
+            return Err(AppErrorDto::new(
+                "ERR_ACCESS_DENIED",
+                "Недостаточно прав для изменения признака включения события в справку",
+                None,
+            ));
+        }
+
+        let case_id = normalize_required_id(
+            &payload.case_id,
+            "ERR_INVALID_CASE_ID",
+            "ID дела обязателен",
+        )?;
+
+        let event_id = normalize_required_id(
+            &payload.event_id,
+            "ERR_INVALID_EVENT_ID",
+            "ID события обязателен",
+        )?;
+
+        let conn = open_connection(app)?;
+
+        let event_item = TimelineRepository::toggle_event_report_include(
+            &conn,
+            &case_id,
+            &event_id,
+            payload.include_in_report,
+        )?;
+
+        Ok(ToggleEventReportIncludeResponse { event_item })
     }
 }
