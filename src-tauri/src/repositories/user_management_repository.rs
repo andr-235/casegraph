@@ -1,4 +1,5 @@
 use rusqlite::{params, Connection};
+use uuid::Uuid;
 
 use crate::domain::user_management::{RoleOptionDto, UserListItemDto};
 use crate::errors::app_error::AppErrorDto;
@@ -119,6 +120,107 @@ impl UserManagementRepository {
             "#,
             params![normalized_query, normalized_role, normalized_status],
             |row| row.get(0),
+        )
+        .map_err(|err| AppErrorDto::database(err.to_string()))
+    }
+
+    pub fn username_exists(conn: &Connection, username: &str) -> Result<bool, AppErrorDto> {
+        let count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM users WHERE LOWER(username) = LOWER(?1)",
+                params![username],
+                |row| row.get(0),
+            )
+            .map_err(|err| AppErrorDto::database(err.to_string()))?;
+
+        Ok(count > 0)
+    }
+
+    pub fn get_role_id_by_code(conn: &Connection, role_code: &str) -> Result<String, AppErrorDto> {
+        conn.query_row(
+            "SELECT id FROM roles WHERE code = ?1 LIMIT 1",
+            params![role_code],
+            |row| row.get(0),
+        )
+        .map_err(|err| AppErrorDto::database(err.to_string()))
+    }
+
+    pub fn create_user(
+        conn: &Connection,
+        username: &str,
+        display_name: Option<&str>,
+        role_id: &str,
+        password_hash: &str,
+        must_change_password: bool,
+    ) -> Result<String, AppErrorDto> {
+        let user_id = Uuid::new_v4().to_string();
+
+        conn.execute(
+            r#"
+            INSERT INTO users (
+                id,
+                username,
+                display_name,
+                role_id,
+                password_hash,
+                is_active,
+                must_change_password,
+                created_at,
+                updated_at
+            )
+            VALUES (?1, ?2, ?3, ?4, ?5, 1, ?6, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            "#,
+            params![
+                user_id,
+                username,
+                display_name,
+                role_id,
+                password_hash,
+                if must_change_password { 1 } else { 0 },
+            ],
+        )
+        .map_err(|err| AppErrorDto::database(err.to_string()))?;
+
+        Ok(user_id)
+    }
+
+    pub fn get_user_by_id(
+        conn: &Connection,
+        user_id: &str,
+    ) -> Result<UserListItemDto, AppErrorDto> {
+        conn.query_row(
+            r#"
+            SELECT
+                u.id,
+                u.username,
+                u.display_name,
+                r.code AS role_code,
+                COALESCE(r.title, r.code) AS role_title,
+                u.is_active,
+                COALESCE(u.must_change_password, 0) AS must_change_password,
+                NULL AS last_login_at,
+                u.created_at,
+                u.updated_at
+            FROM users u
+            INNER JOIN roles r ON r.id = u.role_id
+            WHERE u.id = ?1
+            LIMIT 1
+            "#,
+            params![user_id],
+            |row| {
+                Ok(UserListItemDto {
+                    id: row.get(0)?,
+                    username: row.get(1)?,
+                    display_name: row.get(2)?,
+                    role_code: row.get(3)?,
+                    role_title: row.get(4)?,
+                    is_active: row.get::<_, i64>(5)? == 1,
+                    must_change_password: row.get::<_, i64>(6)? == 1,
+                    last_login_at: row.get(7)?,
+                    created_at: row.get(8)?,
+                    updated_at: row.get(9)?,
+                })
+            },
         )
         .map_err(|err| AppErrorDto::database(err.to_string()))
     }

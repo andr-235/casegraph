@@ -1,10 +1,15 @@
 use tauri::AppHandle;
 
 use crate::db::connection::open_connection;
-use crate::domain::user_management::{GetRolesResponse, GetUsersPayload, GetUsersResponse};
+use crate::domain::user_management::{
+    CreateUserPayload, CreateUserResponse, GetRolesResponse, GetUsersPayload, GetUsersResponse,
+    UserListItemDto,
+};
 use crate::errors::app_error::AppErrorDto;
 use crate::repositories::user_management_repository::UserManagementRepository;
+use crate::security::password::hash_password;
 use crate::security::session::{CurrentUserDto, SessionState};
+use crate::services::user_management_validation::normalize_create_user_payload;
 
 const DEFAULT_USERS_LIMIT: i64 = 50;
 const MAX_USERS_LIMIT: i64 = 200;
@@ -45,6 +50,41 @@ impl UserManagementService {
         Ok(GetUsersResponse { users, total })
     }
 
+    pub fn create_user(
+        app: &AppHandle,
+        session: &SessionState,
+        payload: CreateUserPayload,
+    ) -> Result<CreateUserResponse, AppErrorDto> {
+        let current_user = require_user_management_admin(session)?;
+        let input = normalize_create_user_payload(payload)?;
+
+        let conn = open_connection(app)?;
+
+        if UserManagementRepository::username_exists(&conn, &input.username)? {
+            return Err(AppErrorDto::validation(
+                "Пользователь с таким логином уже существует",
+            ));
+        }
+
+        let role_id = UserManagementRepository::get_role_id_by_code(&conn, &input.role_code)?;
+        let password_hash = hash_password(&input.password)?;
+
+        let user_id = UserManagementRepository::create_user(
+            &conn,
+            &input.username,
+            input.display_name.as_deref(),
+            &role_id,
+            &password_hash,
+            input.must_change_password,
+        )?;
+
+        let user = UserManagementRepository::get_user_by_id(&conn, &user_id)?;
+
+        write_user_created_audit_best_effort(app, &current_user, &user);
+
+        Ok(CreateUserResponse { user })
+    }
+
     pub fn get_roles(
         app: &AppHandle,
         session: &SessionState,
@@ -70,6 +110,36 @@ fn require_user_management_admin(session: &SessionState) -> Result<CurrentUserDt
     }
 
     Ok(current_user)
+}
+
+fn write_user_created_audit_best_effort(
+    app: &AppHandle,
+    current_user: &CurrentUserDto,
+    created_user: &UserListItemDto,
+) {
+    use crate::services::audit_service::{to_json_value, AuditService, AuditSuccessInput};
+
+    let new_value = match to_json_value(&serde_json::json!({
+        "id": created_user.id,
+        "username": created_user.username,
+        "roleCode": created_user.role_code,
+    })) {
+        Ok(value) => Some(value),
+        Err(_) => None,
+    };
+
+    let input = AuditSuccessInput::new(
+        current_user,
+        "USER_CREATED",
+        "user",
+        Some(&created_user.id),
+        None,
+        None,
+        new_value,
+        None,
+    );
+
+    AuditService::write_success_non_blocking(app.clone(), input);
 }
 
 fn normalize_limit(limit: Option<i64>) -> i64 {

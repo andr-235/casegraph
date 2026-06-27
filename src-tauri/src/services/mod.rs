@@ -12,3 +12,4 @@ pub mod relation_validation;
 pub mod timeline_service;
 pub mod timeline_validation;
 pub mod user_management_service;
+pub mod user_management_validation;

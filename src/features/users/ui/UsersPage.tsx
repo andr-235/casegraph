@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { CurrentUserDto } from "../../auth/model/authTypes";
 import { formatError } from "../../../shared/lib/formatError";
 import { getRoles, getUsers } from "../api/usersApi";
+import { CreateUserModal } from "./CreateUserModal";
 import type {
   RoleOptionDto,
   UserListItemDto,
@@ -31,6 +32,7 @@ export function UsersPage({ user: _user, onBack }: Props) {
 
   const [loadState, setLoadState] = useState<LoadState>("idle");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
   const page = Math.floor(offset / PAGE_SIZE) + 1;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
@@ -91,6 +93,11 @@ export function UsersPage({ user: _user, onBack }: Props) {
 
   const roleFilterValue = roleFilter;
 
+  async function handleUserCreated() {
+    setIsCreateModalOpen(false);
+    await loadUsers();
+  }
+
   return (
     <main className="page" style={{ padding: 32 }}>
       <header className="page-header">
@@ -100,7 +107,7 @@ export function UsersPage({ user: _user, onBack }: Props) {
         </div>
 
         <div style={{ display: "flex", gap: 8 }}>
-          <button type="button" disabled title="Будет добавлено следующим срезом">
+          <button type="button" onClick={() => setIsCreateModalOpen(true)}>
             Создать пользователя
           </button>
           <button type="button" onClick={onBack}>
@@ -226,6 +233,13 @@ export function UsersPage({ user: _user, onBack }: Props) {
             </button>
           </footer>
         </>
+      )}
+      {isCreateModalOpen && (
+        <CreateUserModal
+          roles={roles}
+          onClose={() => setIsCreateModalOpen(false)}
+          onCreated={handleUserCreated}
+        />
       )}
     </main>
   );

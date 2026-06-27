@@ -68,7 +68,8 @@ pub fn run() {
             commands::audit_commands::get_audit_users,
             commands::audit_commands::export_audit_log,
             commands::user_management_commands::get_users,
-            commands::user_management_commands::get_roles
+            commands::user_management_commands::get_roles,
+            commands::user_management_commands::create_user
         ])
         .run(tauri::generate_context!())
         .expect("error while running CaseGraph");

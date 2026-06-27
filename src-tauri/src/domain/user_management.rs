@@ -2,6 +2,22 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct CreateUserPayload {
+    pub username: String,
+    pub display_name: Option<String>,
+    pub role_code: String,
+    pub password: String,
+    pub must_change_password: Option<bool>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CreateUserResponse {
+    pub user: UserListItemDto,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct GetUsersPayload {
     pub query: Option<String>,
     pub role: Option<String>,

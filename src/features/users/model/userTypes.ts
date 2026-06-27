@@ -34,6 +34,18 @@ export type GetUsersResponse = {
   total: number;
 };
 
+export type CreateUserPayload = {
+  username: string;
+  displayName?: string;
+  roleCode: UserRole;
+  password: string;
+  mustChangePassword: boolean;
+};
+
+export type CreateUserResponse = {
+  user: UserListItemDto;
+};
+
 export type GetRolesResponse = {
   roles: RoleOptionDto[];
 };
