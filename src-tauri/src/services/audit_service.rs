@@ -4,8 +4,11 @@ use serde_json::Value;
 use tauri::AppHandle;
 
 use crate::db::connection::open_connection;
+use crate::domain::audit::{GetAuditLogsPayload, GetAuditLogsResponse};
 use crate::errors::app_error::AppErrorDto;
-use crate::repositories::audit_repository::{AuditRepository, CreateAuditLogRecord};
+use crate::repositories::audit_repository::{
+    AuditLogFilters, AuditRepository, CreateAuditLogRecord,
+};
 use crate::security::session::CurrentUserDto;
 
 pub const AUDIT_RESULT_SUCCESS: &str = "success";
@@ -79,6 +82,53 @@ impl AuditService {
         });
     }
 
+    pub fn get_audit_logs(
+        conn: &Connection,
+        current_user: &CurrentUserDto,
+        payload: GetAuditLogsPayload,
+    ) -> Result<GetAuditLogsResponse, AppErrorDto> {
+        let user_role = current_user.role.as_str();
+
+        if user_role == "viewer" {
+            return Err(AppErrorDto::access_denied(
+                "Недостаточно прав для просмотра журнала действий.",
+            ));
+        }
+
+        let page = payload.page.unwrap_or(1).max(1);
+        let page_size = payload.page_size.unwrap_or(50).clamp(10, 200);
+        let offset = (page - 1) * page_size;
+
+        let restricted_user_id = if user_role == "administrator" {
+            None
+        } else {
+            Some(current_user.user_id.clone())
+        };
+
+        let filters = AuditLogFilters {
+            action: normalize_optional_filter(payload.action),
+            result: normalize_optional_filter(payload.result),
+            severity: normalize_optional_filter(payload.severity),
+            case_id: normalize_optional_filter(payload.case_id),
+            entity_type: normalize_optional_filter(payload.entity_type),
+            date_from: normalize_optional_filter(payload.date_from),
+            date_to: normalize_optional_filter(payload.date_to),
+            user_id: restricted_user_id,
+            limit: page_size,
+            offset,
+        };
+
+        let total = AuditRepository::count_audit_logs(conn, &filters)?;
+        let items = AuditRepository::get_audit_logs(conn, &filters)?;
+
+        Ok(GetAuditLogsResponse {
+            items,
+            total,
+            page,
+            page_size,
+        })
+    }
+
     fn build_success_record(input: AuditSuccessInput) -> Result<CreateAuditLogRecord, AppErrorDto> {
         Ok(CreateAuditLogRecord {
             user_id: Some(input.user_id),
@@ -144,6 +194,12 @@ impl AuditSuccessInput {
             technical_details,
         }
     }
+}
+
+fn normalize_optional_filter(value: Option<String>) -> Option<String> {
+    value
+        .map(|item| item.trim().to_string())
+        .filter(|item| !item.is_empty())
 }
 
 fn serialize_optional_json(value: Option<Value>) -> Result<Option<String>, AppErrorDto> {

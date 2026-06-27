@@ -1,4 +1,5 @@
 pub mod app_commands;
+pub mod audit_commands;
 pub mod auth_commands;
 pub mod case_commands;
 pub mod graph_commands;

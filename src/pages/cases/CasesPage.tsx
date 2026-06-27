@@ -9,9 +9,10 @@ type Props = {
   user: CurrentUserDto;
   onLogout: () => void;
   onOpenCase: (caseItem: CaseDto) => void;
+  onOpenAuditLog?: () => void;
 };
 
-export function CasesPage({ user, onLogout, onOpenCase }: Props) {
+export function CasesPage({ user, onLogout, onOpenCase, onOpenAuditLog }: Props) {
   const [cases, setCases] = useState<CaseDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -53,6 +54,12 @@ export function CasesPage({ user, onLogout, onOpenCase }: Props) {
         </div>
 
         <div style={{ display: "flex", gap: 8 }}>
+          {user.role !== "viewer" && onOpenAuditLog ? (
+            <button type="button" onClick={onOpenAuditLog}>
+              Журнал
+            </button>
+          ) : null}
+
           <button type="button" onClick={() => setCreateModalOpen(true)}>
             Создать дело
           </button>

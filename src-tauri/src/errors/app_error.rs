@@ -31,6 +31,14 @@ impl AppErrorDto {
             Some(details.to_string()),
         )
     }
+
+    pub fn access_denied(message: &str) -> Self {
+        Self::new("ERR_ACCESS_DENIED", message, None)
+    }
+
+    pub fn unauthorized(message: &str) -> Self {
+        Self::new("ERR_UNAUTHORIZED", message, None)
+    }
 }
 
 #[derive(Debug, Serialize)]

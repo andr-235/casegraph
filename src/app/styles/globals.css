@@ -1,4 +1,49 @@
 
+.audit-log-toolbar {
+  display: flex;
+  gap: 12px;
+  align-items: end;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.audit-log-toolbar label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.audit-log-table code {
+  font-size: 12px;
+}
+
+.audit-badge {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 12px;
+}
+
+.table-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 12px;
+}
+
+.pagination {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.muted-text {
+  opacity: 0.65;
+  font-size: 12px;
+}
+
 .graph-summary {
   display: flex;
   gap: 12px;

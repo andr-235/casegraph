@@ -10,6 +10,7 @@ import { FirstAdminSetupPage } from "../pages/first-admin/FirstAdminSetupPage";
 import { LoginPage } from "../pages/login/LoginPage";
 import { CasesPage } from "../pages/cases/CasesPage";
 import { CaseWorkspacePage } from "../pages/case-workspace/CaseWorkspacePage";
+import { AuditLogPage } from "../pages/audit-log/AuditLogPage";
 
 type BootstrapState =
   | "loading"
@@ -23,6 +24,7 @@ export function App() {
     useState<BootstrapState>("loading");
   const [currentUser, setCurrentUser] = useState<CurrentUserDto | null>(null);
   const [selectedCase, setSelectedCase] = useState<CaseDto | null>(null);
+  const [showAuditLog, setShowAuditLog] = useState(false);
   const [startupError, setStartupError] = useState<string | null>(null);
 
   async function boot() {
@@ -119,11 +121,16 @@ export function App() {
     );
   }
 
-    return (
+  if (showAuditLog) {
+    return <AuditLogPage onBack={() => setShowAuditLog(false)} />;
+  }
+
+  return (
     <CasesPage
       user={currentUser}
       onLogout={handleLogout}
       onOpenCase={setSelectedCase}
+      onOpenAuditLog={() => setShowAuditLog(true)}
     />
   );
 }

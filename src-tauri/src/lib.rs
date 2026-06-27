@@ -61,7 +61,8 @@ pub fn run() {
             commands::timeline_commands::get_event_by_id,
             commands::timeline_commands::update_event,
             commands::timeline_commands::soft_delete_event,
-            commands::timeline_commands::toggle_event_report_include
+            commands::timeline_commands::toggle_event_report_include,
+            commands::audit_commands::get_audit_logs
         ])
         .run(tauri::generate_context!())
         .expect("error while running CaseGraph");
