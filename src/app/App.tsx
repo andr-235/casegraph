@@ -12,6 +12,7 @@ import { CasesPage } from "../pages/cases/CasesPage";
 import { CaseWorkspacePage } from "../pages/case-workspace/CaseWorkspacePage";
 import { AuditLogPage } from "../pages/audit-log/AuditLogPage";
 import { UsersPage } from "../features/users/ui/UsersPage";
+import { ChangePasswordPage } from "../pages/change-password/ChangePasswordPage";
 
 type BootstrapState =
   | "loading"
@@ -101,6 +102,12 @@ export function App() {
         onLoggedIn={(user) => {
           setCurrentUser(user);
           setSelectedCase(null);
+
+          if (user.mustChangePassword) {
+            setBootstrapState("authenticated");
+            return;
+          }
+
           setBootstrapState("authenticated");
         }}
       />
@@ -109,6 +116,27 @@ export function App() {
 
   if (!currentUser) {
     return <main style={{ padding: 32 }}>Сессия не найдена.</main>;
+  }
+
+  if (currentUser.mustChangePassword) {
+    return (
+      <ChangePasswordPage
+        onPasswordChanged={async () => {
+          try {
+            const { getCurrentUser } = await import(
+              "../features/auth/api/authApi"
+            );
+            const user = await getCurrentUser();
+
+            if (user) {
+              setCurrentUser(user);
+            }
+          } finally {
+            setBootstrapState("authenticated");
+          }
+        }}
+      />
+    );
   }
 
   if (selectedCase) {

@@ -1,3 +1,5 @@
+import type { CurrentUserDto } from "../../auth/model/authTypes";
+
 export type UserRole = "administrator" | "analyst" | "viewer";
 
 export type UserStatusFilter = "all" | "active" | "blocked";
@@ -88,6 +90,15 @@ export type ResetUserPasswordPayload = {
 
 export type ResetUserPasswordResponse = {
   user: UserListItemDto;
+};
+
+export type ChangeOwnPasswordPayload = {
+  currentPassword: string;
+  newPassword: string;
+};
+
+export type ChangeOwnPasswordResponse = {
+  user: CurrentUserDto;
 };
 
 export type GetRolesResponse = {

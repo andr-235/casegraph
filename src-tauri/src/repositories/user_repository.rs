@@ -10,6 +10,7 @@ pub struct UserAuthRow {
     pub password_hash: String,
     pub is_active: i64,
     pub role: String,
+    pub must_change_password: bool,
 }
 
 #[derive(Debug)]
@@ -81,7 +82,8 @@ impl UserRepository {
                 u.display_name,
                 u.password_hash,
                 u.is_active,
-                r.code
+                r.code,
+                COALESCE(u.must_change_password, 0) AS must_change_password
             FROM users u
             JOIN roles r ON r.id = u.role_id
             WHERE u.username = ?1
@@ -96,6 +98,7 @@ impl UserRepository {
                     password_hash: row.get(3)?,
                     is_active: row.get(4)?,
                     role: row.get(5)?,
+                    must_change_password: row.get::<_, i64>(6)? == 1,
                 })
             },
         )

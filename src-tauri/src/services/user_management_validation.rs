@@ -161,7 +161,7 @@ fn validate_role_code(role_code: &str) -> Result<(), AppErrorDto> {
     Ok(())
 }
 
-fn validate_password(password: &str) -> Result<(), AppErrorDto> {
+pub fn validate_password(password: &str) -> Result<(), AppErrorDto> {
     if password.len() < MIN_PASSWORD_LEN || password.len() > MAX_PASSWORD_LEN {
         return Err(AppErrorDto::validation(
             "Пароль должен содержать от 8 до 128 символов",

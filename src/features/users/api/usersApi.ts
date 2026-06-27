@@ -2,6 +2,8 @@ import { invokeCommand } from "../../../shared/api/invoke";
 import type {
   BlockUserPayload,
   BlockUserResponse,
+  ChangeOwnPasswordPayload,
+  ChangeOwnPasswordResponse,
   CreateUserPayload,
   CreateUserResponse,
   GetRolesResponse,
@@ -49,6 +51,14 @@ export function updateUser(
   payload: UpdateUserPayload,
 ): Promise<UpdateUserResponse> {
   return invokeCommand<UpdateUserResponse>("update_user", { payload });
+}
+
+export function changeOwnPassword(
+  payload: ChangeOwnPasswordPayload,
+): Promise<ChangeOwnPasswordResponse> {
+  return invokeCommand<ChangeOwnPasswordResponse>("change_own_password", {
+    payload,
+  });
 }
 
 export function resetUserPassword(

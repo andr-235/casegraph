@@ -5,6 +5,8 @@ export type CurrentUserDto = {
   username: string;
   displayName: string;
   role: UserRole;
+  isActive: boolean;
+  mustChangePassword: boolean;
 };
 
 export type CreateFirstAdminPayload = {

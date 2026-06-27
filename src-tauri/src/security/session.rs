@@ -9,6 +9,8 @@ pub struct CurrentUserDto {
     pub username: String,
     pub display_name: String,
     pub role: String,
+    pub is_active: bool,
+    pub must_change_password: bool,
 }
 
 #[derive(Default)]

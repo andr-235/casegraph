@@ -1,10 +1,11 @@
 use tauri::{AppHandle, State};
 
 use crate::domain::user_management::{
-    BlockUserPayload, BlockUserResponse, CreateUserPayload, CreateUserResponse, GetRolesResponse,
-    GetUserByIdPayload, GetUserByIdResponse, GetUsersPayload, GetUsersResponse,
-    ResetUserPasswordPayload, ResetUserPasswordResponse, UnblockUserPayload, UnblockUserResponse,
-    UpdateUserPayload, UpdateUserResponse,
+    BlockUserPayload, BlockUserResponse, ChangeOwnPasswordPayload, ChangeOwnPasswordResponse,
+    CreateUserPayload, CreateUserResponse, GetRolesResponse, GetUserByIdPayload,
+    GetUserByIdResponse, GetUsersPayload, GetUsersResponse, ResetUserPasswordPayload,
+    ResetUserPasswordResponse, UnblockUserPayload, UnblockUserResponse, UpdateUserPayload,
+    UpdateUserResponse,
 };
 use crate::errors::app_error::CommandResult;
 use crate::security::session::SessionState;
@@ -77,6 +78,18 @@ pub fn create_user(
     payload: CreateUserPayload,
 ) -> CommandResult<CreateUserResponse> {
     match UserManagementService::create_user(&app, &session, payload) {
+        Ok(response) => CommandResult::ok(response),
+        Err(error) => CommandResult::err(error),
+    }
+}
+
+#[tauri::command]
+pub fn change_own_password(
+    app: AppHandle,
+    session: State<SessionState>,
+    payload: ChangeOwnPasswordPayload,
+) -> CommandResult<ChangeOwnPasswordResponse> {
+    match UserManagementService::change_own_password(&app, &session, payload) {
         Ok(response) => CommandResult::ok(response),
         Err(error) => CommandResult::err(error),
     }

@@ -124,6 +124,8 @@ impl AuthService {
             username: user_row.username,
             display_name: user_row.display_name,
             role: user_row.role,
+            is_active: user_row.is_active == 1,
+            must_change_password: user_row.must_change_password,
         };
 
         session.set_current_user(user.clone());

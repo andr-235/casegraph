@@ -319,6 +319,36 @@ impl UserManagementRepository {
         .map_err(|err| AppErrorDto::database(err.to_string()))
     }
 
+    pub fn get_user_password_hash(conn: &Connection, user_id: &str) -> Result<String, AppErrorDto> {
+        conn.query_row(
+            "SELECT password_hash FROM users WHERE id = ?1",
+            params![user_id],
+            |row| row.get(0),
+        )
+        .map_err(|err| AppErrorDto::database(err.to_string()))
+    }
+
+    pub fn update_own_password_hash(
+        conn: &Connection,
+        user_id: &str,
+        password_hash: &str,
+    ) -> Result<(), AppErrorDto> {
+        conn.execute(
+            r#"
+            UPDATE users
+            SET
+                password_hash = ?2,
+                must_change_password = 0,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?1
+            "#,
+            params![user_id, password_hash],
+        )
+        .map_err(|err| AppErrorDto::database(err.to_string()))?;
+
+        Ok(())
+    }
+
     pub fn update_user_password_hash(
         conn: &Connection,
         user_id: &str,

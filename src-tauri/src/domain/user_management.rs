@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+use crate::security::session::CurrentUserDto;
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ResetUserPasswordPayload {
@@ -11,6 +13,19 @@ pub struct ResetUserPasswordPayload {
 #[serde(rename_all = "camelCase")]
 pub struct ResetUserPasswordResponse {
     pub user: UserListItemDto,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ChangeOwnPasswordPayload {
+    pub current_password: String,
+    pub new_password: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ChangeOwnPasswordResponse {
+    pub user: CurrentUserDto,
 }
 
 #[derive(Debug, Deserialize)]
