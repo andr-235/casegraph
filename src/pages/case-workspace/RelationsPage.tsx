@@ -7,9 +7,9 @@ import type { ObjectListItemDto } from "../../features/objects/model/objectTypes
 import { getObjectTypeLabel } from "../../features/objects/model/objectOptions";
 import { getRelations } from "../../features/relations/api/relationsApi";
 import {
-  getConfidenceLevelLabel,
+  getRelationConfidenceLabel,
   getRelationTypeLabel,
-} from "../../features/relations/model/relationOptions";
+} from "../../features/relations/model/relationConstants";
 import type { RelationListItemDto } from "../../features/relations/model/relationTypes";
 import { CreateRelationModal } from "../../features/relations/ui/CreateRelationModal";
 import { RelationCardModal } from "../../features/relations/ui/RelationCardModal";
@@ -114,7 +114,7 @@ export function RelationsPage({ caseId, canEdit }: RelationsPageProps) {
                   {getObjectTypeLabel(relation.targetObject.objectType)} ·{" "}
                   {relation.targetObject.title}
                 </td>
-                <td>{getConfidenceLevelLabel(relation.confidenceLevel)}</td>
+                <td>{getRelationConfidenceLabel(relation.confidenceLevel)}</td>
                 <td>
                   {relation.supportingMaterial
                     ? `${relation.supportingMaterial.materialCode} · ${relation.supportingMaterial.title}`

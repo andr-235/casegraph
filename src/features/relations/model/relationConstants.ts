@@ -1,6 +1,4 @@
-import type { ConfidenceLevel, RelationType } from "./relationTypes";
-
-export const relationTypeOptions: Array<{ value: RelationType; label: string }> = [
+export const relationTypeOptions = [
   { value: "related_to", label: "Связан с" },
   { value: "uses", label: "Использует" },
   { value: "belongs_to", label: "Принадлежит" },
@@ -14,19 +12,19 @@ export const relationTypeOptions: Array<{ value: RelationType; label: string }> 
   { value: "linked_to_address", label: "Связан с адресом" },
   { value: "linked_to_organization", label: "Связан с организацией" },
   { value: "other", label: "Иная связь" },
-];
+] as const;
 
-export const confidenceLevelOptions: Array<{ value: ConfidenceLevel; label: string }> = [
+export const relationConfidenceOptions = [
   { value: "high", label: "Высокая" },
   { value: "medium", label: "Средняя" },
   { value: "low", label: "Низкая" },
   { value: "requires_check", label: "Требует проверки" },
-];
+] as const;
 
 export function getRelationTypeLabel(value: string): string {
   return relationTypeOptions.find((option) => option.value === value)?.label ?? value;
 }
 
-export function getConfidenceLevelLabel(value: string): string {
-  return confidenceLevelOptions.find((option) => option.value === value)?.label ?? value;
+export function getRelationConfidenceLabel(value: string): string {
+  return relationConfidenceOptions.find((option) => option.value === value)?.label ?? value;
 }

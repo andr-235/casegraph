@@ -2,8 +2,6 @@ use tauri::AppHandle;
 use uuid::Uuid;
 
 use crate::db::connection::open_connection;
-use crate::domain::relation_confidence::is_valid_confidence_level;
-use crate::domain::relation_type::is_valid_relation_type;
 use crate::domain::relations::{
     CreateRelationPayload, CreateRelationResponse, GetRelationByIdPayload, GetRelationByIdResponse,
     GetRelationsPayload, GetRelationsResponse, SoftDeleteRelationPayload,
@@ -15,10 +13,11 @@ use crate::repositories::relation_repository::{
     CreateRelationRecord, RelationRepository, UpdateRelationRecord,
 };
 use crate::security::session::SessionState;
-
-const MAX_RELATION_TITLE_LEN: usize = 200;
-const MAX_RELATION_BASIS_LEN: usize = 10_000;
-const MAX_ANALYST_COMMENT_LEN: usize = 5_000;
+use crate::services::relation_validation::{
+    normalize_analyst_comment, normalize_confidence_level, normalize_optional_id,
+    normalize_relation_basis, normalize_relation_title, normalize_relation_type,
+    normalize_required_id, validate_relation_endpoints,
+};
 
 pub struct RelationService;
 
@@ -42,44 +41,27 @@ impl RelationService {
 
         let case_id =
             normalize_required_id(&payload.case_id, "ERR_CASE_REQUIRED", "Не выбрано дело.")?;
+
         let source_object_id = normalize_required_id(
             &payload.source_object_id,
-            "ERR_RELATION_OBJECT_REQUIRED",
-            "Укажите первый объект связи.",
+            "ERR_SOURCE_OBJECT_REQUIRED",
+            "Не выбран исходный объект связи.",
         )?;
+
         let target_object_id = normalize_required_id(
             &payload.target_object_id,
-            "ERR_RELATION_OBJECT_REQUIRED",
-            "Укажите второй объект связи.",
+            "ERR_TARGET_OBJECT_REQUIRED",
+            "Не выбран целевой объект связи.",
         )?;
 
-        if source_object_id == target_object_id {
-            return Err(AppErrorDto::new(
-                "ERR_RELATION_SAME_OBJECT",
-                "Нельзя создать связь объекта с самим собой.",
-                None,
-            ));
-        }
+        validate_relation_endpoints(&source_object_id, &target_object_id)?;
 
         let relation_type = normalize_relation_type(&payload.relation_type)?;
+        let title = normalize_relation_title(&payload.title)?;
+        let basis = normalize_relation_basis(&payload.basis)?;
         let confidence_level = normalize_confidence_level(&payload.confidence_level)?;
-        let title = normalize_optional_text(
-            payload.title,
-            MAX_RELATION_TITLE_LEN,
-            "ERR_RELATION_TITLE_TOO_LONG",
-            "Название связи слишком длинное.",
-        )?;
-        let basis = normalize_basis(&payload.basis)?;
-        let analyst_comment = normalize_optional_text(
-            payload.analyst_comment,
-            MAX_ANALYST_COMMENT_LEN,
-            "ERR_RELATION_ANALYST_COMMENT_TOO_LONG",
-            "Комментарий аналитика слишком длинный.",
-        )?;
-        let supporting_material_id = payload
-            .supporting_material_id
-            .map(|value| value.trim().to_string())
-            .filter(|value| !value.is_empty());
+        let supporting_material_id = normalize_optional_id(&payload.supporting_material_id);
+        let analyst_comment = normalize_analyst_comment(&payload.analyst_comment)?;
 
         let conn = open_connection(app)?;
 
@@ -221,25 +203,11 @@ impl RelationService {
         )?;
 
         let relation_type = normalize_relation_type(&payload.relation_type)?;
+        let title = normalize_relation_title(&payload.title)?;
+        let basis = normalize_relation_basis(&payload.basis)?;
         let confidence_level = normalize_confidence_level(&payload.confidence_level)?;
-        let title = normalize_optional_text(
-            payload.title,
-            MAX_RELATION_TITLE_LEN,
-            "ERR_RELATION_TITLE_TOO_LONG",
-            "Название связи слишком длинное.",
-        )?;
-        let basis = normalize_basis(&payload.basis)?;
-        let analyst_comment = normalize_optional_text(
-            payload.analyst_comment,
-            MAX_ANALYST_COMMENT_LEN,
-            "ERR_RELATION_ANALYST_COMMENT_TOO_LONG",
-            "Комментарий аналитика слишком длинный.",
-        )?;
-
-        let supporting_material_id = payload
-            .supporting_material_id
-            .map(|value| value.trim().to_string())
-            .filter(|value| !value.is_empty());
+        let supporting_material_id = normalize_optional_id(&payload.supporting_material_id);
+        let analyst_comment = normalize_analyst_comment(&payload.analyst_comment)?;
 
         let conn = open_connection(app)?;
 
@@ -309,107 +277,11 @@ impl RelationService {
 
         let conn = open_connection(app)?;
 
+        let _existing = RelationRepository::get_details_by_id(&conn, &case_id, &relation_id)?
+            .ok_or_else(|| AppErrorDto::new("ERR_RELATION_NOT_FOUND", "Связь не найдена.", None))?;
+
         RelationRepository::soft_delete_relation(&conn, &case_id, &relation_id)?;
 
         Ok(SoftDeleteRelationResponse { relation_id })
     }
-}
-
-fn normalize_required_id(value: &str, code: &str, message: &str) -> Result<String, AppErrorDto> {
-    let normalized = value.trim().to_string();
-
-    if normalized.is_empty() {
-        return Err(AppErrorDto::new(code, message, None));
-    }
-
-    Ok(normalized)
-}
-
-fn normalize_relation_type(value: &str) -> Result<String, AppErrorDto> {
-    let normalized = value.trim().to_lowercase();
-
-    if normalized.is_empty() {
-        return Err(AppErrorDto::new(
-            "ERR_RELATION_TYPE_REQUIRED",
-            "Укажите тип связи.",
-            None,
-        ));
-    }
-
-    if !is_valid_relation_type(&normalized) {
-        return Err(AppErrorDto::new(
-            "ERR_RELATION_TYPE_INVALID",
-            "Некорректный тип связи.",
-            None,
-        ));
-    }
-
-    Ok(normalized)
-}
-
-fn normalize_confidence_level(value: &str) -> Result<String, AppErrorDto> {
-    let normalized = value.trim().to_lowercase();
-
-    if normalized.is_empty() {
-        return Err(AppErrorDto::new(
-            "ERR_CONFIDENCE_LEVEL_REQUIRED",
-            "Укажите уровень достоверности.",
-            None,
-        ));
-    }
-
-    if !is_valid_confidence_level(&normalized) {
-        return Err(AppErrorDto::new(
-            "ERR_CONFIDENCE_LEVEL_INVALID",
-            "Некорректный уровень достоверности.",
-            None,
-        ));
-    }
-
-    Ok(normalized)
-}
-
-fn normalize_basis(value: &str) -> Result<String, AppErrorDto> {
-    let normalized = value.trim().to_string();
-
-    if normalized.is_empty() {
-        return Err(AppErrorDto::new(
-            "ERR_RELATION_BASIS_REQUIRED",
-            "Укажите основание связи.",
-            None,
-        ));
-    }
-
-    if normalized.chars().count() < 3 || normalized.chars().count() > MAX_RELATION_BASIS_LEN {
-        return Err(AppErrorDto::new(
-            "ERR_RELATION_BASIS_INVALID",
-            "Основание связи должно содержать от 3 до 10000 символов.",
-            None,
-        ));
-    }
-
-    Ok(normalized)
-}
-
-fn normalize_optional_text(
-    value: Option<String>,
-    max_len: usize,
-    code: &str,
-    message: &str,
-) -> Result<Option<String>, AppErrorDto> {
-    let Some(value) = value else {
-        return Ok(None);
-    };
-
-    let normalized = value.trim().to_string();
-
-    if normalized.is_empty() {
-        return Ok(None);
-    }
-
-    if normalized.chars().count() > max_len {
-        return Err(AppErrorDto::new(code, message, None));
-    }
-
-    Ok(Some(normalized))
 }

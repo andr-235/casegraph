@@ -8,9 +8,9 @@ import {
   updateRelation,
 } from "../api/relationsApi";
 import {
-  confidenceLevelOptions,
+  relationConfidenceOptions,
   relationTypeOptions,
-} from "../model/relationOptions";
+} from "../model/relationConstants";
 import type {
   ConfidenceLevel,
   RelationDetailsDto,
@@ -232,7 +232,7 @@ export function RelationCardModal({
                   setConfidenceLevel(event.target.value as ConfidenceLevel)
                 }
               >
-                {confidenceLevelOptions.map((option) => (
+                {relationConfidenceOptions.map((option) => (
                   <option key={option.value} value={option.value}>
                     {option.label}
                   </option>

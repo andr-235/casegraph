@@ -5,9 +5,9 @@ import type { ObjectListItemDto } from "../../objects/model/objectTypes";
 import { getObjectTypeLabel } from "../../objects/model/objectOptions";
 import { createRelation } from "../api/relationsApi";
 import {
-  confidenceLevelOptions,
+  relationConfidenceOptions,
   relationTypeOptions,
-} from "../model/relationOptions";
+} from "../model/relationConstants";
 import type { ConfidenceLevel, RelationType } from "../model/relationTypes";
 
 type CreateRelationModalProps = {
@@ -165,7 +165,7 @@ export function CreateRelationModal({
                 setConfidenceLevel(event.target.value as ConfidenceLevel)
               }
             >
-              {confidenceLevelOptions.map((option) => (
+              {relationConfidenceOptions.map((option) => (
                 <option key={option.value} value={option.value}>
                   {option.label}
                 </option>
