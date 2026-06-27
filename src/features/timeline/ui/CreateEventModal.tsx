@@ -1,25 +1,28 @@
-import { FormEvent, useState } from "react";
+import { useState, type FormEvent } from "react";
 
 import { createEvent } from "../api/timelineApi";
-import { createEmptyEventPayload } from "../model/createEventDefaults";
 import { toggleSelectedId } from "../lib/toggleSelectedId";
+import { createEmptyEventPayload } from "../model/createEventDefaults";
 import {
   datePrecisionOptions,
   eventTypeOptions,
 } from "../model/timelineOptions";
-import type { TimelineEventDto } from "../model/timelineTypes";
+import type {
+  CreateEventPayload,
+  TimelineEventDto,
+} from "../model/timelineTypes";
 
-type SelectOption = {
+type LinkOption = {
   id: string;
   label: string;
 };
 
 type CreateEventModalProps = {
   caseId: string;
-  objectOptions: SelectOption[];
-  materialOptions: SelectOption[];
+  objectOptions: LinkOption[];
+  materialOptions: LinkOption[];
   onClose: () => void;
-  onCreated: (event: TimelineEventDto) => void;
+  onCreated: (eventItem: TimelineEventDto) => void;
 };
 
 export function CreateEventModal({
@@ -29,29 +32,47 @@ export function CreateEventModal({
   onClose,
   onCreated,
 }: CreateEventModalProps) {
-  const [form, setForm] = useState(() => createEmptyEventPayload(caseId));
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [form, setForm] = useState<CreateEventPayload>(() =>
+    createEmptyEventPayload(caseId),
+  );
+  const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
-  function updateForm<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
+  function updateForm<K extends keyof CreateEventPayload>(
+    key: K,
+    value: CreateEventPayload[K],
+  ) {
     setForm((current) => ({
       ...current,
       [key]: value,
     }));
   }
 
-  async function handleSubmit(event: FormEvent) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+
+    if (submitting) {
+      return;
+    }
+
+    setSubmitting(true);
     setErrorMessage("");
-    setIsSubmitting(true);
 
     try {
-      const result = await createEvent({
+      const payload: CreateEventPayload = {
         ...form,
-        eventTime: form.eventTime || undefined,
-        periodStart: form.periodStart || undefined,
-        periodEnd: form.periodEnd || undefined,
-      });
+        title: form.title.trim(),
+        description: form.description.trim(),
+        sourceNote: form.sourceNote.trim(),
+        analystComment: form.analystComment.trim(),
+        linkNote: form.linkNote.trim(),
+        eventDate: form.eventDate.trim(),
+        eventTime: form.eventTime?.trim() || undefined,
+        periodStart: form.periodStart?.trim() || undefined,
+        periodEnd: form.periodEnd?.trim() || undefined,
+      };
+
+      const result = await createEvent(payload);
 
       onCreated(result.eventItem);
     } catch (unknownError) {
@@ -61,28 +82,39 @@ export function CreateEventModal({
           : "Не удалось создать событие",
       );
     } finally {
-      setIsSubmitting(false);
+      setSubmitting(false);
     }
   }
+
+  const isPeriod = form.datePrecision === "period";
 
   return (
     <div className="modal-backdrop">
       <div className="modal-card">
         <div className="modal-header">
-          <h2>Создать событие</h2>
-          <button type="button" onClick={onClose}>
+          <div>
+            <h2>Создать событие</h2>
+            <p>Событие будет добавлено в хронологию текущего дела.</p>
+          </div>
+
+          <button type="button" onClick={onClose} disabled={submitting}>
             ×
           </button>
         </div>
 
         <form onSubmit={handleSubmit} className="form-grid">
-          {errorMessage && <div className="error-box">{errorMessage}</div>}
+          {errorMessage && (
+            <div className="error-box">{errorMessage}</div>
+          )}
 
           <label>
             Тип события
             <select
               value={form.eventType}
-              onChange={(event) => updateForm("eventType", event.target.value as typeof form.eventType)}
+              onChange={(event) =>
+                updateForm("eventType", event.target.value as CreateEventPayload["eventType"])
+              }
+              disabled={submitting}
             >
               {eventTypeOptions.map((option) => (
                 <option key={option.value} value={option.value}>
@@ -97,36 +129,62 @@ export function CreateEventModal({
             <input
               value={form.title}
               onChange={(event) => updateForm("title", event.target.value)}
+              disabled={submitting}
               required
+              maxLength={200}
             />
           </label>
 
           <label>
-            Дата события
-            <input
-              type="date"
-              value={form.eventDate}
-              onChange={(event) => updateForm("eventDate", event.target.value)}
-              required
+            Описание
+            <textarea
+              value={form.description}
+              onChange={(event) =>
+                updateForm("description", event.target.value)
+              }
+              disabled={submitting}
+              rows={4}
             />
           </label>
 
-          <label>
-            Время
-            <input
-              type="time"
-              value={form.eventTime ?? ""}
-              onChange={(event) => updateForm("eventTime", event.target.value || undefined)}
-            />
-          </label>
+          <div className="form-row">
+            <label>
+              Дата
+              <input
+                type="date"
+                value={form.eventDate}
+                onChange={(event) =>
+                  updateForm("eventDate", event.target.value)
+                }
+                disabled={submitting}
+                required
+              />
+            </label>
+
+            <label>
+              Время
+              <input
+                type="time"
+                value={form.eventTime ?? ""}
+                onChange={(event) =>
+                  updateForm("eventTime", event.target.value || undefined)
+                }
+                disabled={submitting}
+              />
+            </label>
+          </div>
 
           <label>
             Точность даты
             <select
               value={form.datePrecision}
               onChange={(event) =>
-                updateForm("datePrecision", event.target.value as typeof form.datePrecision)
+                updateForm(
+                  "datePrecision",
+                  event.target.value as CreateEventPayload["datePrecision"],
+                )
               }
+              disabled={submitting}
             >
               {datePrecisionOptions.map((option) => (
                 <option key={option.value} value={option.value}>
@@ -136,14 +194,17 @@ export function CreateEventModal({
             </select>
           </label>
 
-          {form.datePrecision === "period" && (
-            <>
+          {isPeriod && (
+            <div className="form-row">
               <label>
                 Начало периода
                 <input
                   type="date"
                   value={form.periodStart ?? ""}
-                  onChange={(event) => updateForm("periodStart", event.target.value || undefined)}
+                  onChange={(event) =>
+                    updateForm("periodStart", event.target.value || undefined)
+                  }
+                  disabled={submitting}
                 />
               </label>
 
@@ -152,26 +213,23 @@ export function CreateEventModal({
                 <input
                   type="date"
                   value={form.periodEnd ?? ""}
-                  onChange={(event) => updateForm("periodEnd", event.target.value || undefined)}
+                  onChange={(event) =>
+                    updateForm("periodEnd", event.target.value || undefined)
+                  }
+                  disabled={submitting}
                 />
               </label>
-            </>
+            </div>
           )}
-
-          <label>
-            Описание
-            <textarea
-              value={form.description}
-              onChange={(event) => updateForm("description", event.target.value)}
-              rows={4}
-            />
-          </label>
 
           <label>
             Основание / источник
             <textarea
               value={form.sourceNote}
-              onChange={(event) => updateForm("sourceNote", event.target.value)}
+              onChange={(event) =>
+                updateForm("sourceNote", event.target.value)
+              }
+              disabled={submitting}
               rows={3}
             />
           </label>
@@ -180,74 +238,97 @@ export function CreateEventModal({
             Комментарий аналитика
             <textarea
               value={form.analystComment}
-              onChange={(event) => updateForm("analystComment", event.target.value)}
+              onChange={(event) =>
+                updateForm("analystComment", event.target.value)
+              }
+              disabled={submitting}
               rows={3}
             />
           </label>
 
-          <label>
-            Общий комментарий к связям
+          <label className="checkbox-row">
             <input
-              value={form.linkNote}
-              onChange={(event) => updateForm("linkNote", event.target.value)}
+              type="checkbox"
+              checked={form.includeInReport}
+              onChange={(event) =>
+                updateForm("includeInReport", event.target.checked)
+              }
+              disabled={submitting}
             />
+            Включить в справку
           </label>
 
           <fieldset>
             <legend>Связанные объекты</legend>
+
             {objectOptions.length === 0 ? (
-              <p>Объектов пока нет.</p>
+              <p>В деле пока нет объектов.</p>
             ) : (
-              objectOptions.map((object) => (
-                <label key={object.id}>
-                  <input
-                    type="checkbox"
-                    checked={form.objectIds.includes(object.id)}
-                    onChange={() =>
-                      updateForm("objectIds", toggleSelectedId(form.objectIds, object.id))
-                    }
-                  />
-                  {object.label}
-                </label>
-              ))
+              <div className="checkbox-list">
+                {objectOptions.map((object) => (
+                  <label key={object.id} className="checkbox-row">
+                    <input
+                      type="checkbox"
+                      checked={form.objectIds.includes(object.id)}
+                      onChange={() =>
+                        updateForm(
+                          "objectIds",
+                          toggleSelectedId(form.objectIds, object.id),
+                        )
+                      }
+                      disabled={submitting}
+                    />
+                    {object.label}
+                  </label>
+                ))}
+              </div>
             )}
           </fieldset>
 
           <fieldset>
             <legend>Связанные материалы</legend>
+
             {materialOptions.length === 0 ? (
-              <p>Материалов пока нет.</p>
+              <p>В деле пока нет материалов.</p>
             ) : (
-              materialOptions.map((material) => (
-                <label key={material.id}>
-                  <input
-                    type="checkbox"
-                    checked={form.materialIds.includes(material.id)}
-                    onChange={() =>
-                      updateForm("materialIds", toggleSelectedId(form.materialIds, material.id))
-                    }
-                  />
-                  {material.label}
-                </label>
-              ))
+              <div className="checkbox-list">
+                {materialOptions.map((material) => (
+                  <label key={material.id} className="checkbox-row">
+                    <input
+                      type="checkbox"
+                      checked={form.materialIds.includes(material.id)}
+                      onChange={() =>
+                        updateForm(
+                          "materialIds",
+                          toggleSelectedId(form.materialIds, material.id),
+                        )
+                      }
+                      disabled={submitting}
+                    />
+                    {material.label}
+                  </label>
+                ))}
+              </div>
             )}
           </fieldset>
 
           <label>
-            <input
-              type="checkbox"
-              checked={form.includeInReport}
-              onChange={(event) => updateForm("includeInReport", event.target.checked)}
+            Комментарий к связям
+            <textarea
+              value={form.linkNote}
+              onChange={(event) => updateForm("linkNote", event.target.value)}
+              disabled={submitting}
+              rows={2}
             />
-            Включить в справку
           </label>
 
           <div className="modal-actions">
-            <button type="button" onClick={onClose}>
+            <button type="button" onClick={onClose} disabled={submitting}>
               Отмена
             </button>
-            <button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? "Сохранение..." : "Создать"}
+
+            <button type="submit" disabled={submitting}>
+              {submitting ? "Сохранение..." : "Создать событие"}
             </button>
           </div>
         </form>
