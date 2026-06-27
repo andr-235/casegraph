@@ -1,0 +1,26 @@
+use tauri::{AppHandle, State};
+
+use crate::domain::user_management::{GetRolesResponse, GetUsersPayload, GetUsersResponse};
+use crate::errors::app_error::CommandResult;
+use crate::security::session::SessionState;
+use crate::services::user_management_service::UserManagementService;
+
+#[tauri::command]
+pub fn get_users(
+    app: AppHandle,
+    session: State<SessionState>,
+    payload: GetUsersPayload,
+) -> CommandResult<GetUsersResponse> {
+    match UserManagementService::get_users(&app, &session, payload) {
+        Ok(response) => CommandResult::ok(response),
+        Err(error) => CommandResult::err(error),
+    }
+}
+
+#[tauri::command]
+pub fn get_roles(app: AppHandle, session: State<SessionState>) -> CommandResult<GetRolesResponse> {
+    match UserManagementService::get_roles(&app, &session) {
+        Ok(response) => CommandResult::ok(response),
+        Err(error) => CommandResult::err(error),
+    }
+}

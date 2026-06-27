@@ -13,3 +13,4 @@ pub mod relation_confidence;
 pub mod relation_type;
 pub mod relations;
 pub mod timeline;
+pub mod user_management;

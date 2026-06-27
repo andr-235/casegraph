@@ -11,6 +11,7 @@ import { LoginPage } from "../pages/login/LoginPage";
 import { CasesPage } from "../pages/cases/CasesPage";
 import { CaseWorkspacePage } from "../pages/case-workspace/CaseWorkspacePage";
 import { AuditLogPage } from "../pages/audit-log/AuditLogPage";
+import { UsersPage } from "../features/users/ui/UsersPage";
 
 type BootstrapState =
   | "loading"
@@ -25,6 +26,7 @@ export function App() {
   const [currentUser, setCurrentUser] = useState<CurrentUserDto | null>(null);
   const [selectedCase, setSelectedCase] = useState<CaseDto | null>(null);
   const [showAuditLog, setShowAuditLog] = useState(false);
+  const [showUsers, setShowUsers] = useState(false);
   const [startupError, setStartupError] = useState<string | null>(null);
 
   async function boot() {
@@ -130,12 +132,22 @@ export function App() {
     );
   }
 
+  if (showUsers && currentUser.role === "administrator") {
+    return (
+      <UsersPage
+        user={currentUser}
+        onBack={() => setShowUsers(false)}
+      />
+    );
+  }
+
   return (
     <CasesPage
       user={currentUser}
       onLogout={handleLogout}
       onOpenCase={setSelectedCase}
       onOpenAuditLog={() => setShowAuditLog(true)}
+      onOpenUsers={() => setShowUsers(true)}
     />
   );
 }

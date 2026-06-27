@@ -10,9 +10,10 @@ type Props = {
   onLogout: () => void;
   onOpenCase: (caseItem: CaseDto) => void;
   onOpenAuditLog?: () => void;
+  onOpenUsers?: () => void;
 };
 
-export function CasesPage({ user, onLogout, onOpenCase, onOpenAuditLog }: Props) {
+export function CasesPage({ user, onLogout, onOpenCase, onOpenAuditLog, onOpenUsers }: Props) {
   const [cases, setCases] = useState<CaseDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -54,6 +55,12 @@ export function CasesPage({ user, onLogout, onOpenCase, onOpenAuditLog }: Props)
         </div>
 
         <div style={{ display: "flex", gap: 8 }}>
+          {user.role === "administrator" && onOpenUsers ? (
+            <button type="button" onClick={onOpenUsers}>
+              Пользователи
+            </button>
+          ) : null}
+
           {user.role !== "viewer" && onOpenAuditLog ? (
             <button type="button" onClick={onOpenAuditLog}>
               Журнал
