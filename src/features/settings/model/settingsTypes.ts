@@ -41,3 +41,15 @@ export type UpdateSettingsPayload = {
     analystCanCreateBackup: boolean;
   };
 };
+
+export type SettingsDirectoryTarget =
+  | "docxDefaultExportDir"
+  | "backupDefaultBackupDir";
+
+export type ChooseSettingsDirectoryPayload = {
+  target: SettingsDirectoryTarget;
+};
+
+export type ChooseSettingsDirectoryResponse = {
+  path: string | null;
+};

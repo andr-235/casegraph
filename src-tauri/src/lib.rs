@@ -79,7 +79,8 @@ pub fn run() {
             commands::user_management_commands::reset_user_password,
             commands::user_management_commands::change_own_password,
             commands::settings_commands::get_settings,
-            commands::settings_commands::update_settings
+            commands::settings_commands::update_settings,
+            commands::settings_commands::choose_settings_directory
         ])
         .run(tauri::generate_context!())
         .expect("error while running CaseGraph");

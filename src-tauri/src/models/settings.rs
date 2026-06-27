@@ -105,3 +105,22 @@ pub struct UpdateAccessSettingsPayload {
     pub viewer_can_export_docx: bool,
     pub analyst_can_create_backup: bool,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ChooseSettingsDirectoryPayload {
+    pub target: SettingsDirectoryTarget,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum SettingsDirectoryTarget {
+    DocxDefaultExportDir,
+    BackupDefaultBackupDir,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ChooseSettingsDirectoryResponse {
+    pub path: Option<String>,
+}

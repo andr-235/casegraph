@@ -533,3 +533,18 @@
   font-weight: 500;
 }
 
+.settings-path-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.settings-path-row input {
+  flex: 1;
+}
+
+.settings-field {
+  display: grid;
+  gap: 6px;
+}
+

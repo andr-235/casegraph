@@ -1,7 +1,10 @@
 use tauri::{AppHandle, State};
 
 use crate::errors::app_error::CommandResult;
-use crate::models::settings::{AppSettingsDto, UpdateSettingsPayload};
+use crate::models::settings::{
+    AppSettingsDto, ChooseSettingsDirectoryPayload, ChooseSettingsDirectoryResponse,
+    UpdateSettingsPayload,
+};
 use crate::security::session::SessionState;
 use crate::services::settings_service::SettingsService;
 
@@ -21,6 +24,18 @@ pub fn update_settings(
 ) -> CommandResult<AppSettingsDto> {
     match SettingsService::update_settings(&app, &session, payload) {
         Ok(settings) => CommandResult::ok(settings),
+        Err(error) => CommandResult::err(error),
+    }
+}
+
+#[tauri::command]
+pub fn choose_settings_directory(
+    app: AppHandle,
+    session: State<SessionState>,
+    payload: ChooseSettingsDirectoryPayload,
+) -> CommandResult<ChooseSettingsDirectoryResponse> {
+    match SettingsService::choose_settings_directory(&app, &session, payload) {
+        Ok(response) => CommandResult::ok(response),
         Err(error) => CommandResult::err(error),
     }
 }

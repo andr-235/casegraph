@@ -4,12 +4,18 @@ use rusqlite::Connection;
 use serde_json::Value;
 use tauri::AppHandle;
 
+use tauri_plugin_dialog::DialogExt;
+
 use crate::errors::app_error::AppErrorDto;
-use crate::models::settings::{AppSettingsDto, UpdateSettingsPayload};
+use crate::models::settings::{
+    AppSettingsDto, ChooseSettingsDirectoryPayload, ChooseSettingsDirectoryResponse,
+    UpdateSettingsPayload,
+};
 use crate::security::session::SessionState;
 use crate::services::protected_service_context::{
     require_protected_administrator_for, require_protected_user_for,
 };
+use crate::services::settings_path_validator::validate_selected_settings_path;
 
 const KEY_DOCX_DEFAULT_TEMPLATE: &str = "docx.default_template";
 const KEY_DOCX_DEFAULT_EXPORT_DIR: &str = "docx.default_export_dir";
@@ -354,6 +360,25 @@ impl SettingsService {
 
         Ok(())
     }
+
+    pub fn choose_settings_directory(
+        app: &AppHandle,
+        session: &SessionState,
+        _payload: ChooseSettingsDirectoryPayload,
+    ) -> Result<ChooseSettingsDirectoryResponse, AppErrorDto> {
+        let _context =
+            require_protected_administrator_for(app, session, "choose_settings_directory")?;
+
+        let selected_path = pick_folder(app)?;
+
+        if let Some(path) = selected_path.as_deref() {
+            validate_selected_settings_path(path)?;
+        }
+
+        Ok(ChooseSettingsDirectoryResponse {
+            path: selected_path,
+        })
+    }
 }
 
 fn settings_category_for_key(key: &str) -> &'static str {
@@ -497,4 +522,25 @@ fn validate_update_payload(payload: &UpdateSettingsPayload) -> Result<(), AppErr
     }
 
     Ok(())
+}
+
+fn pick_folder(app: &AppHandle) -> Result<Option<String>, AppErrorDto> {
+    let selected = app
+        .dialog()
+        .file()
+        .set_title("Выберите папку")
+        .blocking_pick_folder();
+
+    let path = selected.map(|file_path| match file_path {
+        tauri_plugin_dialog::FilePath::Path(p) => p.to_string_lossy().to_string(),
+        tauri_plugin_dialog::FilePath::Url(u) => {
+            if let Ok(p) = u.to_file_path() {
+                p.to_string_lossy().to_string()
+            } else {
+                u.path().to_string()
+            }
+        }
+    });
+
+    Ok(path)
 }

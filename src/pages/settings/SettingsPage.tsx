@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { getSettings, updateSettings } from "../../features/settings/api/settingsApi";
-import type { AppSettingsDto, UpdateSettingsPayload } from "../../features/settings/model/settingsTypes";
+import { getSettings, updateSettings, chooseSettingsDirectory } from "../../features/settings/api/settingsApi";
+import type { AppSettingsDto, UpdateSettingsPayload, SettingsDirectoryTarget } from "../../features/settings/model/settingsTypes";
 import { formatError } from "../../shared/lib/formatError";
 
 type SettingsPageProps = {
@@ -14,6 +14,7 @@ export function SettingsPage({ onBack }: SettingsPageProps) {
   const [isSaving, setIsSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [savedMessage, setSavedMessage] = useState<string | null>(null);
+  const [pickingTarget, setPickingTarget] = useState<SettingsDirectoryTarget | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -87,6 +88,47 @@ export function SettingsPage({ onBack }: SettingsPageProps) {
       setErrorMessage(formatError(err));
     } finally {
       setIsSaving(false);
+    }
+  }
+
+  async function handlePickDirectory(target: SettingsDirectoryTarget) {
+    if (!draft) return;
+
+    setPickingTarget(target);
+    setErrorMessage(null);
+    setSavedMessage(null);
+
+    try {
+      const response = await chooseSettingsDirectory({ target });
+
+      if (!response.path) {
+        return;
+      }
+
+      if (target === "docxDefaultExportDir") {
+        setDraft({
+          ...draft,
+          docx: {
+            ...draft.docx,
+            defaultExportDir: response.path,
+          },
+        });
+        return;
+      }
+
+      if (target === "backupDefaultBackupDir") {
+        setDraft({
+          ...draft,
+          backup: {
+            ...draft.backup,
+            defaultBackupDir: response.path,
+          },
+        });
+      }
+    } catch (err) {
+      setErrorMessage(formatError(err));
+    } finally {
+      setPickingTarget(null);
     }
   }
 
@@ -169,38 +211,46 @@ export function SettingsPage({ onBack }: SettingsPageProps) {
 
       <section className="settings-grid">
         <SettingsSection title="Хранилище данных">
-          <SettingField label="Путь для экспорта документов (DOCX)">
-            <input
-              type="text"
-              value={draft.docx.defaultExportDir}
-              onChange={(e) =>
-                setDraft({
-                  ...draft,
-                  docx: {
-                    ...draft.docx,
-                    defaultExportDir: e.target.value,
-                  },
-                })
-              }
-              style={{ width: "100%", padding: 8, boxSizing: "border-box", borderRadius: 4, border: "1px solid #ccc" }}
-            />
+          <SettingField label="Папка экспорта DOCX">
+            <div className="settings-path-row" style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <input
+                id="docx-export-dir"
+                type="text"
+                value={draft.docx.defaultExportDir}
+                readOnly
+                placeholder="Папка не выбрана"
+                style={{ flex: 1, padding: 8, boxSizing: "border-box", borderRadius: 4, border: "1px solid #ccc", background: "#f9f9f9" }}
+              />
+              <button
+                type="button"
+                onClick={() => handlePickDirectory("docxDefaultExportDir")}
+                disabled={pickingTarget !== null || isSaving}
+                style={{ padding: "8px 12px", cursor: pickingTarget === null && !isSaving ? "pointer" : "default" }}
+              >
+                {pickingTarget === "docxDefaultExportDir" ? "Выбор..." : "Выбрать папку"}
+              </button>
+            </div>
           </SettingField>
 
-          <SettingField label="Путь по умолчанию для бэкапов">
-            <input
-              type="text"
-              value={draft.backup.defaultBackupDir}
-              onChange={(e) =>
-                setDraft({
-                  ...draft,
-                  backup: {
-                    ...draft.backup,
-                    defaultBackupDir: e.target.value,
-                  },
-                })
-              }
-              style={{ width: "100%", padding: 8, boxSizing: "border-box", borderRadius: 4, border: "1px solid #ccc" }}
-            />
+          <SettingField label="Папка резервных копий">
+            <div className="settings-path-row" style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <input
+                id="backup-dir"
+                type="text"
+                value={draft.backup.defaultBackupDir}
+                readOnly
+                placeholder="Папка не выбрана"
+                style={{ flex: 1, padding: 8, boxSizing: "border-box", borderRadius: 4, border: "1px solid #ccc", background: "#f9f9f9" }}
+              />
+              <button
+                type="button"
+                onClick={() => handlePickDirectory("backupDefaultBackupDir")}
+                disabled={pickingTarget !== null || isSaving}
+                style={{ padding: "8px 12px", cursor: pickingTarget === null && !isSaving ? "pointer" : "default" }}
+              >
+                {pickingTarget === "backupDefaultBackupDir" ? "Выбор..." : "Выбрать папку"}
+              </button>
+            </div>
           </SettingField>
         </SettingsSection>
 
