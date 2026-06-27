@@ -132,6 +132,8 @@ impl MaterialService {
                 )
             })?;
 
+        write_material_imported_audit_best_effort(app, current_user, &created_material);
+
         Ok(CreateMaterialResponse {
             material: material_row_to_dto(created_material),
         })
@@ -143,6 +145,7 @@ impl MaterialService {
         payload: DeleteMaterialPayload,
     ) -> Result<DeleteMaterialResponse, AppErrorDto> {
         let context = require_protected_user_for(app, session, "DELETE_MATERIAL")?;
+        let current_user = &context.current_user;
         let conn = &context.conn;
 
         let case_id = payload.case_id.trim().to_string();
@@ -160,7 +163,14 @@ impl MaterialService {
 
         ensure_case_exists(conn, &case_id)?;
 
+        let old_material =
+            MaterialRepository::get_material_by_id(conn, &material_id)?.ok_or_else(|| {
+                AppErrorDto::new("ERR_MATERIAL_NOT_FOUND", "Материал не найден.", None)
+            })?;
+
         MaterialRepository::soft_delete_material(conn, &case_id, &material_id)?;
+
+        write_material_deleted_audit_best_effort(app, current_user, &old_material);
 
         Ok(DeleteMaterialResponse { material_id })
     }
@@ -171,6 +181,7 @@ impl MaterialService {
         payload: UpdateMaterialPayload,
     ) -> Result<UpdateMaterialResponse, AppErrorDto> {
         let context = require_protected_user_for(app, session, "UPDATE_MATERIAL")?;
+        let current_user = &context.current_user;
         let conn = &context.conn;
 
         let case_id = payload.case_id.trim().to_string();
@@ -195,6 +206,11 @@ impl MaterialService {
 
         ensure_case_exists(conn, &case_id)?;
 
+        let old_material =
+            MaterialRepository::get_material_by_id(conn, &material_id)?.ok_or_else(|| {
+                AppErrorDto::new("ERR_MATERIAL_NOT_FOUND", "Материал не найден.", None)
+            })?;
+
         MaterialRepository::update_material(
             conn,
             UpdateMaterialRecord {
@@ -217,6 +233,13 @@ impl MaterialService {
                     None,
                 )
             })?;
+
+        write_material_updated_audit_best_effort(
+            app,
+            current_user,
+            &old_material,
+            &updated_material,
+        );
 
         Ok(UpdateMaterialResponse {
             material: material_row_to_dto(updated_material),
@@ -298,4 +321,254 @@ fn material_row_to_dto(row: MaterialRow) -> MaterialDto {
         created_at: row.created_at,
         updated_at: row.updated_at,
     }
+}
+
+fn write_material_imported_audit_best_effort(
+    app: &AppHandle,
+    current_user: &crate::security::session::CurrentUserDto,
+    created_material: &MaterialRow,
+) {
+    use crate::audit::audit_metadata;
+    use crate::domain::audit_action;
+    use crate::services::audit_service::{AuditService, AuditSuccessInput};
+
+    let technical_details = audit_metadata::material_imported(
+        &created_material.id,
+        &created_material.material_code,
+        created_material.original_file_name.as_deref().unwrap_or(""),
+    );
+
+    let new_value = audit_metadata::snapshot(audit_metadata::material_snapshot(
+        &created_material.material_code,
+        created_material.original_file_name.as_deref().unwrap_or(""),
+        &created_material.material_type,
+        created_material.file_size,
+        created_material.sha256.as_deref(),
+        Some(created_material.integrity_status.as_str()),
+        Some(created_material.description.as_str()),
+        created_material.captured_at.as_deref(),
+        created_material.include_in_report == 1,
+    ));
+
+    let input = AuditSuccessInput::new(
+        current_user,
+        audit_action::material::IMPORTED,
+        "material",
+        Some(&created_material.id),
+        Some(&created_material.case_id),
+        None,
+        new_value,
+        technical_details,
+    );
+
+    AuditService::write_success_non_blocking(app.clone(), input);
+}
+
+fn write_material_updated_audit_best_effort(
+    app: &AppHandle,
+    current_user: &crate::security::session::CurrentUserDto,
+    old_material: &MaterialRow,
+    new_material: &MaterialRow,
+) {
+    use crate::audit::audit_metadata;
+    use crate::domain::audit_action;
+    use crate::services::audit_service::{AuditService, AuditSuccessInput};
+
+    let mut changed = Vec::new();
+    audit_metadata::push_changed(
+        &mut changed,
+        "title",
+        &old_material.title,
+        &new_material.title,
+    );
+    audit_metadata::push_changed(
+        &mut changed,
+        "materialType",
+        &old_material.material_type,
+        &new_material.material_type,
+    );
+    audit_metadata::push_changed(
+        &mut changed,
+        "sourceName",
+        &old_material.source_name,
+        &new_material.source_name,
+    );
+    audit_metadata::push_changed(
+        &mut changed,
+        "description",
+        &old_material.description,
+        &new_material.description,
+    );
+    audit_metadata::push_changed(
+        &mut changed,
+        "capturedAt",
+        &old_material.captured_at,
+        &new_material.captured_at,
+    );
+    audit_metadata::push_changed(
+        &mut changed,
+        "includeInReport",
+        &old_material.include_in_report,
+        &new_material.include_in_report,
+    );
+
+    if changed.is_empty() {
+        return;
+    }
+
+    let is_toggle = changed.len() == 1 && changed[0] == "includeInReport";
+    let action = if is_toggle {
+        audit_action::material::REPORT_INCLUDE_CHANGED
+    } else {
+        audit_action::material::UPDATED
+    };
+
+    let technical_details = if is_toggle {
+        audit_metadata::material_report_include_changed(
+            &new_material.id,
+            &new_material.material_code,
+            new_material.include_in_report == 1,
+        )
+    } else {
+        audit_metadata::material_updated(&new_material.id, &new_material.material_code, &changed)
+    };
+
+    let (old_val, new_val) = audit_metadata::old_new(
+        audit_metadata::material_snapshot(
+            &old_material.material_code,
+            old_material.original_file_name.as_deref().unwrap_or(""),
+            &old_material.material_type,
+            old_material.file_size,
+            old_material.sha256.as_deref(),
+            Some(old_material.integrity_status.as_str()),
+            Some(old_material.description.as_str()),
+            old_material.captured_at.as_deref(),
+            old_material.include_in_report == 1,
+        ),
+        audit_metadata::material_snapshot(
+            &new_material.material_code,
+            new_material.original_file_name.as_deref().unwrap_or(""),
+            &new_material.material_type,
+            new_material.file_size,
+            new_material.sha256.as_deref(),
+            Some(new_material.integrity_status.as_str()),
+            Some(new_material.description.as_str()),
+            new_material.captured_at.as_deref(),
+            new_material.include_in_report == 1,
+        ),
+    );
+
+    let input = AuditSuccessInput::new(
+        current_user,
+        action,
+        "material",
+        Some(&new_material.id),
+        Some(&new_material.case_id),
+        old_val,
+        new_val,
+        technical_details,
+    );
+
+    AuditService::write_success_non_blocking(app.clone(), input);
+}
+
+fn write_material_deleted_audit_best_effort(
+    app: &AppHandle,
+    current_user: &crate::security::session::CurrentUserDto,
+    old_material: &MaterialRow,
+) {
+    use crate::audit::audit_metadata;
+    use crate::domain::audit_action;
+    use crate::services::audit_service::{AuditService, AuditSuccessInput};
+
+    let technical_details =
+        audit_metadata::material_deleted(&old_material.id, &old_material.material_code);
+
+    let old_value = audit_metadata::snapshot(audit_metadata::material_snapshot(
+        &old_material.material_code,
+        old_material.original_file_name.as_deref().unwrap_or(""),
+        &old_material.material_type,
+        old_material.file_size,
+        old_material.sha256.as_deref(),
+        Some(old_material.integrity_status.as_str()),
+        Some(old_material.description.as_str()),
+        old_material.captured_at.as_deref(),
+        old_material.include_in_report == 1,
+    ));
+
+    let input = AuditSuccessInput::new(
+        current_user,
+        audit_action::material::DELETED,
+        "material",
+        Some(&old_material.id),
+        Some(&old_material.case_id),
+        old_value,
+        None,
+        technical_details,
+    );
+
+    AuditService::write_success_non_blocking(app.clone(), input);
+}
+
+#[allow(dead_code)]
+fn write_material_hash_verified_audit_best_effort(
+    app: &AppHandle,
+    current_user: &crate::security::session::CurrentUserDto,
+    old_material: &MaterialRow,
+    new_material: &MaterialRow,
+) {
+    use crate::audit::audit_metadata;
+    use crate::domain::audit_action;
+    use crate::services::audit_service::{AuditService, AuditSuccessInput};
+
+    let integrity_status = new_material.integrity_status.as_str();
+    let action = if integrity_status == "ok" {
+        audit_action::material::HASH_VERIFIED
+    } else {
+        audit_action::material::HASH_MISMATCH
+    };
+
+    let technical_details = audit_metadata::material_hash_verified(
+        &new_material.id,
+        &new_material.material_code,
+        integrity_status,
+    );
+
+    let (old_val, new_val) = audit_metadata::old_new(
+        audit_metadata::material_snapshot(
+            &old_material.material_code,
+            old_material.original_file_name.as_deref().unwrap_or(""),
+            &old_material.material_type,
+            old_material.file_size,
+            old_material.sha256.as_deref(),
+            Some(old_material.integrity_status.as_str()),
+            Some(old_material.description.as_str()),
+            old_material.captured_at.as_deref(),
+            old_material.include_in_report == 1,
+        ),
+        audit_metadata::material_snapshot(
+            &new_material.material_code,
+            new_material.original_file_name.as_deref().unwrap_or(""),
+            &new_material.material_type,
+            new_material.file_size,
+            new_material.sha256.as_deref(),
+            Some(new_material.integrity_status.as_str()),
+            Some(new_material.description.as_str()),
+            new_material.captured_at.as_deref(),
+            new_material.include_in_report == 1,
+        ),
+    );
+
+    let input = AuditSuccessInput::new(
+        current_user,
+        action,
+        "material",
+        Some(&new_material.id),
+        Some(&new_material.case_id),
+        old_val,
+        new_val,
+        technical_details,
+    );
+
+    AuditService::write_success_non_blocking(app.clone(), input);
 }

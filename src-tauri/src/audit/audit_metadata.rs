@@ -230,6 +230,73 @@ pub fn relation_snapshot<'a>(
     }
 }
 
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MaterialAuditSnapshot<'a> {
+    pub material_code: &'a str,
+    pub original_file_name: &'a str,
+    pub material_type: &'a str,
+    pub file_size_bytes: Option<i64>,
+    pub sha256: Option<&'a str>,
+    pub integrity_status: Option<&'a str>,
+    pub description: Option<&'a str>,
+    pub captured_at: Option<&'a str>,
+    pub include_in_report: bool,
+}
+
+pub fn material_snapshot<'a>(
+    material_code: &'a str,
+    original_file_name: &'a str,
+    material_type: &'a str,
+    file_size_bytes: Option<i64>,
+    sha256: Option<&'a str>,
+    integrity_status: Option<&'a str>,
+    description: Option<&'a str>,
+    captured_at: Option<&'a str>,
+    include_in_report: bool,
+) -> MaterialAuditSnapshot<'a> {
+    MaterialAuditSnapshot {
+        material_code,
+        original_file_name,
+        material_type,
+        file_size_bytes,
+        sha256,
+        integrity_status,
+        description,
+        captured_at,
+        include_in_report,
+    }
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ObjectAuditSnapshot<'a> {
+    pub object_code: &'a str,
+    pub object_type: &'a str,
+    pub title: &'a str,
+    pub description: Option<&'a str>,
+    pub is_key_object: bool,
+    pub include_in_report: Option<bool>,
+}
+
+pub fn object_snapshot<'a>(
+    object_code: &'a str,
+    object_type: &'a str,
+    title: &'a str,
+    description: Option<&'a str>,
+    is_key_object: bool,
+    include_in_report: Option<bool>,
+) -> ObjectAuditSnapshot<'a> {
+    ObjectAuditSnapshot {
+        object_code,
+        object_type,
+        title,
+        description,
+        is_key_object,
+        include_in_report,
+    }
+}
+
 pub fn user_created(user_id: &str, username: &str, role_code: &str) -> Value {
     json!({
         "userId": user_id,
@@ -387,6 +454,116 @@ pub fn relation_deleted(relation_id: &str, relation_code: &str) -> Option<Value>
     }))
 }
 
+pub fn material_imported(
+    material_id: &str,
+    material_code: &str,
+    original_file_name: &str,
+) -> Option<Value> {
+    Some(json!({
+        "materialId": material_id,
+        "materialCode": material_code,
+        "originalFileName": original_file_name
+    }))
+}
+
+pub fn material_updated(
+    material_id: &str,
+    material_code: &str,
+    changed_fields: &[&str],
+) -> Option<Value> {
+    Some(json!({
+        "materialId": material_id,
+        "materialCode": material_code,
+        "changedFields": changed_fields
+    }))
+}
+
+pub fn material_report_include_changed(
+    material_id: &str,
+    material_code: &str,
+    include_in_report: bool,
+) -> Option<Value> {
+    Some(json!({
+        "materialId": material_id,
+        "materialCode": material_code,
+        "includeInReport": include_in_report,
+        "changedFields": ["includeInReport"]
+    }))
+}
+
+pub fn material_hash_verified(
+    material_id: &str,
+    material_code: &str,
+    integrity_status: &str,
+) -> Option<Value> {
+    Some(json!({
+        "materialId": material_id,
+        "materialCode": material_code,
+        "integrityStatus": integrity_status,
+        "changedFields": ["integrityStatus"]
+    }))
+}
+
+pub fn material_deleted(material_id: &str, material_code: &str) -> Option<Value> {
+    Some(json!({
+        "materialId": material_id,
+        "materialCode": material_code
+    }))
+}
+
+pub fn object_created(object_id: &str, object_code: &str, object_type: &str) -> Option<Value> {
+    Some(json!({
+        "objectId": object_id,
+        "objectCode": object_code,
+        "objectType": object_type
+    }))
+}
+
+pub fn object_updated(
+    object_id: &str,
+    object_code: &str,
+    changed_fields: &[&str],
+) -> Option<Value> {
+    Some(json!({
+        "objectId": object_id,
+        "objectCode": object_code,
+        "changedFields": changed_fields
+    }))
+}
+
+pub fn object_material_links_changed(
+    object_id: &str,
+    object_code: &str,
+    material_ids: &[String],
+) -> Option<Value> {
+    Some(json!({
+        "objectId": object_id,
+        "objectCode": object_code,
+        "materialIds": material_ids,
+        "changedFields": ["materialLinks"]
+    }))
+}
+
+pub fn object_key_flag_changed(
+    object_id: &str,
+    object_code: &str,
+    is_key_object: bool,
+) -> Option<Value> {
+    Some(json!({
+        "objectId": object_id,
+        "objectCode": object_code,
+        "isKeyObject": is_key_object,
+        "changedFields": ["isKeyObject"]
+    }))
+}
+
+pub fn object_deleted(object_id: &str, object_code: &str) -> Option<Value> {
+    Some(json!({
+        "objectId": object_id,
+        "objectCode": object_code
+    }))
+}
+
 pub fn access_denied(
     reason: &str,
     command: &str,
@@ -518,5 +695,56 @@ mod tests {
         assert!(value.get("createdAt").is_none());
         assert!(value.get("updatedAt").is_none());
         assert!(value.get("deletedAt").is_none());
+    }
+
+    #[test]
+    fn material_snapshot_does_not_expose_file_paths() {
+        let snapshot = material_snapshot(
+            "MAT-001",
+            "photo.png",
+            "image",
+            Some(245760),
+            Some("a3f1"),
+            Some("ok"),
+            Some("Описание"),
+            Some("2026-01-15T10:00:00"),
+            true,
+        );
+
+        let value = to_value(snapshot).unwrap();
+
+        assert_eq!(value["materialCode"], "MAT-001");
+        assert_eq!(value["originalFileName"], "photo.png");
+        assert_eq!(value["materialType"], "image");
+        assert_eq!(value["includeInReport"], true);
+
+        assert!(value.get("originalPath").is_none());
+        assert!(value.get("storedPath").is_none());
+        assert!(value.get("thumbnailPath").is_none());
+        assert!(value.get("filePath").is_none());
+    }
+
+    #[test]
+    fn object_snapshot_contains_only_business_fields() {
+        let snapshot = object_snapshot(
+            "P-001",
+            "person",
+            "Иванов И.И.",
+            Some("Описание объекта"),
+            true,
+            None,
+        );
+
+        let value = to_value(snapshot).unwrap();
+
+        assert_eq!(value["objectCode"], "P-001");
+        assert_eq!(value["objectType"], "person");
+        assert_eq!(value["title"], "Иванов И.И.");
+        assert_eq!(value["isKeyObject"], true);
+
+        assert!(value.get("createdAt").is_none());
+        assert!(value.get("updatedAt").is_none());
+        assert!(value.get("deletedAt").is_none());
+        assert!(value.get("graphPosition").is_none());
     }
 }

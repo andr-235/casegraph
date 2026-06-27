@@ -37,3 +37,20 @@ pub mod relation {
     pub const REPORT_INCLUDE_CHANGED: &str = "RELATION_REPORT_INCLUDE_CHANGED";
     pub const DELETED: &str = "RELATION_DELETED";
 }
+
+pub mod material {
+    pub const IMPORTED: &str = "MATERIAL_IMPORTED";
+    pub const UPDATED: &str = "MATERIAL_UPDATED";
+    pub const REPORT_INCLUDE_CHANGED: &str = "MATERIAL_REPORT_INCLUDE_CHANGED";
+    pub const HASH_VERIFIED: &str = "MATERIAL_HASH_VERIFIED";
+    pub const HASH_MISMATCH: &str = "MATERIAL_HASH_MISMATCH";
+    pub const DELETED: &str = "MATERIAL_DELETED";
+}
+
+pub mod object {
+    pub const CREATED: &str = "OBJECT_CREATED";
+    pub const UPDATED: &str = "OBJECT_UPDATED";
+    pub const MATERIAL_LINKS_CHANGED: &str = "OBJECT_MATERIAL_LINKS_CHANGED";
+    pub const KEY_FLAG_CHANGED: &str = "OBJECT_KEY_FLAG_CHANGED";
+    pub const DELETED: &str = "OBJECT_DELETED";
+}

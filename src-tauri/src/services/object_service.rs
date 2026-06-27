@@ -4,8 +4,8 @@ use uuid::Uuid;
 use crate::domain::objects::{
     CreateObjectPayload, CreateObjectResponse, GetObjectByIdPayload, GetObjectByIdResponse,
     GetObjectsPayload, GetObjectsResponse, LinkObjectToMaterialsPayload,
-    LinkObjectToMaterialsResponse, SoftDeleteObjectPayload, SoftDeleteObjectResponse,
-    UpdateObjectPayload, UpdateObjectResponse,
+    LinkObjectToMaterialsResponse, ObjectDetailsDto, ObjectListItemDto, SoftDeleteObjectPayload,
+    SoftDeleteObjectResponse, UpdateObjectPayload, UpdateObjectResponse,
 };
 use crate::errors::app_error::AppErrorDto;
 use crate::repositories::case_repository::CaseRepository;
@@ -82,6 +82,8 @@ impl ObjectService {
                 AppErrorDto::new("ERR_OBJECT_NOT_FOUND", "Созданный объект не найден.", None)
             })?;
 
+        write_object_created_audit_best_effort(app, current_user, &object_item);
+
         Ok(CreateObjectResponse { object_item })
     }
 
@@ -148,7 +150,11 @@ impl ObjectService {
 
         ObjectRepository::validate_materials_belong_to_case(conn, &case_id, &material_ids)?;
 
+        let old_object = ObjectRepository::find_by_id(conn, &case_id, &object_id)?
+            .ok_or_else(|| AppErrorDto::new("ERR_OBJECT_NOT_FOUND", "Объект не найден.", None))?;
+
         let records = material_ids
+            .clone()
             .into_iter()
             .map(|material_id| ObjectMaterialLinkRecord {
                 object_id: object_id.clone(),
@@ -169,6 +175,14 @@ impl ObjectService {
                 )
             })?;
 
+        write_object_links_changed_audit_best_effort(
+            app,
+            current_user,
+            &old_object,
+            &object_item,
+            &material_ids,
+        );
+
         Ok(LinkObjectToMaterialsResponse { object_item })
     }
 
@@ -178,6 +192,7 @@ impl ObjectService {
         payload: UpdateObjectPayload,
     ) -> Result<UpdateObjectResponse, AppErrorDto> {
         let context = require_protected_analyst_or_admin_for(app, session, "UPDATE_OBJECT")?;
+        let current_user = &context.current_user;
         let conn = &context.conn;
 
         let case_id =
@@ -193,6 +208,9 @@ impl ObjectService {
         let value = normalize_optional_value(payload.value)?;
         let description = normalize_object_description(payload.description)?;
         let confidence_note = normalize_confidence_note(payload.confidence_note)?;
+
+        let old_object = ObjectRepository::find_by_id(conn, &case_id, &object_id)?
+            .ok_or_else(|| AppErrorDto::new("ERR_OBJECT_NOT_FOUND", "Объект не найден.", None))?;
 
         ObjectRepository::update_object(
             conn,
@@ -217,6 +235,8 @@ impl ObjectService {
                 )
             })?;
 
+        write_object_updated_audit_best_effort(app, current_user, &old_object, &object_item);
+
         Ok(UpdateObjectResponse { object_item })
     }
 
@@ -226,6 +246,7 @@ impl ObjectService {
         payload: SoftDeleteObjectPayload,
     ) -> Result<SoftDeleteObjectResponse, AppErrorDto> {
         let context = require_protected_analyst_or_admin_for(app, session, "SOFT_DELETE_OBJECT")?;
+        let current_user = &context.current_user;
         let conn = &context.conn;
 
         let case_id =
@@ -237,8 +258,226 @@ impl ObjectService {
             "Не выбран объект.",
         )?;
 
+        let old_object = ObjectRepository::find_by_id(conn, &case_id, &object_id)?
+            .ok_or_else(|| AppErrorDto::new("ERR_OBJECT_NOT_FOUND", "Объект не найден.", None))?;
+
         ObjectRepository::soft_delete_object(conn, &case_id, &object_id)?;
+
+        write_object_deleted_audit_best_effort(app, current_user, &old_object);
 
         Ok(SoftDeleteObjectResponse { object_id })
     }
+}
+
+fn write_object_created_audit_best_effort(
+    app: &AppHandle,
+    current_user: &crate::security::session::CurrentUserDto,
+    created_object: &ObjectListItemDto,
+) {
+    use crate::audit::audit_metadata;
+    use crate::domain::audit_action;
+    use crate::services::audit_service::{AuditService, AuditSuccessInput};
+
+    let technical_details = audit_metadata::object_created(
+        &created_object.id,
+        &created_object.object_code,
+        &created_object.object_type,
+    );
+
+    let new_value = audit_metadata::snapshot(audit_metadata::object_snapshot(
+        &created_object.object_code,
+        &created_object.object_type,
+        &created_object.title,
+        Some(created_object.description.as_str()),
+        created_object.is_key,
+        Some(created_object.include_in_report),
+    ));
+
+    let input = AuditSuccessInput::new(
+        current_user,
+        audit_action::object::CREATED,
+        "object",
+        Some(&created_object.id),
+        Some(&created_object.case_id),
+        None,
+        new_value,
+        technical_details,
+    );
+
+    AuditService::write_success_non_blocking(app.clone(), input);
+}
+
+fn write_object_updated_audit_best_effort(
+    app: &AppHandle,
+    current_user: &crate::security::session::CurrentUserDto,
+    old_object: &ObjectDetailsDto,
+    new_object: &ObjectDetailsDto,
+) {
+    use crate::audit::audit_metadata;
+    use crate::domain::audit_action;
+    use crate::services::audit_service::{AuditService, AuditSuccessInput};
+
+    let mut changed = Vec::new();
+    audit_metadata::push_changed(
+        &mut changed,
+        "objectType",
+        &old_object.object_type,
+        &new_object.object_type,
+    );
+    audit_metadata::push_changed(&mut changed, "title", &old_object.title, &new_object.title);
+    audit_metadata::push_changed(
+        &mut changed,
+        "description",
+        &old_object.description,
+        &new_object.description,
+    );
+    audit_metadata::push_changed(
+        &mut changed,
+        "isKeyObject",
+        &old_object.is_key,
+        &new_object.is_key,
+    );
+    audit_metadata::push_changed(
+        &mut changed,
+        "includeInReport",
+        &old_object.include_in_report,
+        &new_object.include_in_report,
+    );
+
+    if changed.is_empty() {
+        return;
+    }
+
+    let is_key_toggle = changed.len() == 1 && changed[0] == "isKeyObject";
+    let action = if is_key_toggle {
+        audit_action::object::KEY_FLAG_CHANGED
+    } else {
+        audit_action::object::UPDATED
+    };
+
+    let technical_details = if is_key_toggle {
+        audit_metadata::object_key_flag_changed(
+            &new_object.id,
+            &new_object.object_code,
+            new_object.is_key,
+        )
+    } else {
+        audit_metadata::object_updated(&new_object.id, &new_object.object_code, &changed)
+    };
+
+    let (old_val, new_val) = audit_metadata::old_new(
+        audit_metadata::object_snapshot(
+            &old_object.object_code,
+            &old_object.object_type,
+            &old_object.title,
+            Some(old_object.description.as_str()),
+            old_object.is_key,
+            Some(old_object.include_in_report),
+        ),
+        audit_metadata::object_snapshot(
+            &new_object.object_code,
+            &new_object.object_type,
+            &new_object.title,
+            Some(new_object.description.as_str()),
+            new_object.is_key,
+            Some(new_object.include_in_report),
+        ),
+    );
+
+    let input = AuditSuccessInput::new(
+        current_user,
+        action,
+        "object",
+        Some(&new_object.id),
+        Some(&new_object.case_id),
+        old_val,
+        new_val,
+        technical_details,
+    );
+
+    AuditService::write_success_non_blocking(app.clone(), input);
+}
+
+fn write_object_links_changed_audit_best_effort(
+    app: &AppHandle,
+    current_user: &crate::security::session::CurrentUserDto,
+    old_object: &ObjectDetailsDto,
+    new_object: &ObjectDetailsDto,
+    material_ids: &[String],
+) {
+    use crate::audit::audit_metadata;
+    use crate::domain::audit_action;
+    use crate::services::audit_service::{AuditService, AuditSuccessInput};
+
+    let technical_details = audit_metadata::object_material_links_changed(
+        &new_object.id,
+        &new_object.object_code,
+        material_ids,
+    );
+
+    let (old_val, new_val) = audit_metadata::old_new(
+        audit_metadata::object_snapshot(
+            &old_object.object_code,
+            &old_object.object_type,
+            &old_object.title,
+            Some(old_object.description.as_str()),
+            old_object.is_key,
+            Some(old_object.include_in_report),
+        ),
+        audit_metadata::object_snapshot(
+            &new_object.object_code,
+            &new_object.object_type,
+            &new_object.title,
+            Some(new_object.description.as_str()),
+            new_object.is_key,
+            Some(new_object.include_in_report),
+        ),
+    );
+
+    let input = AuditSuccessInput::new(
+        current_user,
+        audit_action::object::MATERIAL_LINKS_CHANGED,
+        "object",
+        Some(&new_object.id),
+        Some(&new_object.case_id),
+        old_val,
+        new_val,
+        technical_details,
+    );
+
+    AuditService::write_success_non_blocking(app.clone(), input);
+}
+
+fn write_object_deleted_audit_best_effort(
+    app: &AppHandle,
+    current_user: &crate::security::session::CurrentUserDto,
+    old_object: &ObjectDetailsDto,
+) {
+    use crate::audit::audit_metadata;
+    use crate::domain::audit_action;
+    use crate::services::audit_service::{AuditService, AuditSuccessInput};
+
+    let technical_details = audit_metadata::object_deleted(&old_object.id, &old_object.object_code);
+
+    let old_value = audit_metadata::snapshot(audit_metadata::object_snapshot(
+        &old_object.object_code,
+        &old_object.object_type,
+        &old_object.title,
+        Some(old_object.description.as_str()),
+        old_object.is_key,
+        Some(old_object.include_in_report),
+    ));
+
+    let input = AuditSuccessInput::new(
+        current_user,
+        audit_action::object::DELETED,
+        "object",
+        Some(&old_object.id),
+        Some(&old_object.case_id),
+        old_value,
+        None,
+        technical_details,
+    );
+
+    AuditService::write_success_non_blocking(app.clone(), input);
 }
