@@ -66,3 +66,21 @@ pub mod settings {
     pub const UPDATED: &str = "SETTINGS_UPDATED";
     pub const RESET_TO_DEFAULT: &str = "SETTINGS_RESET_TO_DEFAULT";
 }
+
+pub mod backup {
+    pub const CREATED: &str = "BACKUP_CREATED";
+    pub const CASE_CREATED: &str = "BACKUP_CASE_CREATED";
+    pub const SAFETY_CREATED: &str = "BACKUP_SAFETY_CREATED";
+    pub const VERIFIED: &str = "BACKUP_VERIFIED";
+    pub const VERIFICATION_FAILED: &str = "BACKUP_VERIFICATION_FAILED";
+    pub const RESTORE_STARTED: &str = "RESTORE_STARTED";
+    pub const RESTORE_COMPLETED: &str = "RESTORE_COMPLETED";
+    pub const RESTORE_FAILED: &str = "RESTORE_FAILED";
+}
+
+pub mod integrity {
+    pub const CHECK_STARTED: &str = "INTEGRITY_CHECK_STARTED";
+    pub const CHECK_COMPLETED: &str = "INTEGRITY_CHECK_COMPLETED";
+    pub const MATERIAL_VERIFIED: &str = "INTEGRITY_MATERIAL_VERIFIED";
+    pub const PROBLEM_DETECTED: &str = "INTEGRITY_PROBLEM_DETECTED";
+}

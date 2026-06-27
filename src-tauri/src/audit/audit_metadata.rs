@@ -796,6 +796,324 @@ pub fn audit_log_exported(exported_rows: usize, format: &str, filters_applied: b
     })
 }
 
+#[derive(Debug, Serialize, Clone, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct BackupEntityCounts {
+    pub cases: usize,
+    pub materials: usize,
+    pub objects: usize,
+    pub relations: usize,
+    pub events: usize,
+    pub report_drafts: usize,
+    pub audit_logs: usize,
+    pub integrity_results: usize,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BackupAuditSnapshot<'a> {
+    pub backup_code: Option<&'a str>,
+    pub backup_type: &'a str,
+    pub status: &'a str,
+    pub case_code: Option<&'a str>,
+    pub app_version: Option<&'a str>,
+    pub schema_version: Option<&'a str>,
+    pub archive_size_bytes: Option<i64>,
+    pub archive_sha256: Option<&'a str>,
+    pub entity_counts: Option<BackupEntityCounts>,
+    pub created_at: Option<&'a str>,
+    pub completed_at: Option<&'a str>,
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn backup_snapshot<'a>(
+    backup_code: Option<&'a str>,
+    backup_type: &'a str,
+    status: &'a str,
+    case_code: Option<&'a str>,
+    app_version: Option<&'a str>,
+    schema_version: Option<&'a str>,
+    archive_size_bytes: Option<i64>,
+    archive_sha256: Option<&'a str>,
+    entity_counts: Option<BackupEntityCounts>,
+    created_at: Option<&'a str>,
+    completed_at: Option<&'a str>,
+) -> BackupAuditSnapshot<'a> {
+    BackupAuditSnapshot {
+        backup_code,
+        backup_type,
+        status,
+        case_code,
+        app_version,
+        schema_version,
+        archive_size_bytes,
+        archive_sha256,
+        entity_counts,
+        created_at,
+        completed_at,
+    }
+}
+
+pub fn backup_created(
+    backup_id: &str,
+    backup_type: &str,
+    case_id: Option<&str>,
+    archive_size_bytes: Option<i64>,
+) -> Option<Value> {
+    Some(json!({
+        "backupId": backup_id,
+        "backupType": backup_type,
+        "caseId": case_id,
+        "archiveSizeBytes": archive_size_bytes
+    }))
+}
+
+pub fn backup_verified(
+    backup_id: &str,
+    backup_type: &str,
+    is_valid: bool,
+    errors_count: usize,
+    warnings_count: usize,
+) -> Option<Value> {
+    Some(json!({
+        "backupId": backup_id,
+        "backupType": backup_type,
+        "isValid": is_valid,
+        "errorsCount": errors_count,
+        "warningsCount": warnings_count
+    }))
+}
+
+pub fn backup_restore_started(
+    backup_id: &str,
+    backup_type: &str,
+    safety_backup_id: Option<&str>,
+) -> Option<Value> {
+    Some(json!({
+        "backupId": backup_id,
+        "backupType": backup_type,
+        "safetyBackupId": safety_backup_id
+    }))
+}
+
+pub fn backup_restore_completed(
+    backup_id: &str,
+    backup_type: &str,
+    restored_counts: Option<&BackupEntityCounts>,
+) -> Option<Value> {
+    Some(json!({
+        "backupId": backup_id,
+        "backupType": backup_type,
+        "restoredCounts": restored_counts
+    }))
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BackupVerificationAuditSnapshot<'a> {
+    pub backup_code: Option<&'a str>,
+    pub backup_type: &'a str,
+    pub is_valid: bool,
+    pub archive_sha256: Option<&'a str>,
+    pub expected_sha256: Option<&'a str>,
+    pub errors_count: usize,
+    pub warnings_count: usize,
+    pub checked_at: Option<&'a str>,
+}
+
+pub fn backup_verification_snapshot<'a>(
+    backup_code: Option<&'a str>,
+    backup_type: &'a str,
+    is_valid: bool,
+    archive_sha256: Option<&'a str>,
+    expected_sha256: Option<&'a str>,
+    errors_count: usize,
+    warnings_count: usize,
+    checked_at: Option<&'a str>,
+) -> BackupVerificationAuditSnapshot<'a> {
+    BackupVerificationAuditSnapshot {
+        backup_code,
+        backup_type,
+        is_valid,
+        archive_sha256,
+        expected_sha256,
+        errors_count,
+        warnings_count,
+        checked_at,
+    }
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RestoreAuditSnapshot<'a> {
+    pub backup_code: Option<&'a str>,
+    pub backup_type: &'a str,
+    pub status: &'a str,
+    pub safety_backup_code: Option<&'a str>,
+    pub app_version: Option<&'a str>,
+    pub schema_version: Option<&'a str>,
+    pub restored_counts: Option<BackupEntityCounts>,
+    pub started_at: Option<&'a str>,
+    pub completed_at: Option<&'a str>,
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn restore_snapshot<'a>(
+    backup_code: Option<&'a str>,
+    backup_type: &'a str,
+    status: &'a str,
+    safety_backup_code: Option<&'a str>,
+    app_version: Option<&'a str>,
+    schema_version: Option<&'a str>,
+    restored_counts: Option<BackupEntityCounts>,
+    started_at: Option<&'a str>,
+    completed_at: Option<&'a str>,
+) -> RestoreAuditSnapshot<'a> {
+    RestoreAuditSnapshot {
+        backup_code,
+        backup_type,
+        status,
+        safety_backup_code,
+        app_version,
+        schema_version,
+        restored_counts,
+        started_at,
+        completed_at,
+    }
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IntegrityRunAuditSnapshot<'a> {
+    pub run_id: &'a str,
+    pub scope: &'a str,
+    pub case_code: Option<&'a str>,
+    pub checked_count: usize,
+    pub ok_count: usize,
+    pub mismatch_count: usize,
+    pub missing_count: usize,
+    pub read_error_count: usize,
+    pub problem_material_codes: Vec<String>,
+    pub started_at: Option<&'a str>,
+    pub completed_at: Option<&'a str>,
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn integrity_run_snapshot<'a>(
+    run_id: &'a str,
+    scope: &'a str,
+    case_code: Option<&'a str>,
+    checked_count: usize,
+    ok_count: usize,
+    mismatch_count: usize,
+    missing_count: usize,
+    read_error_count: usize,
+    problem_material_codes: Vec<String>,
+    started_at: Option<&'a str>,
+    completed_at: Option<&'a str>,
+) -> IntegrityRunAuditSnapshot<'a> {
+    IntegrityRunAuditSnapshot {
+        run_id,
+        scope,
+        case_code,
+        checked_count,
+        ok_count,
+        mismatch_count,
+        missing_count,
+        read_error_count,
+        problem_material_codes,
+        started_at,
+        completed_at,
+    }
+}
+
+pub type IntegrityResultSummarySnapshot<'a> = IntegrityRunAuditSnapshot<'a>;
+
+pub fn capped_codes(codes: Vec<String>, limit: usize) -> Vec<String> {
+    codes.into_iter().take(limit).collect()
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IntegrityMaterialAuditSnapshot<'a> {
+    pub material_code: &'a str,
+    pub original_file_name: &'a str,
+    pub previous_status: Option<&'a str>,
+    pub current_status: &'a str,
+    pub expected_sha256: Option<&'a str>,
+    pub actual_sha256: Option<&'a str>,
+    pub checked_at: Option<&'a str>,
+}
+
+pub fn integrity_material_snapshot<'a>(
+    material_code: &'a str,
+    original_file_name: &'a str,
+    previous_status: Option<&'a str>,
+    current_status: &'a str,
+    expected_sha256: Option<&'a str>,
+    actual_sha256: Option<&'a str>,
+    checked_at: Option<&'a str>,
+) -> IntegrityMaterialAuditSnapshot<'a> {
+    IntegrityMaterialAuditSnapshot {
+        material_code,
+        original_file_name,
+        previous_status,
+        current_status,
+        expected_sha256,
+        actual_sha256,
+        checked_at,
+    }
+}
+
+pub fn integrity_check_completed(
+    run_id: &str,
+    scope: &str,
+    case_id: Option<&str>,
+    checked_count: usize,
+    problem_count: usize,
+) -> Option<Value> {
+    Some(json!({
+        "runId": run_id,
+        "scope": scope,
+        "caseId": case_id,
+        "checkedCount": checked_count,
+        "problemCount": problem_count
+    }))
+}
+
+pub fn integrity_problem_detected(
+    run_id: &str,
+    scope: &str,
+    problem_material_codes: &[String],
+    mismatch_count: usize,
+    missing_count: usize,
+    read_error_count: usize,
+) -> Option<Value> {
+    Some(json!({
+        "runId": run_id,
+        "scope": scope,
+        "problemMaterialCodes": problem_material_codes,
+        "mismatchCount": mismatch_count,
+        "missingCount": missing_count,
+        "readErrorCount": read_error_count
+    }))
+}
+
+pub fn integrity_material_verified(
+    material_id: &str,
+    material_code: &str,
+    previous_status: Option<&str>,
+    current_status: &str,
+) -> Option<Value> {
+    Some(json!({
+        "materialId": material_id,
+        "materialCode": material_code,
+        "previousStatus": previous_status,
+        "currentStatus": current_status,
+        "changedFields": ["integrityStatus"]
+    }))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1000,5 +1318,75 @@ mod tests {
 
         assert_eq!(value["oldValue"], "[redacted:path]");
         assert_eq!(value["newValue"], "[redacted:path]");
+    }
+
+    #[test]
+    fn backup_snapshot_does_not_expose_paths_or_file_list() {
+        let snapshot = backup_snapshot(
+            Some("BCK-001"),
+            "full",
+            "completed",
+            None,
+            Some("0.1.0"),
+            Some("202606270001"),
+            Some(1024),
+            Some("abc123"),
+            None,
+            Some("2026-06-27T10:00:00"),
+            Some("2026-06-27T10:01:00"),
+        );
+
+        let value = serde_json::to_value(snapshot).unwrap();
+
+        assert_eq!(value["backupCode"], "BCK-001");
+        assert_eq!(value["backupType"], "full");
+
+        assert!(value.get("backupPath").is_none());
+        assert!(value.get("archivePath").is_none());
+        assert!(value.get("storageRoot").is_none());
+        assert!(value.get("fileList").is_none());
+        assert!(value.get("zipBytes").is_none());
+        assert!(value.get("sqliteDump").is_none());
+    }
+
+    #[test]
+    fn integrity_run_snapshot_contains_summary_not_paths() {
+        let snapshot = integrity_run_snapshot(
+            "run-1",
+            "case",
+            Some("CASE-001"),
+            10,
+            8,
+            1,
+            1,
+            0,
+            vec!["MAT-001".to_string(), "MAT-002".to_string()],
+            Some("2026-06-27T10:00:00"),
+            Some("2026-06-27T10:01:00"),
+        );
+
+        let value = serde_json::to_value(snapshot).unwrap();
+
+        assert_eq!(value["checkedCount"], 10);
+        assert_eq!(value["mismatchCount"], 1);
+        assert_eq!(value["missingCount"], 1);
+
+        assert!(value.get("originalPath").is_none());
+        assert!(value.get("storedPath").is_none());
+        assert!(value.get("absolutePath").is_none());
+        assert!(value.get("fileContent").is_none());
+    }
+
+    #[test]
+    fn capped_codes_limits_problem_material_codes() {
+        let codes = (0..100)
+            .map(|index| format!("MAT-{index:03}"))
+            .collect::<Vec<_>>();
+
+        let capped = capped_codes(codes, 50);
+
+        assert_eq!(capped.len(), 50);
+        assert_eq!(capped[0], "MAT-000");
+        assert_eq!(capped[49], "MAT-049");
     }
 }
