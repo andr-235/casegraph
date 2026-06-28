@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { CurrentUserDto } from "../../features/auth/model/authTypes";
+import type { EffectivePermissionsDto } from "../../features/auth/model/effectivePermissionsTypes";
 import type { CaseDto } from "../../features/cases/model/caseTypes";
 import { CaseOverviewPage } from "./CaseOverviewPage";
 import {
@@ -12,9 +13,12 @@ import { GraphPage } from "./GraphPage";
 import { RelationsPage } from "./RelationsPage";
 import { TimelinePage } from "./TimelinePage";
 import { SettingsPage } from "../settings/SettingsPage";
+import { can } from "../../shared/lib/permissions";
+import { protectedOperations } from "../../shared/security/protectedOperations";
 
 type Props = {
   user: CurrentUserDto;
+  permissions: EffectivePermissionsDto | null;
   caseItem: CaseDto;
   onCaseUpdated: (caseItem: CaseDto) => void;
   onBackToCases: () => void;
@@ -34,6 +38,7 @@ const sectionTitles: Record<CaseWorkspaceSection, string> = {
 
 export function CaseWorkspacePage({
   user,
+  permissions,
   caseItem,
   onCaseUpdated,
   onBackToCases,
@@ -78,7 +83,7 @@ export function CaseWorkspacePage({
           activeSection={activeSection}
           onSectionChange={setActiveSection}
           onBackToCases={onBackToCases}
-          showSettings={user.role === "administrator"}
+          showSettings={can(permissions, protectedOperations.settingsRead)}
         />
 
         <section style={{ flex: 1, padding: 32 }}>
@@ -100,7 +105,7 @@ export function CaseWorkspacePage({
           {activeSection === "relations" && (
             <RelationsPage
               caseId={caseItem.id}
-              canEdit={user.role === "administrator" || user.role === "analyst"}
+              canEdit={can(permissions, protectedOperations.relationUpdate) || can(permissions, protectedOperations.relationCreate)}
             />
           )}
 
@@ -111,12 +116,14 @@ export function CaseWorkspacePage({
           {activeSection === "timeline" && (
             <TimelinePage
               caseId={caseItem.id}
-              readonly={user.role === "viewer"}
+              readonly={!can(permissions, protectedOperations.timelineCreate) && !can(permissions, protectedOperations.timelineUpdate)}
             />
           )}
 
-          {activeSection === "settings" && user.role === "administrator" && (
+          {activeSection === "settings" && can(permissions, protectedOperations.settingsRead) && (
             <SettingsPage
+              permissions={permissions}
+              onReloadPermissions={undefined}
               onBack={() => setActiveSection("overview")}
             />
           )}

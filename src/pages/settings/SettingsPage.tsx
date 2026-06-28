@@ -10,14 +10,19 @@ import type {
   SettingsDirectoryTarget,
   UpdateSettingsPayload,
 } from "../../features/settings/model/settingsTypes";
+import type { EffectivePermissionsDto } from "../../features/auth/model/effectivePermissionsTypes";
 import { ConfirmModal } from "../../shared/ui/ConfirmModal";
 import { formatError } from "../../shared/lib/formatError";
+import { can } from "../../shared/lib/permissions";
+import { protectedOperations } from "../../shared/security/protectedOperations";
 
 type SettingsPageProps = {
+  permissions?: EffectivePermissionsDto | null;
+  onReloadPermissions?: () => Promise<void>;
   onBack: () => void;
 };
 
-export function SettingsPage({ onBack }: SettingsPageProps) {
+export function SettingsPage({ permissions, onReloadPermissions, onBack }: SettingsPageProps) {
   const [settings, setSettings] = useState<AppSettingsDto | null>(null);
   const [draft, setDraft] = useState<UpdateSettingsPayload | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -92,6 +97,10 @@ export function SettingsPage({ onBack }: SettingsPageProps) {
       setSettings(updated);
       setDraft(toUpdatePayload(updated));
       setSavedMessage("Настройки успешно сохранены.");
+
+      if (onReloadPermissions) {
+        await onReloadPermissions();
+      }
     } catch (err) {
       setErrorMessage(formatError(err));
     } finally {
@@ -131,6 +140,10 @@ export function SettingsPage({ onBack }: SettingsPageProps) {
       setDraft(toUpdatePayload(nextSettings));
       setIsResetConfirmOpen(false);
       setSavedMessage("Настройки сброшены к значениям по умолчанию.");
+
+      if (onReloadPermissions) {
+        await onReloadPermissions();
+      }
     } catch (err) {
       setErrorMessage(formatError(err));
     } finally {
@@ -197,7 +210,7 @@ export function SettingsPage({ onBack }: SettingsPageProps) {
             type="button"
             className="btn btn-primary"
             onClick={handleSave}
-            disabled={!isDirty || isAnyBusy}
+            disabled={!isDirty || isAnyBusy || !can(permissions, protectedOperations.settingsUpdate)}
             style={{ padding: "8px 16px" }}
           >
             {isSaving ? "Сохранение..." : "Сохранить настройки"}

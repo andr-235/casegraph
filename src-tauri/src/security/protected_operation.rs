@@ -1,4 +1,6 @@
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+use serde::Serialize;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
 pub enum ProtectedOperation {
     CaseCreate,
     CaseRead,
@@ -32,6 +34,40 @@ pub enum ProtectedOperation {
 }
 
 impl ProtectedOperation {
+    pub const fn key(self) -> &'static str {
+        match self {
+            Self::CaseCreate => "case.create",
+            Self::CaseRead => "case.read",
+            Self::CaseUpdate => "case.update",
+            Self::MaterialImport => "material.import",
+            Self::MaterialRead => "material.read",
+            Self::MaterialUpdate => "material.update",
+            Self::ObjectCreate => "object.create",
+            Self::ObjectRead => "object.read",
+            Self::ObjectUpdate => "object.update",
+            Self::RelationCreate => "relation.create",
+            Self::RelationRead => "relation.read",
+            Self::RelationUpdate => "relation.update",
+            Self::TimelineCreate => "timeline.create",
+            Self::TimelineRead => "timeline.read",
+            Self::TimelineUpdate => "timeline.update",
+            Self::ReportDraftGenerate => "report.generate",
+            Self::ReportDraftRead => "report.read",
+            Self::ReportDraftUpdate => "report.update",
+            Self::DocxExport => "docx.export",
+            Self::AuditLogRead => "audit.read",
+            Self::UserManage => "user.manage",
+            Self::SettingsRead => "settings.read",
+            Self::SettingsUpdate => "settings.update",
+            Self::BackupRead => "backup.read",
+            Self::BackupCreate => "backup.create",
+            Self::BackupVerify => "backup.verify",
+            Self::BackupRestore => "backup.restore",
+            Self::IntegrityCheckRead => "integrity.read",
+            Self::IntegrityCheckRun => "integrity.run",
+        }
+    }
+
     pub fn action_name(self) -> &'static str {
         match self {
             Self::CaseCreate => "case.create",

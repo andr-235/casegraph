@@ -1,3 +1,5 @@
+pub mod effective_permission_service;
+pub mod effective_permissions;
 pub mod password;
 pub mod permission_decision;
 pub mod policy_aware_permission_guard;
@@ -6,6 +8,8 @@ pub mod protected_operation;
 pub mod protected_service_context;
 pub mod session;
 
+pub use effective_permission_service::EffectivePermissionService;
+pub use effective_permissions::{EffectivePermissionsDto, EffectivePolicyFlagsDto};
 pub use policy_aware_permission_guard::PolicyAwarePermissionGuard;
 pub use protected_operation::ProtectedOperation;
 pub use protected_service_context::ProtectedServiceContext;

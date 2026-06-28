@@ -3,9 +3,13 @@ import {
   getCurrentUser,
   logout,
 } from "../features/auth/api/authApi";
+import { getEffectivePermissions } from "../features/auth/api/permissionsApi";
 import type { CurrentUserDto } from "../features/auth/model/authTypes";
+import type { EffectivePermissionsDto } from "../features/auth/model/effectivePermissionsTypes";
 import type { CaseDto } from "../features/cases/model/caseTypes";
 import { initializeApp } from "../app/api/appApi";
+import { can } from "../shared/lib/permissions";
+import { protectedOperations } from "../shared/security/protectedOperations";
 import { FirstAdminSetupPage } from "../pages/first-admin/FirstAdminSetupPage";
 import { LoginPage } from "../pages/login/LoginPage";
 import { CasesPage } from "../pages/cases/CasesPage";
@@ -26,11 +30,21 @@ export function App() {
   const [bootstrapState, setBootstrapState] =
     useState<BootstrapState>("loading");
   const [currentUser, setCurrentUser] = useState<CurrentUserDto | null>(null);
+  const [permissions, setPermissions] = useState<EffectivePermissionsDto | null>(null);
   const [selectedCase, setSelectedCase] = useState<CaseDto | null>(null);
   const [showAuditLog, setShowAuditLog] = useState(false);
   const [showUsers, setShowUsers] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [startupError, setStartupError] = useState<string | null>(null);
+
+  async function reloadPermissions() {
+    try {
+      const nextPermissions = await getEffectivePermissions();
+      setPermissions(nextPermissions);
+    } catch {
+      setPermissions(null);
+    }
+  }
 
   async function boot() {
     try {
@@ -42,6 +56,7 @@ export function App() {
       if (!appState.hasAdmin) {
         setCurrentUser(null);
         setSelectedCase(null);
+        setPermissions(null);
         setBootstrapState("firstAdminRequired");
         return;
       }
@@ -51,11 +66,13 @@ export function App() {
       if (!user) {
         setCurrentUser(null);
         setSelectedCase(null);
+        setPermissions(null);
         setBootstrapState("loginRequired");
         return;
       }
 
       setCurrentUser(user);
+      await reloadPermissions();
       setBootstrapState("authenticated");
     } catch (err) {
       console.error(err);
@@ -84,6 +101,7 @@ export function App() {
     } finally {
       setCurrentUser(null);
       setSelectedCase(null);
+      setPermissions(null);
       setBootstrapState("loginRequired");
     }
   }
@@ -111,15 +129,10 @@ export function App() {
   if (bootstrapState === "loginRequired") {
     return (
       <LoginPage
-        onLoggedIn={(user) => {
+        onLoggedIn={async (user) => {
           setCurrentUser(user);
           setSelectedCase(null);
-
-          if (user.mustChangePassword) {
-            setBootstrapState("authenticated");
-            return;
-          }
-
+          await reloadPermissions();
           setBootstrapState("authenticated");
         }}
       />
@@ -144,6 +157,7 @@ export function App() {
               setCurrentUser(user);
             }
           } finally {
+            await reloadPermissions();
             setBootstrapState("authenticated");
           }
         }}
@@ -155,6 +169,7 @@ export function App() {
     return (
       <CaseWorkspacePage
         user={currentUser}
+        permissions={permissions}
         caseItem={selectedCase}
         onCaseUpdated={setSelectedCase}
         onBackToCases={() => setSelectedCase(null)}
@@ -172,7 +187,7 @@ export function App() {
     );
   }
 
-  if (showUsers && currentUser.role === "administrator") {
+  if (showUsers && can(permissions, protectedOperations.userManage)) {
     return (
       <UsersPage
         user={currentUser}
@@ -181,9 +196,11 @@ export function App() {
     );
   }
 
-  if (showSettings && currentUser.role === "administrator") {
+  if (showSettings && can(permissions, protectedOperations.settingsRead)) {
     return (
       <SettingsPage
+        permissions={permissions}
+        onReloadPermissions={reloadPermissions}
         onBack={() => setShowSettings(false)}
       />
     );
@@ -192,6 +209,7 @@ export function App() {
   return (
     <CasesPage
       user={currentUser}
+      permissions={permissions}
       onLogout={handleLogout}
       onOpenCase={setSelectedCase}
       onOpenAuditLog={() => setShowAuditLog(true)}

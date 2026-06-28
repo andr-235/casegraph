@@ -6,6 +6,7 @@ pub mod graph_commands;
 pub mod material_commands;
 pub mod object_commands;
 pub mod relation_commands;
+pub mod security_commands;
 pub mod settings_commands;
 pub mod timeline_commands;
 pub mod user_management_commands;

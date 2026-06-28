@@ -1,12 +1,16 @@
 import { useEffect, useState } from "react";
 import type { CurrentUserDto } from "../../features/auth/model/authTypes";
+import type { EffectivePermissionsDto } from "../../features/auth/model/effectivePermissionsTypes";
 import { getCases } from "../../features/cases/api/casesApi";
 import type { CaseDto } from "../../features/cases/model/caseTypes";
 import { CreateCaseModal } from "./CreateCaseModal";
 import { getCaseStatusLabel } from "../../features/cases/model/caseStatus";
+import { can } from "../../shared/lib/permissions";
+import { protectedOperations } from "../../shared/security/protectedOperations";
 
 type Props = {
   user: CurrentUserDto;
+  permissions: EffectivePermissionsDto | null;
   onLogout: () => void;
   onOpenCase: (caseItem: CaseDto) => void;
   onOpenAuditLog?: () => void;
@@ -14,7 +18,7 @@ type Props = {
   onOpenSettings?: () => void;
 };
 
-export function CasesPage({ user, onLogout, onOpenCase, onOpenAuditLog, onOpenUsers, onOpenSettings }: Props) {
+export function CasesPage({ user, permissions, onLogout, onOpenCase, onOpenAuditLog, onOpenUsers, onOpenSettings }: Props) {
   const [cases, setCases] = useState<CaseDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -56,27 +60,29 @@ export function CasesPage({ user, onLogout, onOpenCase, onOpenAuditLog, onOpenUs
         </div>
 
         <div style={{ display: "flex", gap: 8 }}>
-          {user.role === "administrator" && onOpenUsers ? (
+          {can(permissions, protectedOperations.userManage) && onOpenUsers ? (
             <button type="button" onClick={onOpenUsers}>
               Пользователи
             </button>
           ) : null}
 
-          {user.role === "administrator" && onOpenSettings ? (
+          {can(permissions, protectedOperations.settingsRead) && onOpenSettings ? (
             <button type="button" onClick={onOpenSettings}>
               ⚙ Настройки
             </button>
           ) : null}
 
-          {user.role !== "viewer" && onOpenAuditLog ? (
+          {can(permissions, protectedOperations.auditRead) && onOpenAuditLog ? (
             <button type="button" onClick={onOpenAuditLog}>
               Журнал
             </button>
           ) : null}
 
-          <button type="button" onClick={() => setCreateModalOpen(true)}>
-            Создать дело
-          </button>
+          {can(permissions, protectedOperations.caseCreate) ? (
+            <button type="button" onClick={() => setCreateModalOpen(true)}>
+              Создать дело
+            </button>
+          ) : null}
 
           <button type="button" onClick={onLogout}>
             Выйти
