@@ -16,9 +16,10 @@ type Props = {
   onOpenAuditLog?: () => void;
   onOpenUsers?: () => void;
   onOpenSettings?: () => void;
+  onOpenBackup?: () => void;
 };
 
-export function CasesPage({ user, permissions, onLogout, onOpenCase, onOpenAuditLog, onOpenUsers, onOpenSettings }: Props) {
+export function CasesPage({ user, permissions, onLogout, onOpenCase, onOpenAuditLog, onOpenUsers, onOpenSettings, onOpenBackup }: Props) {
   const [cases, setCases] = useState<CaseDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -69,6 +70,12 @@ export function CasesPage({ user, permissions, onLogout, onOpenCase, onOpenAudit
           {can(permissions, protectedOperations.settingsRead) && onOpenSettings ? (
             <button type="button" onClick={onOpenSettings}>
               ⚙ Настройки
+            </button>
+          ) : null}
+
+          {can(permissions, protectedOperations.backupRead) && onOpenBackup ? (
+            <button type="button" onClick={onOpenBackup}>
+              Резервное копирование
             </button>
           ) : null}
 

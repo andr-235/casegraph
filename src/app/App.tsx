@@ -18,6 +18,7 @@ import { AuditLogPage } from "../pages/audit-log/AuditLogPage";
 import { UsersPage } from "../features/users/ui/UsersPage";
 import { ChangePasswordPage } from "../pages/change-password/ChangePasswordPage";
 import { SettingsPage } from "../pages/settings/SettingsPage";
+import { BackupPage } from "../pages/backup/BackupPage";
 
 type BootstrapState =
   | "loading"
@@ -35,6 +36,7 @@ export function App() {
   const [showAuditLog, setShowAuditLog] = useState(false);
   const [showUsers, setShowUsers] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showBackup, setShowBackup] = useState(false);
   const [startupError, setStartupError] = useState<string | null>(null);
 
   async function reloadPermissions() {
@@ -196,6 +198,15 @@ export function App() {
     );
   }
 
+  if (showBackup && can(permissions, protectedOperations.backupRead)) {
+    return (
+      <BackupPage
+        permissions={permissions}
+        onBack={() => setShowBackup(false)}
+      />
+    );
+  }
+
   if (showSettings && can(permissions, protectedOperations.settingsRead)) {
     return (
       <SettingsPage
@@ -215,6 +226,7 @@ export function App() {
       onOpenAuditLog={() => setShowAuditLog(true)}
       onOpenUsers={() => setShowUsers(true)}
       onOpenSettings={() => setShowSettings(true)}
+      onOpenBackup={() => setShowBackup(true)}
     />
   );
 }

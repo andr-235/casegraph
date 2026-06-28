@@ -317,6 +317,59 @@ pub fn apply_migrations(conn: &Connection) -> Result<(), AppErrorDto> {
 
     ensure_audit_log_columns(conn)?;
 
+    conn.execute_batch(
+        r#"
+        CREATE TABLE IF NOT EXISTS backup_history (
+            id TEXT PRIMARY KEY,
+
+            backup_code TEXT NOT NULL UNIQUE,
+            backup_type TEXT NOT NULL
+                CHECK (backup_type IN ('full', 'case', 'safety')),
+
+            status TEXT NOT NULL
+                CHECK (status IN ('created', 'verified', 'failed', 'restored')),
+
+            file_path TEXT NOT NULL,
+            file_name TEXT NOT NULL,
+            file_size INTEGER,
+            sha256 TEXT,
+
+            case_id TEXT,
+            case_code TEXT,
+
+            app_version TEXT NOT NULL,
+            schema_version INTEGER NOT NULL,
+
+            created_by TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+
+            verified_at TEXT,
+            restored_at TEXT,
+
+            metadata_json TEXT,
+
+            error_code TEXT,
+            error_message TEXT,
+
+            FOREIGN KEY (case_id) REFERENCES cases(id),
+            FOREIGN KEY (created_by) REFERENCES users(id)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_backup_history_type
+        ON backup_history(backup_type);
+
+        CREATE INDEX IF NOT EXISTS idx_backup_history_status
+        ON backup_history(status);
+
+        CREATE INDEX IF NOT EXISTS idx_backup_history_case_id
+        ON backup_history(case_id);
+
+        CREATE INDEX IF NOT EXISTS idx_backup_history_created_at
+        ON backup_history(created_at);
+        "#,
+    )
+    .map_err(|err| AppErrorDto::database(err.to_string()))?;
+
     seed_roles(conn)?;
 
     seed_settings(conn)?;
