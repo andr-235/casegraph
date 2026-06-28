@@ -6,6 +6,29 @@ export type BackupStatus =
   | "failed"
   | "restored";
 
+export type BackupCreateType = "full";
+
+export type CreateBackupPayload = {
+  backupType: BackupCreateType;
+  outputFolderPath: string;
+  includeExports: boolean;
+  includeAuditLog: boolean;
+  includeTemplates: boolean;
+};
+
+export type CreateBackupResponse = {
+  backupId: string;
+  backupCode: string;
+  fileName: string;
+  fileSize: number;
+  sha256: string;
+  createdAt: string;
+};
+
+export type SelectBackupOutputFolderResponse = {
+  folderPath: string | null;
+};
+
 export type BackupHistoryItemDto = {
   id: string;
   backupCode: string;

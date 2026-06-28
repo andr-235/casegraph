@@ -3,6 +3,25 @@ use rusqlite::{Connection, Row};
 use crate::backup::BackupHistoryItemDto;
 use crate::errors::app_error::AppErrorDto;
 
+#[derive(Debug, Clone)]
+pub struct NewBackupHistoryRow {
+    pub id: String,
+    pub backup_code: String,
+    pub backup_type: String,
+    pub status: String,
+    pub file_path: String,
+    pub file_name: String,
+    pub file_size: i64,
+    pub sha256: String,
+    pub case_id: Option<String>,
+    pub case_code: Option<String>,
+    pub app_version: String,
+    pub schema_version: i64,
+    pub created_by: String,
+    pub created_at: String,
+    pub metadata_json: String,
+}
+
 pub struct BackupRepository;
 
 impl BackupRepository {
@@ -47,6 +66,51 @@ impl BackupRepository {
         }
 
         Ok(items)
+    }
+
+    pub fn insert_history(conn: &Connection, row: &NewBackupHistoryRow) -> Result<(), AppErrorDto> {
+        conn.execute(
+            r#"
+            INSERT INTO backup_history (
+                id,
+                backup_code,
+                backup_type,
+                status,
+                file_path,
+                file_name,
+                file_size,
+                sha256,
+                case_id,
+                case_code,
+                app_version,
+                schema_version,
+                created_by,
+                created_at,
+                metadata_json
+            )
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)
+            "#,
+            rusqlite::params![
+                row.id,
+                row.backup_code,
+                row.backup_type,
+                row.status,
+                row.file_path,
+                row.file_name,
+                row.file_size,
+                row.sha256,
+                row.case_id,
+                row.case_code,
+                row.app_version,
+                row.schema_version,
+                row.created_by,
+                row.created_at,
+                row.metadata_json,
+            ],
+        )
+        .map_err(|err| AppErrorDto::database(err.to_string()))?;
+
+        Ok(())
     }
 
     fn map_history_item(row: &Row<'_>) -> rusqlite::Result<BackupHistoryItemDto> {

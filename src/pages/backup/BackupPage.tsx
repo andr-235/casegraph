@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import type { EffectivePermissionsDto } from "../../features/auth/model/effectivePermissionsTypes";
 import { getBackupHistory } from "../../features/backup/api/backupApi";
-import type { BackupHistoryItemDto } from "../../features/backup/model/backupTypes";
+import type { BackupHistoryItemDto, CreateBackupResponse } from "../../features/backup/model/backupTypes";
+import { CreateBackupModal } from "../../features/backup/ui/CreateBackupModal";
 import { can } from "../../shared/lib/permissions";
 import { protectedOperations } from "../../shared/security/protectedOperations";
 
@@ -57,52 +58,46 @@ export function BackupPage({ permissions, onBack }: BackupPageProps) {
   const [items, setItems] = useState<BackupHistoryItemDto[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [isCreateModalOpen, setCreateModalOpen] = useState(false);
 
   const actionsDisabledReason =
     !canCreateBackup
       ? "Создание резервной копии недоступно для текущей роли или политики доступа."
       : null;
 
-  useEffect(() => {
-    let cancelled = false;
-
-    async function load() {
-      if (!canReadBackup) {
-        setIsLoading(false);
-        setErrorMessage("Недостаточно прав для просмотра резервного копирования.");
-        return;
-      }
-
-      setIsLoading(true);
-      setErrorMessage(null);
-
-      try {
-        const response = await getBackupHistory();
-
-        if (!cancelled) {
-          setItems(response);
-        }
-      } catch (error) {
-        if (!cancelled) {
-          setErrorMessage(
-            error instanceof Error
-              ? error.message
-              : "Не удалось загрузить историю резервного копирования.",
-          );
-        }
-      } finally {
-        if (!cancelled) {
-          setIsLoading(false);
-        }
-      }
+  const loadHistory = useCallback(async () => {
+    if (!canReadBackup) {
+      setIsLoading(false);
+      setErrorMessage("Недостаточно прав для просмотра резервного копирования.");
+      return;
     }
 
-    load();
+    setIsLoading(true);
+    setErrorMessage(null);
 
-    return () => {
-      cancelled = true;
-    };
+    try {
+      const response = await getBackupHistory();
+      setItems(response);
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "Не удалось загрузить историю резервного копирования.",
+      );
+    } finally {
+      setIsLoading(false);
+    }
   }, [canReadBackup]);
+
+  useEffect(() => {
+    loadHistory();
+  }, [loadHistory]);
+
+  function handleBackupCreated(result: CreateBackupResponse) {
+    setSuccessMessage(`Backup ${result.backupCode} создан: ${result.fileName}`);
+    void loadHistory();
+  }
 
   if (!canReadBackup) {
     return (
@@ -126,7 +121,12 @@ export function BackupPage({ permissions, onBack }: BackupPageProps) {
         </div>
 
         <div className="page-actions">
-          <button type="button" disabled={!canCreateBackup} title={actionsDisabledReason ?? undefined}>
+          <button
+            type="button"
+            disabled={!canCreateBackup}
+            title={actionsDisabledReason ?? undefined}
+            onClick={() => setCreateModalOpen(true)}
+          >
             Создать backup
           </button>
 
@@ -143,6 +143,10 @@ export function BackupPage({ permissions, onBack }: BackupPageProps) {
           </button>
         </div>
       </div>
+
+      {successMessage && (
+        <div className="success-state">{successMessage}</div>
+      )}
 
       {isLoading && <div className="loading-state">Загрузка истории backup…</div>}
 
@@ -184,6 +188,11 @@ export function BackupPage({ permissions, onBack }: BackupPageProps) {
           </tbody>
         </table>
       )}
+      <CreateBackupModal
+        open={isCreateModalOpen}
+        onClose={() => setCreateModalOpen(false)}
+        onCreated={handleBackupCreated}
+      />
     </section>
   );
 }
