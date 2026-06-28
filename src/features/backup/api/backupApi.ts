@@ -3,6 +3,8 @@ import type {
   BackupHistoryItemDto,
   CreateBackupPayload,
   CreateBackupResponse,
+  CreateRestoreSafetyBackupPayload,
+  CreateRestoreSafetyBackupResponse,
   RestoreBackupPreflightPayload,
   RestoreBackupPreflightResponse,
   SelectBackupFileResponse,
@@ -47,6 +49,15 @@ export function restoreBackupPreflight(
 ): Promise<RestoreBackupPreflightResponse> {
   return invokeCommand<RestoreBackupPreflightResponse>(
     "restore_backup_preflight",
+    { payload },
+  );
+}
+
+export function createRestoreSafetyBackup(
+  payload: CreateRestoreSafetyBackupPayload,
+): Promise<CreateRestoreSafetyBackupResponse> {
+  return invokeCommand<CreateRestoreSafetyBackupResponse>(
+    "create_restore_safety_backup",
     { payload },
   );
 }

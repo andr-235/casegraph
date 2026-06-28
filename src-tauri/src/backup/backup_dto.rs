@@ -52,6 +52,18 @@ pub struct BackupMetadataDto {
     pub app_version: String,
     pub schema_version: i64,
     pub archive_sha256: Option<String>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub safety_reason: Option<String>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub restore_target_backup_id: Option<String>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub restore_target_backup_code: Option<String>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub restore_target_archive_sha256: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -196,4 +208,60 @@ pub struct RestorePreflightIssueDto {
 pub enum RestorePreflightIssueSeverity {
     Warning,
     Error,
+}
+
+// ── Safety backup DTOs ─────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CreateRestoreSafetyBackupPayload {
+    pub restore_backup_id: Option<String>,
+    pub restore_file_path: Option<String>,
+    pub restore_archive_sha256: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CreateRestoreSafetyBackupResponse {
+    pub safety_backup_id: String,
+    pub safety_backup_code: String,
+    pub safety_file_name: String,
+    pub safety_archive_sha256: String,
+    pub safety_file_size: i64,
+    pub created_at: String,
+    pub restore_target: RestoreSafetyTargetDto,
+    pub can_continue_to_restore: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RestoreSafetyTargetDto {
+    pub backup_id: Option<String>,
+    pub backup_code: Option<String>,
+    pub file_name: String,
+    pub archive_sha256: String,
+}
+
+// ── Internal backup creation request ───────────────────────────────────────
+
+pub struct InternalCreateBackupRequest {
+    pub backup_type: String,
+    pub output_dir: std::path::PathBuf,
+    pub safety_reason: Option<String>,
+    pub restore_target_backup_id: Option<String>,
+    pub restore_target_backup_code: Option<String>,
+    pub restore_target_archive_sha256: Option<String>,
+}
+
+pub struct InternalCreateBackupResult {
+    pub backup_id: String,
+    pub backup_code: String,
+    pub file_name: String,
+    pub file_path: String,
+    pub file_size: i64,
+    pub archive_sha256: String,
+    pub created_at: String,
+    pub metadata_json: String,
+    pub app_version: String,
+    pub schema_version: i64,
 }

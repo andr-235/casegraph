@@ -2,6 +2,7 @@ use tauri::AppHandle;
 
 use crate::backup::{
     BackupHistoryItemDto, BackupService, CreateBackupPayload, CreateBackupResponse,
+    CreateRestoreSafetyBackupPayload, CreateRestoreSafetyBackupResponse,
     RestoreBackupPreflightPayload, RestoreBackupPreflightResponse, RestoreService,
     SelectBackupFileResponse, SelectBackupOutputFolderResponse, SelectRestoreBackupFileResponse,
     VerifyBackupPayload, VerifyBackupResponse,
@@ -70,6 +71,17 @@ pub fn restore_backup_preflight(
     payload: RestoreBackupPreflightPayload,
 ) -> CommandResult<RestoreBackupPreflightResponse> {
     match RestoreService::restore_backup_preflight(&app, payload) {
+        Ok(data) => CommandResult::ok(data),
+        Err(error) => CommandResult::err(error),
+    }
+}
+
+#[tauri::command]
+pub fn create_restore_safety_backup(
+    app: AppHandle,
+    payload: CreateRestoreSafetyBackupPayload,
+) -> CommandResult<CreateRestoreSafetyBackupResponse> {
+    match RestoreService::create_restore_safety_backup(&app, payload) {
         Ok(data) => CommandResult::ok(data),
         Err(error) => CommandResult::err(error),
     }

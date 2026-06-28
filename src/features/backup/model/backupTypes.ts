@@ -136,3 +136,27 @@ export type RestorePreflightIssueDto = {
   message: string;
   severity: "warning" | "error";
 };
+
+export type CreateRestoreSafetyBackupPayload = {
+  restoreBackupId?: string | null;
+  restoreFilePath?: string | null;
+  restoreArchiveSha256: string;
+};
+
+export type CreateRestoreSafetyBackupResponse = {
+  safetyBackupId: string;
+  safetyBackupCode: string;
+  safetyFileName: string;
+  safetyArchiveSha256: string;
+  safetyFileSize: number;
+  createdAt: string;
+  restoreTarget: RestoreSafetyTargetDto;
+  canContinueToRestore: boolean;
+};
+
+export type RestoreSafetyTargetDto = {
+  backupId: string | null;
+  backupCode: string | null;
+  fileName: string;
+  archiveSha256: string;
+};

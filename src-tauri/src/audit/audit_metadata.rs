@@ -1687,6 +1687,58 @@ pub fn audit_error_details(
     })
 }
 
+// ── Safety backup audit builders ───────────────────────────────────────────
+
+pub fn safe_safety_backup_snapshot(
+    safety_backup_code: &str,
+    safety_archive_sha256: &str,
+    safety_file_size: i64,
+    restore_target_backup_code: Option<&str>,
+    restore_target_archive_sha256: &str,
+) -> Result<AuditSafeSnapshot, AppErrorDto> {
+    build_snapshot(serde_json::json!({
+        "backupType": "safety",
+        "safetyReason": "before_restore",
+        "safetyBackupCode": safety_backup_code,
+        "safetyArchiveSha256": safety_archive_sha256,
+        "safetyFileSize": safety_file_size,
+        "restoreTargetBackupCode": restore_target_backup_code,
+        "restoreTargetArchiveSha256": restore_target_archive_sha256
+    }))
+}
+
+pub fn safe_safety_backup_details(
+    safety_reason: &str,
+    can_continue_to_restore: bool,
+) -> Result<AuditSafeDetails, AppErrorDto> {
+    build_details(serde_json::json!({
+        "operation": "create_restore_safety_backup",
+        "safetyReason": safety_reason,
+        "canContinueToRestore": can_continue_to_restore
+    }))
+}
+
+pub fn safe_safety_backup_failed_snapshot(
+    restore_target_backup_code: Option<&str>,
+) -> Result<AuditSafeSnapshot, AppErrorDto> {
+    build_snapshot(serde_json::json!({
+        "backupType": "safety",
+        "safetyReason": "before_restore",
+        "restoreTargetBackupCode": restore_target_backup_code
+    }))
+}
+
+pub fn safe_safety_backup_failed_details(
+    safety_reason: &str,
+    error_code: &str,
+) -> Result<AuditSafeDetails, AppErrorDto> {
+    build_details(serde_json::json!({
+        "operation": "create_restore_safety_backup",
+        "safetyReason": safety_reason,
+        "errorCode": error_code
+    }))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

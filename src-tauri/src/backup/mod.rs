@@ -2,6 +2,7 @@ pub mod backup_archive_reader;
 pub mod backup_archive_writer;
 pub mod backup_dto;
 pub mod backup_metadata_service;
+pub mod backup_path_resolver;
 pub mod backup_repository;
 pub mod backup_service;
 pub mod restore_service;
@@ -14,12 +15,15 @@ pub use backup_archive_writer::{BackupArchiveInput, BackupArchiveResult, BackupA
 pub use backup_dto::{
     BackupChecksumItemDto, BackupChecksumsDto, BackupCreateType, BackupHistoryItemDto,
     BackupManifestDto, BackupManifestItemDto, BackupMetadataDto, CreateBackupPayload,
-    CreateBackupResponse, RestoreBackupMetadataPreviewDto, RestoreBackupPreflightPayload,
-    RestoreBackupPreflightResponse, RestoreCompatibilityDto, RestorePreflightIssueDto,
-    RestorePreflightIssueSeverity, SelectBackupFileResponse, SelectBackupOutputFolderResponse,
-    SelectRestoreBackupFileResponse, VerifyBackupPayload, VerifyBackupResponse,
+    CreateBackupResponse, CreateRestoreSafetyBackupPayload, CreateRestoreSafetyBackupResponse,
+    InternalCreateBackupRequest, InternalCreateBackupResult, RestoreBackupMetadataPreviewDto,
+    RestoreBackupPreflightPayload, RestoreBackupPreflightResponse, RestoreCompatibilityDto,
+    RestorePreflightIssueDto, RestorePreflightIssueSeverity, RestoreSafetyTargetDto,
+    SelectBackupFileResponse, SelectBackupOutputFolderResponse, SelectRestoreBackupFileResponse,
+    VerifyBackupPayload, VerifyBackupResponse,
 };
 pub use backup_metadata_service::BackupMetadataService;
+pub use backup_path_resolver::BackupPathResolver;
 pub use backup_repository::{BackupRepository, NewBackupHistoryRow};
 pub use backup_service::BackupService;
 pub use restore_service::RestoreService;

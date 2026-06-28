@@ -78,6 +78,8 @@ pub mod backup {
     pub const RESTORE_STARTED: &str = "RESTORE_STARTED";
     pub const RESTORE_COMPLETED: &str = "RESTORE_COMPLETED";
     pub const RESTORE_FAILED: &str = "RESTORE_FAILED";
+    pub const SAFETY_BACKUP_CREATED: &str = "SAFETY_BACKUP_CREATED";
+    pub const SAFETY_BACKUP_FAILED: &str = "SAFETY_BACKUP_FAILED";
 }
 
 pub mod integrity {

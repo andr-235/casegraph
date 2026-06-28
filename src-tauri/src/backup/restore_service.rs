@@ -6,13 +6,17 @@ use tauri::AppHandle;
 use tauri_plugin_dialog::DialogExt;
 
 use crate::audit::audit_metadata::{
-    safe_restore_preflight_details, safe_restore_preflight_snapshot,
+    safe_restore_preflight_details, safe_restore_preflight_snapshot, safe_safety_backup_details,
+    safe_safety_backup_failed_details, safe_safety_backup_failed_snapshot,
+    safe_safety_backup_snapshot,
 };
 use crate::audit::audit_service::{AuditService, AuditWriteInput};
 use crate::backup::{
-    BackupArchiveReader, BackupRepository, RestoreBackupMetadataPreviewDto,
-    RestoreBackupPreflightPayload, RestoreBackupPreflightResponse, RestoreCompatibilityDto,
-    RestorePreflightIssueDto, RestorePreflightIssueSeverity, SelectRestoreBackupFileResponse,
+    BackupArchiveReader, BackupPathResolver, BackupRepository, BackupService,
+    CreateRestoreSafetyBackupPayload, CreateRestoreSafetyBackupResponse,
+    InternalCreateBackupRequest, RestoreBackupMetadataPreviewDto, RestoreBackupPreflightPayload,
+    RestoreBackupPreflightResponse, RestoreCompatibilityDto, RestorePreflightIssueDto,
+    RestorePreflightIssueSeverity, RestoreSafetyTargetDto, SelectRestoreBackupFileResponse,
 };
 use crate::domain::audit_action;
 use crate::errors::app_error::AppErrorDto;
@@ -302,6 +306,199 @@ impl RestoreService {
 
         if let Err(e) = result {
             eprintln!("[restore] audit_restore_preflight failed: {}", e.message);
+        }
+    }
+
+    // ── Safety backup ──────────────────────────────────────────────────────
+
+    pub fn create_restore_safety_backup(
+        app: &AppHandle,
+        payload: CreateRestoreSafetyBackupPayload,
+    ) -> Result<CreateRestoreSafetyBackupResponse, AppErrorDto> {
+        let ctx =
+            ProtectedServiceContext::require_operation(app, ProtectedOperation::BackupRestore)?;
+
+        if payload.restore_archive_sha256.trim().is_empty() {
+            return Err(AppErrorDto::validation(
+                "Не передан SHA-256 backup, который планируется восстановить",
+            ));
+        }
+
+        // 1. Re-resolve restore target.
+        let restore_history_row = match payload.restore_backup_id.as_deref() {
+            Some(backup_id) => BackupRepository::find_private_by_id(&ctx.conn, backup_id)?,
+            None => None,
+        };
+
+        let restore_file_path = match (&restore_history_row, payload.restore_file_path.as_deref()) {
+            (Some(row), _) => PathBuf::from(&row.file_path),
+            (None, Some(path)) if !path.trim().is_empty() => PathBuf::from(path),
+            _ => {
+                return Err(AppErrorDto::validation(
+                    "Не выбран backup для восстановления",
+                ));
+            }
+        };
+
+        let backup_id = restore_history_row.as_ref().map(|row| row.id.clone());
+        let preflight_backup_code = restore_history_row
+            .as_ref()
+            .map(|row| row.backup_code.clone());
+
+        // 2. Re-run preflight before safety backup.
+        let preflight = Self::restore_backup_preflight(
+            app,
+            crate::backup::RestoreBackupPreflightPayload {
+                backup_id: payload.restore_backup_id.clone(),
+                file_path: payload.restore_file_path.clone(),
+            },
+        )?;
+
+        if !preflight.can_restore {
+            Self::audit_safety_backup_failed(
+                app,
+                &ctx.current_user,
+                backup_id,
+                preflight_backup_code,
+                "ERR_RESTORE_PREFLIGHT_REQUIRED",
+            );
+
+            return Err(AppErrorDto::validation(
+                "Safety backup нельзя создать: restore preflight не пройден",
+            ));
+        }
+
+        if preflight.archive_sha256 != payload.restore_archive_sha256 {
+            Self::audit_safety_backup_failed(
+                app,
+                &ctx.current_user,
+                backup_id,
+                preflight_backup_code,
+                "ERR_RESTORE_TARGET_CHANGED",
+            );
+
+            return Err(AppErrorDto::validation(
+                "Restore target изменился после preflight. Повторите проверку восстановления.",
+            ));
+        }
+
+        // 3. Resolve output dir for safety backup.
+        let output_dir = BackupPathResolver::resolve_safety_backup_dir(app, &ctx.conn)?;
+
+        // 4. Create safety backup of current state.
+        let result = BackupService::create_full_backup_internal(
+            app,
+            &ctx.conn,
+            &ctx.current_user.user_id,
+            InternalCreateBackupRequest {
+                backup_type: "safety".to_owned(),
+                output_dir,
+                safety_reason: Some("before_restore".to_owned()),
+                restore_target_backup_id: preflight.backup_id.clone(),
+                restore_target_backup_code: preflight.backup_code.clone(),
+                restore_target_archive_sha256: Some(preflight.archive_sha256.clone()),
+            },
+        );
+
+        let result = match result {
+            Ok(value) => value,
+            Err(error) => {
+                Self::audit_safety_backup_failed(
+                    app,
+                    &ctx.current_user,
+                    preflight.backup_id.clone(),
+                    preflight.backup_code.clone(),
+                    &error.code,
+                );
+
+                return Err(error);
+            }
+        };
+
+        // 5. Audit success.
+        let audit_result = (|| {
+            let snapshot = safe_safety_backup_snapshot(
+                &result.backup_code,
+                &result.archive_sha256,
+                result.file_size,
+                preflight.backup_code.as_deref(),
+                &preflight.archive_sha256,
+            )?;
+
+            let details = safe_safety_backup_details("before_restore", true)?;
+
+            AuditService::write_best_effort(
+                app,
+                AuditWriteInput::success(
+                    &ctx.current_user,
+                    crate::domain::audit_action::backup::SAFETY_BACKUP_CREATED,
+                )
+                .with_entity("backup", &result.backup_code)
+                .with_snapshots(None, Some(snapshot))
+                .with_details(details),
+            );
+
+            Ok::<(), AppErrorDto>(())
+        })();
+
+        if let Err(e) = audit_result {
+            eprintln!("[restore] safety backup audit failed: {}", e.message);
+        }
+
+        let restore_file_name = restore_file_path
+            .file_name()
+            .and_then(|value| value.to_str())
+            .unwrap_or("backup.zip")
+            .to_owned();
+
+        Ok(CreateRestoreSafetyBackupResponse {
+            safety_backup_id: result.backup_id,
+            safety_backup_code: result.backup_code,
+            safety_file_name: result.file_name,
+            safety_archive_sha256: result.archive_sha256,
+            safety_file_size: result.file_size,
+            created_at: result.created_at,
+            restore_target: RestoreSafetyTargetDto {
+                backup_id: preflight.backup_id,
+                backup_code: preflight.backup_code,
+                file_name: restore_file_name,
+                archive_sha256: preflight.archive_sha256,
+            },
+            can_continue_to_restore: true,
+        })
+    }
+
+    fn audit_safety_backup_failed(
+        app: &AppHandle,
+        current_user: &crate::security::session::CurrentUserDto,
+        restore_backup_id: Option<String>,
+        restore_backup_code: Option<String>,
+        error_code: &str,
+    ) {
+        let result = (|| {
+            let snapshot = safe_safety_backup_failed_snapshot(restore_backup_code.as_deref())?;
+
+            let details = safe_safety_backup_failed_details("before_restore", error_code)?;
+
+            AuditService::write_best_effort(
+                app,
+                AuditWriteInput::failure(
+                    current_user,
+                    crate::domain::audit_action::backup::SAFETY_BACKUP_FAILED,
+                )
+                .with_entity(
+                    "backup",
+                    restore_backup_id.unwrap_or_else(|| "unknown".to_owned()),
+                )
+                .with_snapshots(None, Some(snapshot))
+                .with_details(details),
+            );
+
+            Ok::<(), AppErrorDto>(())
+        })();
+
+        if let Err(e) = result {
+            eprintln!("[restore] audit_safety_backup_failed: {}", e.message);
         }
     }
 }

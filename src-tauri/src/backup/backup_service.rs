@@ -12,8 +12,9 @@ use crate::audit::audit_service::{AuditService, AuditWriteInput};
 use crate::backup::{
     BackupArchiveInput, BackupArchiveReader, BackupArchiveWriter, BackupCreateType,
     BackupHistoryItemDto, BackupMetadataService, BackupRepository, CreateBackupPayload,
-    CreateBackupResponse, NewBackupHistoryRow, SelectBackupFileResponse,
-    SelectBackupOutputFolderResponse, VerifyBackupPayload, VerifyBackupResponse,
+    CreateBackupResponse, InternalCreateBackupRequest, InternalCreateBackupResult,
+    NewBackupHistoryRow, SelectBackupFileResponse, SelectBackupOutputFolderResponse,
+    VerifyBackupPayload, VerifyBackupResponse,
 };
 use crate::db::connection::get_database_path;
 use crate::domain::audit_action;
@@ -89,12 +90,17 @@ impl BackupService {
         let metadata = BackupMetadataService::build_metadata(
             &backup_id,
             &backup_code,
+            "full",
             &created_at,
             &ctx.current_user.user_id,
             &ctx.current_user.username,
             &ctx.current_user.role,
             &app_version,
             schema_version,
+            None,
+            None,
+            None,
+            None,
         );
 
         let archive_result = BackupArchiveWriter::create_full_backup(BackupArchiveInput {
@@ -145,6 +151,97 @@ impl BackupService {
             file_size: archive_result.file_size,
             sha256: archive_result.archive_sha256,
             created_at,
+        })
+    }
+
+    pub(crate) fn create_full_backup_internal(
+        app: &AppHandle,
+        conn: &rusqlite::Connection,
+        current_user_id: &str,
+        request: InternalCreateBackupRequest,
+    ) -> Result<InternalCreateBackupResult, AppErrorDto> {
+        let backup_id = Uuid::new_v4().to_string();
+        let created_at = Utc::now().to_rfc3339();
+        let backup_code = Self::next_backup_code(conn)?;
+        let app_version = env!("CARGO_PKG_VERSION").to_owned();
+        let schema_version = Self::current_schema_version(conn)?;
+
+        std::fs::create_dir_all(&request.output_dir)
+            .map_err(|err| AppErrorDto::filesystem(err.to_string()))?;
+
+        let file_name = format!(
+            "casegraph-safety-backup-{}.zip",
+            Utc::now().format("%Y-%m-%d-%H-%M-%S")
+        );
+        let output_file_path = request.output_dir.join(&file_name);
+
+        let app_data_dir = app
+            .path()
+            .app_data_dir()
+            .map_err(|err| AppErrorDto::filesystem(err.to_string()))?;
+
+        let database_path = get_database_path(app)?;
+        let templates_dir = app_data_dir.join("templates");
+
+        let metadata = BackupMetadataService::build_metadata(
+            &backup_id,
+            &backup_code,
+            &request.backup_type,
+            &created_at,
+            current_user_id,
+            "", // username — not stored in safety backup audit-bound flow
+            "", // role — not stored in safety backup audit-bound flow
+            &app_version,
+            schema_version,
+            request.safety_reason,
+            request.restore_target_backup_id,
+            request.restore_target_backup_code,
+            request.restore_target_archive_sha256,
+        );
+
+        let archive_result = BackupArchiveWriter::create_full_backup(BackupArchiveInput {
+            output_file_path: output_file_path.clone(),
+            database_path,
+            data_dir: app_data_dir,
+            templates_dir: Some(templates_dir),
+            metadata,
+            include_templates: true,
+            include_exports: false,
+            include_audit_log: false,
+        })?;
+
+        BackupRepository::insert_history(
+            conn,
+            &NewBackupHistoryRow {
+                id: backup_id.clone(),
+                backup_code: backup_code.clone(),
+                backup_type: request.backup_type.clone(),
+                status: "created".to_owned(),
+                file_path: output_file_path.to_string_lossy().to_string(),
+                file_name: file_name.clone(),
+                file_size: archive_result.file_size,
+                sha256: archive_result.archive_sha256.clone(),
+                case_id: None,
+                case_code: None,
+                app_version: app_version.clone(),
+                schema_version,
+                created_by: current_user_id.to_owned(),
+                created_at: created_at.clone(),
+                metadata_json: archive_result.metadata_json.clone(),
+            },
+        )?;
+
+        Ok(InternalCreateBackupResult {
+            backup_id,
+            backup_code,
+            file_name,
+            file_path: output_file_path.to_string_lossy().to_string(),
+            file_size: archive_result.file_size,
+            archive_sha256: archive_result.archive_sha256,
+            created_at,
+            metadata_json: archive_result.metadata_json,
+            app_version,
+            schema_version,
         })
     }
 
