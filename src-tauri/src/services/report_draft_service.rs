@@ -4,7 +4,8 @@ use tauri::AppHandle;
 
 use crate::errors::app_error::AppErrorDto;
 use crate::security::session::SessionState;
-use crate::services::protected_policy_guard::ProtectedPolicyGuard;
+use crate::security::PolicyAwarePermissionGuard;
+use crate::security::ProtectedOperation;
 use crate::services::protected_service_context::require_protected_user_for;
 
 #[derive(Debug, Clone, Serialize)]
@@ -281,7 +282,12 @@ impl ReportDraftService {
         let context = require_protected_user_for(app, session, "VALIDATE_REPORT_DRAFT")?;
         let conn = &context.conn;
 
-        ProtectedPolicyGuard::require_docx_export_allowed(app, conn, &context.current_user)?;
+        PolicyAwarePermissionGuard::require(
+            app,
+            conn,
+            &context.current_user,
+            ProtectedOperation::DocxExport,
+        )?;
 
         let draft = ReportRepository::get_report_draft_by_id(conn, &payload.draft_id)?;
 

@@ -5,7 +5,8 @@ use tauri::AppHandle;
 
 use crate::errors::app_error::AppErrorDto;
 use crate::security::session::{CurrentUserDto, SessionState};
-use crate::services::protected_policy_guard::ProtectedPolicyGuard;
+use crate::security::PolicyAwarePermissionGuard;
+use crate::security::ProtectedOperation;
 use crate::services::protected_service_context::require_protected_user_for;
 
 fn now_epoch_secs() -> String {
@@ -55,7 +56,12 @@ impl BackupService {
         let context = require_protected_user_for(app, session, "CREATE_BACKUP")?;
         let conn = &context.conn;
 
-        ProtectedPolicyGuard::require_backup_create_allowed(app, conn, &context.current_user)?;
+        PolicyAwarePermissionGuard::require(
+            app,
+            conn,
+            &context.current_user,
+            ProtectedOperation::BackupCreate,
+        )?;
 
         // Backup generation logic will be implemented in a later slice.
         // For now, enforce policy and return a stub response.
@@ -83,7 +89,12 @@ impl BackupService {
         let context = require_protected_user_for(app, session, "CREATE_CASE_BACKUP")?;
         let conn = &context.conn;
 
-        ProtectedPolicyGuard::require_backup_create_allowed(app, conn, &context.current_user)?;
+        PolicyAwarePermissionGuard::require(
+            app,
+            conn,
+            &context.current_user,
+            ProtectedOperation::BackupCreate,
+        )?;
 
         let backup_id = uuid::Uuid::new_v4().to_string();
         let now = now_epoch_secs();
@@ -107,25 +118,14 @@ impl BackupService {
         _payload: RestoreBackupPayload,
     ) -> Result<RestoreBackupResponse, AppErrorDto> {
         let context = require_protected_user_for(app, session, "RESTORE_BACKUP")?;
+        let conn = &context.conn;
 
-        // Restore remains administrator-only regardless of policy flags
-        if !context.current_user.is_administrator() {
-            let err = AppErrorDto::access_denied(
-                "Восстановление из резервной копии доступно только администратору.",
-            );
-
-            crate::services::audit_access_denied::access_denied_error(
-                app,
-                &context.current_user,
-                "RESTORE_BACKUP",
-                "backup",
-                None,
-                "administrator",
-                &err.message,
-            );
-
-            return Err(err);
-        }
+        PolicyAwarePermissionGuard::require(
+            app,
+            conn,
+            &context.current_user,
+            ProtectedOperation::BackupRestore,
+        )?;
 
         let now = now_epoch_secs();
 
@@ -141,24 +141,14 @@ impl BackupService {
     ) -> Result<CreateBackupResponse, AppErrorDto> {
         // Safety backup before restore — internal operation, administrator-only
         let context = require_protected_user_for(app, session, "SAFETY_BACKUP_BEFORE_RESTORE")?;
+        let conn = &context.conn;
 
-        if !context.current_user.is_administrator() {
-            let err = AppErrorDto::access_denied(
-                "Создание резервной копии перед восстановлением доступно только администратору.",
-            );
-
-            crate::services::audit_access_denied::access_denied_error(
-                app,
-                &context.current_user,
-                "SAFETY_BACKUP_BEFORE_RESTORE",
-                "backup",
-                None,
-                "administrator",
-                &err.message,
-            );
-
-            return Err(err);
-        }
+        PolicyAwarePermissionGuard::require(
+            app,
+            conn,
+            &context.current_user,
+            ProtectedOperation::BackupRestore,
+        )?;
 
         let backup_id = uuid::Uuid::new_v4().to_string();
         let now = now_epoch_secs();

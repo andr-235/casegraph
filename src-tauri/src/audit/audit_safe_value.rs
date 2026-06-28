@@ -34,6 +34,14 @@ impl AuditSafeSnapshot {
     }
 }
 
+#[cfg(test)]
+impl AuditSafeSnapshot {
+    /// Access the inner value for test assertions only.
+    pub fn clone_value_for_test(&self) -> Value {
+        self.value.clone()
+    }
+}
+
 impl AuditSafeDetails {
     /// Internal constructor — only accessible within `crate::audit`.
     pub(in crate::audit) fn from_checked_value(value: Value) -> Self {
@@ -44,5 +52,13 @@ impl AuditSafeDetails {
     /// Accessible to the service layer so `AuditService` can serialize it.
     pub(crate) fn into_value(self) -> Value {
         self.value
+    }
+}
+
+#[cfg(test)]
+impl AuditSafeDetails {
+    /// Access the inner value for test assertions only.
+    pub fn clone_value_for_test(&self) -> Value {
+        self.value.clone()
     }
 }

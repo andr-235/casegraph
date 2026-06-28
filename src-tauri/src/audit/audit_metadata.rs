@@ -1208,6 +1208,26 @@ pub fn role_denied(
     access_denied("role_denied", command, actual_role, Some(required_role))
 }
 
+pub fn access_denied_details(
+    operation: &'static str,
+    reason: &'static str,
+    policy_key: Option<&'static str>,
+) -> Result<AuditSafeDetails, AppErrorDto> {
+    let value = match policy_key {
+        Some(policy_key) => json!({
+            "operation": operation,
+            "reason": reason,
+            "policyKey": policy_key
+        }),
+        None => json!({
+            "operation": operation,
+            "reason": reason
+        }),
+    };
+
+    build_details(value)
+}
+
 pub fn policy_denied(
     command: &str,
     actual_role: &str,
