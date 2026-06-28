@@ -160,3 +160,33 @@ export type RestoreSafetyTargetDto = {
   fileName: string;
   archiveSha256: string;
 };
+
+export type RestoreBackupPayload = {
+  restoreBackupId?: string | null;
+  restoreFilePath?: string | null;
+  restoreArchiveSha256: string;
+
+  safetyBackupId: string;
+  safetyArchiveSha256: string;
+
+  confirmationPhrase: string;
+};
+
+export type RestoreBackupResponse = {
+  restoreOperationId: string;
+  restoredBackupId: string | null;
+  restoredBackupCode: string | null;
+  restoredArchiveSha256: string;
+
+  safetyBackupId: string;
+  safetyBackupCode: string;
+  safetyArchiveSha256: string;
+
+  startedAt: string;
+  completedAt: string;
+
+  restoredDatabase: boolean;
+  restoredAppData: boolean;
+  requiresRestart: boolean;
+  message: string;
+};

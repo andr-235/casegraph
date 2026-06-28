@@ -218,6 +218,31 @@ impl BackupRepository {
         Ok(())
     }
 
+    pub fn mark_restored(
+        conn: &Connection,
+        backup_id: Option<&str>,
+        restored_at: &str,
+    ) -> Result<(), AppErrorDto> {
+        let Some(backup_id) = backup_id else {
+            return Ok(());
+        };
+
+        conn.execute(
+            r#"
+            UPDATE backup_history
+            SET
+                status = 'restored',
+                restored_at = ?2,
+                updated_at = ?2
+            WHERE id = ?1
+            "#,
+            rusqlite::params![backup_id, restored_at],
+        )
+        .map_err(|err| AppErrorDto::database(err.to_string()))?;
+
+        Ok(())
+    }
+
     fn map_history_item(row: &Row<'_>) -> rusqlite::Result<BackupHistoryItemDto> {
         Ok(BackupHistoryItemDto {
             id: row.get("id")?,

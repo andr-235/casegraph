@@ -3,12 +3,14 @@ import { useState } from "react";
 import {
   chooseRestoreBackupFile,
   createRestoreSafetyBackup,
+  restoreBackup,
   restoreBackupPreflight,
 } from "../api/backupApi";
 import type {
   BackupHistoryItemDto,
   CreateRestoreSafetyBackupResponse,
   RestoreBackupPreflightResponse,
+  RestoreBackupResponse,
 } from "../model/backupTypes";
 
 type RestoreBackupModalProps = {
@@ -16,6 +18,7 @@ type RestoreBackupModalProps = {
   backup: BackupHistoryItemDto | null;
   onClose: () => void;
   onPreflightComplete: (result: RestoreBackupPreflightResponse) => void;
+  onRestoreComplete?: () => void;
 };
 
 export function RestoreBackupModal({
@@ -23,6 +26,7 @@ export function RestoreBackupModal({
   backup,
   onClose,
   onPreflightComplete,
+  onRestoreComplete,
 }: RestoreBackupModalProps) {
   const [filePath, setFilePath] = useState("");
   const [result, setResult] = useState<RestoreBackupPreflightResponse | null>(null);
@@ -33,6 +37,11 @@ export function RestoreBackupModal({
     useState<CreateRestoreSafetyBackupResponse | null>(null);
   const [isCreatingSafetyBackup, setIsCreatingSafetyBackup] = useState(false);
   const [safetyErrorMessage, setSafetyErrorMessage] = useState<string | null>(null);
+
+  const [confirmationPhrase, setConfirmationPhrase] = useState("");
+  const [isRestoring, setIsRestoring] = useState(false);
+  const [restoreErrorMessage, setRestoreErrorMessage] = useState<string | null>(null);
+  const [restoreResult, setRestoreResult] = useState<RestoreBackupResponse | null>(null);
 
   if (!open) {
     return null;
@@ -90,6 +99,38 @@ export function RestoreBackupModal({
       );
     } finally {
       setIsCreatingSafetyBackup(false);
+    }
+  }
+
+  async function handleRestore() {
+    if (!result?.canRestore || !safetyBackup) {
+      return;
+    }
+
+    setIsRestoring(true);
+    setRestoreErrorMessage(null);
+    setRestoreResult(null);
+
+    try {
+      const response = await restoreBackup({
+        restoreBackupId: backup?.id ?? result.backupId ?? null,
+        restoreFilePath: backup ? null : filePath,
+        restoreArchiveSha256: result.archiveSha256,
+        safetyBackupId: safetyBackup.safetyBackupId,
+        safetyArchiveSha256: safetyBackup.safetyArchiveSha256,
+        confirmationPhrase,
+      });
+
+      setRestoreResult(response);
+      onRestoreComplete?.();
+    } catch (error) {
+      setRestoreErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "Не удалось выполнить восстановление.",
+      );
+    } finally {
+      setIsRestoring(false);
     }
   }
 
@@ -251,7 +292,7 @@ export function RestoreBackupModal({
                 </div>
               )}
 
-              {safetyBackup && (
+              {safetyBackup && !restoreResult && (
                 <div className="success-state" style={{ marginTop: "1rem" }}>
                   <h3>Safety backup создан</h3>
 
@@ -274,11 +315,67 @@ export function RestoreBackupModal({
                         safetyBackup.restoreTarget.fileName}
                     </dd>
                   </dl>
+                </div>
+              )}
+
+              {safetyBackup && !restoreResult && (
+                <div className="danger-state" style={{ marginTop: "1rem" }}>
+                  <h3>Финальное подтверждение восстановления</h3>
 
                   <p>
-                    Следующий шаг — выполнение restore. В текущем срезе восстановление ещё не
-                    запускается.
+                    Восстановление заменит текущую базу данных и локальные файлы приложения
+                    содержимым выбранного backup. Перед операцией создан safety backup.
                   </p>
+
+                  <p>
+                    Для продолжения введите: <strong>ВОССТАНОВИТЬ</strong>
+                  </p>
+
+                  <input
+                    value={confirmationPhrase}
+                    onChange={(event) => setConfirmationPhrase(event.target.value)}
+                    placeholder="ВОССТАНОВИТЬ"
+                    disabled={isRestoring}
+                  />
+
+                  {restoreErrorMessage && (
+                    <div className="error-state">{restoreErrorMessage}</div>
+                  )}
+
+                  <button
+                    type="button"
+                    className="danger-button"
+                    onClick={handleRestore}
+                    disabled={confirmationPhrase !== "ВОССТАНОВИТЬ" || isRestoring}
+                  >
+                    {isRestoring ? "Восстановление…" : "Выполнить restore"}
+                  </button>
+                </div>
+              )}
+
+              {restoreResult && (
+                <div className="success-state" style={{ marginTop: "1rem" }}>
+                  <h3>Восстановление выполнено</h3>
+
+                  <p>{restoreResult.message}</p>
+
+                  <dl className="definition-list">
+                    <dt>Restore operation</dt>
+                    <dd>{restoreResult.restoreOperationId}</dd>
+
+                    <dt>Восстановленный backup</dt>
+                    <dd>{restoreResult.restoredBackupCode ?? "Внешний backup-файл"}</dd>
+
+                    <dt>Safety backup</dt>
+                    <dd>{restoreResult.safetyBackupCode}</dd>
+
+                    <dt>Требуется перезапуск</dt>
+                    <dd>{restoreResult.requiresRestart ? "Да" : "Нет"}</dd>
+                  </dl>
+
+                  <div className="warning-state">
+                    Закройте CaseGraph и запустите приложение заново.
+                  </div>
                 </div>
               )}
             </div>
@@ -286,14 +383,14 @@ export function RestoreBackupModal({
         </div>
 
         <div className="modal-footer">
-          <button type="button" onClick={onClose} disabled={isChecking || isCreatingSafetyBackup}>
+          <button type="button" onClick={onClose} disabled={isChecking || isCreatingSafetyBackup || isRestoring}>
             Закрыть
           </button>
 
           <button
             type="button"
             onClick={handleRunPreflight}
-            disabled={!canRunPreflight || isChecking || isCreatingSafetyBackup}
+            disabled={!canRunPreflight || isChecking || isCreatingSafetyBackup || isRestoring || Boolean(restoreResult)}
           >
             {isChecking ? "Проверка…" : "Проверить восстановление"}
           </button>
@@ -301,13 +398,18 @@ export function RestoreBackupModal({
           <button
             type="button"
             onClick={handleCreateSafetyBackup}
-            disabled={!result?.canRestore || Boolean(safetyBackup) || isCreatingSafetyBackup}
+            disabled={!result?.canRestore || Boolean(safetyBackup) || isCreatingSafetyBackup || isRestoring || Boolean(restoreResult)}
           >
             {isCreatingSafetyBackup ? "Создание…" : "Создать safety backup"}
           </button>
 
-          <button type="button" disabled={!safetyBackup}>
-            Продолжить restore
+          <button
+            type="button"
+            className="danger-button"
+            onClick={handleRestore}
+            disabled={!safetyBackup || confirmationPhrase !== "ВОССТАНОВИТЬ" || isRestoring || Boolean(restoreResult)}
+          >
+            {isRestoring ? "Восстановление…" : "Выполнить restore"}
           </button>
         </div>
       </div>

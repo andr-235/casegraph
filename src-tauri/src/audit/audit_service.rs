@@ -151,13 +151,43 @@ impl AuditService {
     pub fn write_best_effort(app: &AppHandle, input: AuditWriteInput) {
         let app = app.clone();
 
+        let record = Self::build_audit_record(input);
+
+        tauri::async_runtime::spawn(async move {
+            let conn = match open_connection(&app) {
+                Ok(conn) => conn,
+                Err(_) => {
+                    eprintln!("[audit] write_best_effort: failed to open db");
+                    return;
+                }
+            };
+            if let Err(err) = AuditRepository::insert(&conn, record) {
+                eprintln!("[audit] write_best_effort failed: {}", err.message);
+            }
+        });
+    }
+
+    /// Write an audit record using a pre-opened connection.
+    /// Used by restore flow after live database has been replaced.
+    pub fn write_best_effort_with_conn(conn: &rusqlite::Connection, input: AuditWriteInput) {
+        let record = Self::build_audit_record(input);
+
+        if let Err(err) = AuditRepository::insert(conn, record) {
+            eprintln!(
+                "[audit] write_best_effort_with_conn failed: {}",
+                err.message
+            );
+        }
+    }
+
+    fn build_audit_record(input: AuditWriteInput) -> AuditInsertRow {
         let old_value = input.old_value.map(|v| v.into_value());
         let new_value = input.new_value.map(|v| v.into_value());
         let technical_details = input
             .technical_details
             .map(|v| sanitize_audit_details(v.into_value()));
 
-        let record = AuditInsertRow {
+        AuditInsertRow {
             user_id: Some(input.user_id),
             username: input.username,
             user_role: input.user_role,
@@ -172,20 +202,7 @@ impl AuditService {
             technical_details: technical_details
                 .map(|v| serde_json::to_string(&v).unwrap_or_default()),
             app_version: env!("CARGO_PKG_VERSION").to_string(),
-        };
-
-        tauri::async_runtime::spawn(async move {
-            let conn = match open_connection(&app) {
-                Ok(conn) => conn,
-                Err(_) => {
-                    eprintln!("[audit] write_best_effort: failed to open db");
-                    return;
-                }
-            };
-            if let Err(err) = AuditRepository::insert(&conn, record) {
-                eprintln!("[audit] write_best_effort failed: {}", err.message);
-            }
-        });
+        }
     }
 
     pub fn get_audit_logs(

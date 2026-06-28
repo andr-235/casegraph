@@ -265,3 +265,39 @@ pub struct InternalCreateBackupResult {
     pub app_version: String,
     pub schema_version: i64,
 }
+
+// ── Restore execution DTOs ──────────────────────────────────────────────────
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RestoreBackupPayload {
+    pub restore_backup_id: Option<String>,
+    pub restore_file_path: Option<String>,
+    pub restore_archive_sha256: String,
+
+    pub safety_backup_id: String,
+    pub safety_archive_sha256: String,
+
+    pub confirmation_phrase: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RestoreBackupResponse {
+    pub restore_operation_id: String,
+    pub restored_backup_id: Option<String>,
+    pub restored_backup_code: Option<String>,
+    pub restored_archive_sha256: String,
+
+    pub safety_backup_id: String,
+    pub safety_backup_code: String,
+    pub safety_archive_sha256: String,
+
+    pub started_at: String,
+    pub completed_at: String,
+
+    pub restored_database: bool,
+    pub restored_app_data: bool,
+    pub requires_restart: bool,
+    pub message: String,
+}

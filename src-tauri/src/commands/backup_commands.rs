@@ -2,10 +2,10 @@ use tauri::AppHandle;
 
 use crate::backup::{
     BackupHistoryItemDto, BackupService, CreateBackupPayload, CreateBackupResponse,
-    CreateRestoreSafetyBackupPayload, CreateRestoreSafetyBackupResponse,
-    RestoreBackupPreflightPayload, RestoreBackupPreflightResponse, RestoreService,
-    SelectBackupFileResponse, SelectBackupOutputFolderResponse, SelectRestoreBackupFileResponse,
-    VerifyBackupPayload, VerifyBackupResponse,
+    CreateRestoreSafetyBackupPayload, CreateRestoreSafetyBackupResponse, RestoreBackupPayload,
+    RestoreBackupPreflightPayload, RestoreBackupPreflightResponse, RestoreBackupResponse,
+    RestoreService, SelectBackupFileResponse, SelectBackupOutputFolderResponse,
+    SelectRestoreBackupFileResponse, VerifyBackupPayload, VerifyBackupResponse,
 };
 use crate::errors::app_error::CommandResult;
 
@@ -82,6 +82,17 @@ pub fn create_restore_safety_backup(
     payload: CreateRestoreSafetyBackupPayload,
 ) -> CommandResult<CreateRestoreSafetyBackupResponse> {
     match RestoreService::create_restore_safety_backup(&app, payload) {
+        Ok(data) => CommandResult::ok(data),
+        Err(error) => CommandResult::err(error),
+    }
+}
+
+#[tauri::command]
+pub fn restore_backup(
+    app: AppHandle,
+    payload: RestoreBackupPayload,
+) -> CommandResult<RestoreBackupResponse> {
+    match RestoreService::restore_backup(&app, payload) {
         Ok(data) => CommandResult::ok(data),
         Err(error) => CommandResult::err(error),
     }

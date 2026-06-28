@@ -1739,6 +1739,78 @@ pub fn safe_safety_backup_failed_details(
     }))
 }
 
+// ── Restore execution audit builders ────────────────────────────────────────
+//
+// These builders produce safe audit entries for the restore execution flow.
+// They deliberately exclude all filesystem paths, ZIP contents, SQLite dumps,
+// and raw error text. Only operation-level metadata is recorded.
+
+pub fn restore_started_snapshot(
+    operation_id: &str,
+    restore_backup_code: Option<&str>,
+    restore_archive_sha256: &str,
+    safety_backup_code: &str,
+    safety_archive_sha256: &str,
+) -> Result<AuditSafeSnapshot, AppErrorDto> {
+    build_snapshot(serde_json::json!({
+        "restoreOperationId": operation_id,
+        "restoreBackupCode": restore_backup_code,
+        "restoreArchiveSha256": restore_archive_sha256,
+        "safetyBackupCode": safety_backup_code,
+        "safetyArchiveSha256": safety_archive_sha256
+    }))
+}
+
+pub fn restore_started_details(operation: &str) -> Result<AuditSafeDetails, AppErrorDto> {
+    build_details(serde_json::json!({
+        "operation": operation,
+        "phase": "started"
+    }))
+}
+
+pub fn restore_completed_snapshot(
+    operation_id: &str,
+    restore_backup_code: Option<&str>,
+    restore_archive_sha256: &str,
+    safety_backup_code: &str,
+    safety_archive_sha256: &str,
+) -> Result<AuditSafeSnapshot, AppErrorDto> {
+    build_snapshot(serde_json::json!({
+        "restoreOperationId": operation_id,
+        "restoreBackupCode": restore_backup_code,
+        "restoreArchiveSha256": restore_archive_sha256,
+        "safetyBackupCode": safety_backup_code,
+        "safetyArchiveSha256": safety_archive_sha256,
+        "requiresRestart": true
+    }))
+}
+
+pub fn restore_completed_details(requires_restart: bool) -> Result<AuditSafeDetails, AppErrorDto> {
+    build_details(serde_json::json!({
+        "operation": "full_restore",
+        "phase": "completed",
+        "requiresRestart": requires_restart
+    }))
+}
+
+pub fn restore_failed_snapshot(
+    operation_id: &str,
+    restore_backup_code: Option<&str>,
+) -> Result<AuditSafeSnapshot, AppErrorDto> {
+    build_snapshot(serde_json::json!({
+        "restoreOperationId": operation_id,
+        "restoreBackupCode": restore_backup_code
+    }))
+}
+
+pub fn restore_failed_details(error_code: &str) -> Result<AuditSafeDetails, AppErrorDto> {
+    build_details(serde_json::json!({
+        "operation": "full_restore",
+        "phase": "failed",
+        "errorCode": error_code
+    }))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

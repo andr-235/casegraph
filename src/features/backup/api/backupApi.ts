@@ -5,8 +5,10 @@ import type {
   CreateBackupResponse,
   CreateRestoreSafetyBackupPayload,
   CreateRestoreSafetyBackupResponse,
+  RestoreBackupPayload,
   RestoreBackupPreflightPayload,
   RestoreBackupPreflightResponse,
+  RestoreBackupResponse,
   SelectBackupFileResponse,
   SelectBackupOutputFolderResponse,
   SelectRestoreBackupFileResponse,
@@ -60,4 +62,10 @@ export function createRestoreSafetyBackup(
     "create_restore_safety_backup",
     { payload },
   );
+}
+
+export function restoreBackup(
+  payload: RestoreBackupPayload,
+): Promise<RestoreBackupResponse> {
+  return invokeCommand<RestoreBackupResponse>("restore_backup", { payload });
 }

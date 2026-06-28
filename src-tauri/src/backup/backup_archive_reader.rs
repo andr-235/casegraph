@@ -296,7 +296,7 @@ impl BackupArchiveReader {
         Ok(format!("{:x}", hasher.finalize()))
     }
 
-    fn sha256_file(path: &Path) -> Result<String, AppErrorDto> {
+    pub fn sha256_file(path: &Path) -> Result<String, AppErrorDto> {
         let file = File::open(path).map_err(|err| AppErrorDto::filesystem(err.to_string()))?;
         let mut reader = std::io::BufReader::new(file);
         let mut hasher = Sha256::new();
@@ -315,5 +315,57 @@ impl BackupArchiveReader {
         }
 
         Ok(format!("{:x}", hasher.finalize()))
+    }
+
+    pub fn extract_to_restore_staging(
+        archive_path: &Path,
+        staging_dir: &Path,
+    ) -> Result<(), AppErrorDto> {
+        std::fs::create_dir_all(staging_dir)
+            .map_err(|err| AppErrorDto::filesystem(err.to_string()))?;
+
+        let file =
+            File::open(archive_path).map_err(|err| AppErrorDto::filesystem(err.to_string()))?;
+
+        let mut archive = ZipArchive::new(file)
+            .map_err(|_| AppErrorDto::validation("Некорректный ZIP backup"))?;
+
+        for index in 0..archive.len() {
+            let mut entry = archive
+                .by_index(index)
+                .map_err(|_| AppErrorDto::validation("Ошибка чтения ZIP entry"))?;
+
+            let enclosed = entry
+                .enclosed_name()
+                .ok_or_else(|| AppErrorDto::validation("Небезопасный путь внутри ZIP"))?
+                .to_owned();
+
+            let output_path = staging_dir.join(enclosed);
+
+            if !output_path.starts_with(staging_dir) {
+                return Err(AppErrorDto::validation(
+                    "ZIP entry выходит за пределы restore staging directory",
+                ));
+            }
+
+            if entry.name().ends_with('/') {
+                std::fs::create_dir_all(&output_path)
+                    .map_err(|err| AppErrorDto::filesystem(err.to_string()))?;
+                continue;
+            }
+
+            if let Some(parent) = output_path.parent() {
+                std::fs::create_dir_all(parent)
+                    .map_err(|err| AppErrorDto::filesystem(err.to_string()))?;
+            }
+
+            let mut output = std::fs::File::create(&output_path)
+                .map_err(|err| AppErrorDto::filesystem(err.to_string()))?;
+
+            std::io::copy(&mut entry, &mut output)
+                .map_err(|err| AppErrorDto::filesystem(err.to_string()))?;
+        }
+
+        Ok(())
     }
 }

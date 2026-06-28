@@ -3,9 +3,12 @@ use std::path::PathBuf;
 use chrono::Utc;
 use rusqlite::OptionalExtension;
 use tauri::AppHandle;
+use tauri::Manager;
 use tauri_plugin_dialog::DialogExt;
 
 use crate::audit::audit_metadata::{
+    restore_completed_details, restore_completed_snapshot, restore_failed_details,
+    restore_failed_snapshot, restore_started_details, restore_started_snapshot,
     safe_restore_preflight_details, safe_restore_preflight_snapshot, safe_safety_backup_details,
     safe_safety_backup_failed_details, safe_safety_backup_failed_snapshot,
     safe_safety_backup_snapshot,
@@ -14,15 +17,25 @@ use crate::audit::audit_service::{AuditService, AuditWriteInput};
 use crate::backup::{
     BackupArchiveReader, BackupPathResolver, BackupRepository, BackupService,
     CreateRestoreSafetyBackupPayload, CreateRestoreSafetyBackupResponse,
-    InternalCreateBackupRequest, RestoreBackupMetadataPreviewDto, RestoreBackupPreflightPayload,
-    RestoreBackupPreflightResponse, RestoreCompatibilityDto, RestorePreflightIssueDto,
-    RestorePreflightIssueSeverity, RestoreSafetyTargetDto, SelectRestoreBackupFileResponse,
+    InternalCreateBackupRequest, RestoreBackupMetadataPreviewDto, RestoreBackupPayload,
+    RestoreBackupPreflightPayload, RestoreBackupPreflightResponse, RestoreBackupResponse,
+    RestoreCompatibilityDto, RestoreOperationPaths, RestorePreflightIssueDto,
+    RestorePreflightIssueSeverity, RestoreSafetyBackupCheck, RestoreSafetyTargetDto,
+    SelectRestoreBackupFileResponse,
 };
+use crate::db::connection::get_database_path;
 use crate::domain::audit_action;
 use crate::errors::app_error::AppErrorDto;
+use crate::security::session::CurrentUserDto;
 use crate::security::{ProtectedOperation, ProtectedServiceContext};
 
 pub struct RestoreService;
+
+struct RestoreTarget {
+    pub backup_id: Option<String>,
+    pub backup_code: Option<String>,
+    pub file_path: PathBuf,
+}
 
 impl RestoreService {
     pub fn choose_restore_backup_file(
@@ -500,5 +513,700 @@ impl RestoreService {
         if let Err(e) = result {
             eprintln!("[restore] audit_safety_backup_failed: {}", e.message);
         }
+    }
+
+    // ── Restore backup execution ────────────────────────────────────────────
+
+    pub fn restore_backup(
+        app: &AppHandle,
+        payload: RestoreBackupPayload,
+    ) -> Result<RestoreBackupResponse, AppErrorDto> {
+        let ctx =
+            ProtectedServiceContext::require_operation(app, ProtectedOperation::BackupRestore)?;
+
+        Self::validate_restore_confirmation(&payload)?;
+
+        let started_at = Utc::now().to_rfc3339();
+        let operation_id = uuid::Uuid::new_v4().to_string();
+
+        // 1. Safety backup check first.
+        let safety = Self::verify_safety_backup(
+            &ctx.conn,
+            &payload.safety_backup_id,
+            &payload.safety_archive_sha256,
+        )?;
+
+        // 2. Resolve restore target.
+        let restore_target = Self::resolve_restore_target(
+            &ctx.conn,
+            payload.restore_backup_id.clone(),
+            payload.restore_file_path.clone(),
+        )?;
+
+        // 3. Re-run preflight. Do not trust old UI state.
+        let preflight = Self::restore_backup_preflight(
+            app,
+            RestoreBackupPreflightPayload {
+                backup_id: payload.restore_backup_id.clone(),
+                file_path: payload.restore_file_path.clone(),
+            },
+        )?;
+
+        if !preflight.can_restore {
+            return Err(AppErrorDto::validation(
+                "Restore запрещён: preflight больше не проходит",
+            ));
+        }
+
+        if preflight.archive_sha256 != payload.restore_archive_sha256 {
+            return Err(AppErrorDto::validation(
+                "Restore archive изменился после preflight. Повторите проверку.",
+            ));
+        }
+
+        // 4. Audit started before destructive stage.
+        // Extract user data before dropping ctx.
+        let user_id = ctx.current_user.user_id.clone();
+        let username = ctx.current_user.username.clone();
+        let user_role = ctx.current_user.role.clone();
+        let user_dto = CurrentUserDto {
+            user_id,
+            username,
+            display_name: ctx.current_user.display_name.clone(),
+            role: user_role,
+            is_active: ctx.current_user.is_active,
+            must_change_password: ctx.current_user.must_change_password,
+        };
+
+        let _ = Self::audit_restore_started(
+            app,
+            &user_dto,
+            &operation_id,
+            preflight.backup_code.as_deref(),
+            &preflight.archive_sha256,
+            &safety.backup_code,
+            &safety.archive_sha256,
+        );
+
+        // 5. Build paths and restore lock.
+        let paths = Self::build_restore_operation_paths(app, &operation_id)?;
+        Self::create_restore_lock(&paths)?;
+
+        // 6. Close live DB connection before destructive file operations.
+        drop(ctx);
+
+        let restore_result = Self::execute_restore_with_rollback(
+            app,
+            &paths,
+            &restore_target.file_path,
+            &operation_id,
+        );
+
+        Self::remove_restore_lock_best_effort(&paths);
+
+        match restore_result {
+            Ok(_) => {
+                let completed_at = Utc::now().to_rfc3339();
+
+                let _ = BackupRepository::mark_restored(
+                    &crate::db::connection::open_connection(app)?,
+                    preflight.backup_id.as_deref(),
+                    &completed_at,
+                );
+
+                // Write RESTORE_COMPLETED to the restored DB.
+                if let Ok(restored_conn) = crate::db::connection::open_connection(app) {
+                    let _ = Self::audit_restore_completed_with_conn(
+                        &restored_conn,
+                        &user_dto,
+                        &operation_id,
+                        preflight.backup_code.as_deref(),
+                        &preflight.archive_sha256,
+                        &safety.backup_code,
+                        &safety.archive_sha256,
+                    );
+                }
+
+                Ok(RestoreBackupResponse {
+                    restore_operation_id: operation_id,
+                    restored_backup_id: preflight.backup_id,
+                    restored_backup_code: preflight.backup_code,
+                    restored_archive_sha256: preflight.archive_sha256,
+                    safety_backup_id: safety.backup_id,
+                    safety_backup_code: safety.backup_code,
+                    safety_archive_sha256: safety.archive_sha256,
+                    started_at,
+                    completed_at,
+                    restored_database: true,
+                    restored_app_data: true,
+                    requires_restart: true,
+                    message: "Восстановление выполнено. Перезапустите приложение.".to_owned(),
+                })
+            }
+            Err(error) => {
+                let _ = Self::audit_restore_failed(
+                    app,
+                    &user_dto,
+                    &operation_id,
+                    preflight.backup_code.as_deref(),
+                    &error.code,
+                );
+
+                Err(error)
+            }
+        }
+    }
+
+    fn validate_restore_confirmation(payload: &RestoreBackupPayload) -> Result<(), AppErrorDto> {
+        if payload.confirmation_phrase.trim() != "ВОССТАНОВИТЬ" {
+            return Err(AppErrorDto::validation(
+                "Для восстановления нужно ввести подтверждение: ВОССТАНОВИТЬ",
+            ));
+        }
+
+        if payload.safety_backup_id.trim().is_empty() {
+            return Err(AppErrorDto::validation(
+                "Restore запрещён: не передан safety backup",
+            ));
+        }
+
+        if payload.restore_archive_sha256.trim().is_empty() {
+            return Err(AppErrorDto::validation(
+                "Restore запрещён: не передан SHA-256 restore archive",
+            ));
+        }
+
+        if payload.safety_archive_sha256.trim().is_empty() {
+            return Err(AppErrorDto::validation(
+                "Restore запрещён: не передан SHA-256 safety backup",
+            ));
+        }
+
+        Ok(())
+    }
+
+    fn verify_safety_backup(
+        conn: &rusqlite::Connection,
+        safety_backup_id: &str,
+        expected_sha256: &str,
+    ) -> Result<RestoreSafetyBackupCheck, AppErrorDto> {
+        let row = BackupRepository::find_private_by_id(conn, safety_backup_id)?
+            .ok_or_else(|| AppErrorDto::validation("Safety backup не найден"))?;
+
+        if row.backup_type != "safety" {
+            return Err(AppErrorDto::validation(
+                "Переданный backup не является safety backup",
+            ));
+        }
+
+        if row.status != "created" && row.status != "verified" {
+            return Err(AppErrorDto::validation(
+                "Safety backup должен иметь статус created или verified",
+            ));
+        }
+
+        if row.sha256 != expected_sha256 {
+            return Err(AppErrorDto::validation(
+                "SHA-256 safety backup не совпадает с ожидаемым",
+            ));
+        }
+
+        let file_path = PathBuf::from(&row.file_path);
+
+        if !file_path.exists() {
+            return Err(AppErrorDto::validation("Файл safety backup не найден"));
+        }
+
+        let actual_sha256 = BackupArchiveReader::sha256_file(&file_path)?;
+
+        if actual_sha256 != expected_sha256 {
+            return Err(AppErrorDto::validation(
+                "Файл safety backup изменился после создания",
+            ));
+        }
+
+        Ok(RestoreSafetyBackupCheck {
+            backup_id: row.id,
+            backup_code: row.backup_code,
+            file_path,
+            archive_sha256: actual_sha256,
+        })
+    }
+
+    fn resolve_restore_target(
+        conn: &rusqlite::Connection,
+        backup_id: Option<String>,
+        file_path: Option<String>,
+    ) -> Result<RestoreTarget, AppErrorDto> {
+        if let Some(backup_id) = backup_id {
+            let row = BackupRepository::find_private_by_id(conn, &backup_id)?
+                .ok_or_else(|| AppErrorDto::validation("Backup для восстановления не найден"))?;
+
+            return Ok(RestoreTarget {
+                backup_id: Some(row.id),
+                backup_code: Some(row.backup_code),
+                file_path: PathBuf::from(row.file_path),
+            });
+        }
+
+        let Some(raw_path) = file_path else {
+            return Err(AppErrorDto::validation(
+                "Не выбран backup для восстановления",
+            ));
+        };
+
+        if raw_path.trim().is_empty() {
+            return Err(AppErrorDto::validation(
+                "Не выбран backup для восстановления",
+            ));
+        }
+
+        let path = PathBuf::from(raw_path);
+
+        if !path.exists() {
+            return Err(AppErrorDto::validation(
+                "Backup-файл для восстановления не найден",
+            ));
+        }
+
+        if path.to_string_lossy().starts_with("\\\\") {
+            return Err(AppErrorDto::validation(
+                "Restore из сетевого UNC-пути не поддерживается",
+            ));
+        }
+
+        Ok(RestoreTarget {
+            backup_id: None,
+            backup_code: None,
+            file_path: path,
+        })
+    }
+
+    fn build_restore_operation_paths(
+        app: &AppHandle,
+        operation_id: &str,
+    ) -> Result<RestoreOperationPaths, AppErrorDto> {
+        let app_data_dir = app
+            .path()
+            .app_data_dir()
+            .map_err(|err| AppErrorDto::filesystem(err.to_string()))?;
+
+        let live_database_path = get_database_path(app)?;
+
+        Ok(RestoreOperationPaths {
+            operation_id: operation_id.to_owned(),
+            staging_dir: app_data_dir.join("restore-staging").join(operation_id),
+            rollback_dir: app_data_dir.join("restore-rollback").join(operation_id),
+            restore_lock_file: app_data_dir.join("restore.lock"),
+            live_database_path: live_database_path.clone(),
+            staged_database_path: app_data_dir
+                .join("restore-staging")
+                .join(operation_id)
+                .join("database")
+                .join("casegraph.sqlite"),
+            live_data_dir: app_data_dir.join("data"),
+            staged_data_dir: app_data_dir
+                .join("restore-staging")
+                .join(operation_id)
+                .join("data"),
+            live_thumbnails_dir: app_data_dir.join("thumbnails"),
+            staged_thumbnails_dir: app_data_dir
+                .join("restore-staging")
+                .join(operation_id)
+                .join("thumbnails"),
+            live_exports_dir: app_data_dir.join("exports"),
+            staged_exports_dir: app_data_dir
+                .join("restore-staging")
+                .join(operation_id)
+                .join("exports"),
+            live_templates_dir: app_data_dir.join("templates"),
+            staged_templates_dir: app_data_dir
+                .join("restore-staging")
+                .join(operation_id)
+                .join("templates"),
+        })
+    }
+
+    fn create_restore_lock(paths: &RestoreOperationPaths) -> Result<(), AppErrorDto> {
+        if let Some(parent) = paths.restore_lock_file.parent() {
+            std::fs::create_dir_all(parent)
+                .map_err(|err| AppErrorDto::filesystem(err.to_string()))?;
+        }
+
+        std::fs::write(
+            &paths.restore_lock_file,
+            format!("restore_operation_id={}", paths.operation_id),
+        )
+        .map_err(|err| AppErrorDto::filesystem(err.to_string()))?;
+
+        Ok(())
+    }
+
+    fn remove_restore_lock_best_effort(paths: &RestoreOperationPaths) {
+        let _ = std::fs::remove_file(&paths.restore_lock_file);
+    }
+
+    fn execute_restore_with_rollback(
+        _app: &AppHandle,
+        paths: &RestoreOperationPaths,
+        restore_archive_path: &PathBuf,
+        _operation_id: &str,
+    ) -> Result<(), AppErrorDto> {
+        // 1. Clean previous staging/rollback.
+        let _ = std::fs::remove_dir_all(&paths.staging_dir);
+        let _ = std::fs::remove_dir_all(&paths.rollback_dir);
+
+        std::fs::create_dir_all(&paths.staging_dir)
+            .map_err(|err| AppErrorDto::filesystem(err.to_string()))?;
+        std::fs::create_dir_all(&paths.rollback_dir)
+            .map_err(|err| AppErrorDto::filesystem(err.to_string()))?;
+
+        // 2. Extract archive to staging only.
+        BackupArchiveReader::extract_to_restore_staging(restore_archive_path, &paths.staging_dir)?;
+
+        // 3. Validate staged content.
+        Self::validate_staged_restore(paths)?;
+
+        // 4. Backup current live paths into rollback dir.
+        Self::prepare_rollback_copy(paths)?;
+
+        // 5. Replace live paths.
+        let replace_result = Self::replace_live_paths(paths);
+
+        if let Err(error) = replace_result {
+            let _ = Self::rollback_live_paths(paths);
+            return Err(error);
+        }
+
+        // 6. Leave rollback dir for post-mortem.
+        Ok(())
+    }
+
+    fn validate_staged_restore(paths: &RestoreOperationPaths) -> Result<(), AppErrorDto> {
+        if !paths.staged_database_path.exists() {
+            return Err(AppErrorDto::validation(
+                "В backup отсутствует database/casegraph.sqlite",
+            ));
+        }
+
+        let metadata_path = paths
+            .staging_dir
+            .join("metadata")
+            .join("backup-metadata.json");
+        let manifest_path = paths.staging_dir.join("metadata").join("manifest.json");
+        let checksums_path = paths.staging_dir.join("metadata").join("checksums.json");
+
+        for required in [&metadata_path, &manifest_path, &checksums_path] {
+            if !required.exists() {
+                return Err(AppErrorDto::validation(
+                    "Restore staging не содержит обязательные metadata-файлы",
+                ));
+            }
+        }
+
+        Self::validate_staged_sqlite_database(&paths.staged_database_path)?;
+
+        Ok(())
+    }
+
+    fn validate_staged_sqlite_database(db_path: &PathBuf) -> Result<(), AppErrorDto> {
+        let conn = rusqlite::Connection::open_with_flags(
+            db_path,
+            rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
+        )
+        .map_err(|err| AppErrorDto::database(err.to_string()))?;
+
+        let integrity: String = conn
+            .query_row("PRAGMA integrity_check", [], |row| row.get(0))
+            .map_err(|err| AppErrorDto::database(err.to_string()))?;
+
+        if integrity != "ok" {
+            return Err(AppErrorDto::validation(
+                "SQLite database из backup не прошла PRAGMA integrity_check",
+            ));
+        }
+
+        let backup_schema_version: i64 = conn
+            .query_row(
+                r#"
+                SELECT COALESCE(MAX(version), 0)
+                FROM schema_migrations
+                "#,
+                [],
+                |row| row.get(0),
+            )
+            .map_err(|err| AppErrorDto::database(err.to_string()))?;
+
+        let current_schema_version = Self::current_schema_version_from_conn(&conn)?;
+
+        if backup_schema_version > current_schema_version {
+            return Err(AppErrorDto::validation(
+                "Backup создан на более новой версии схемы БД",
+            ));
+        }
+
+        Ok(())
+    }
+
+    fn current_schema_version_from_conn(conn: &rusqlite::Connection) -> Result<i64, AppErrorDto> {
+        let version: Option<i64> = conn
+            .query_row(
+                r#"
+                SELECT version
+                FROM schema_migrations
+                ORDER BY version DESC
+                LIMIT 1
+                "#,
+                [],
+                |row| row.get(0),
+            )
+            .optional()
+            .map_err(|err| AppErrorDto::database(err.to_string()))?;
+
+        Ok(version.unwrap_or(0))
+    }
+
+    fn prepare_rollback_copy(paths: &RestoreOperationPaths) -> Result<(), AppErrorDto> {
+        std::fs::create_dir_all(&paths.rollback_dir)
+            .map_err(|err| AppErrorDto::filesystem(err.to_string()))?;
+
+        Self::copy_file_if_exists(
+            &paths.live_database_path,
+            &paths.rollback_dir.join("casegraph.sqlite"),
+        )?;
+
+        Self::copy_dir_if_exists(&paths.live_data_dir, &paths.rollback_dir.join("data"))?;
+
+        Self::copy_dir_if_exists(
+            &paths.live_thumbnails_dir,
+            &paths.rollback_dir.join("thumbnails"),
+        )?;
+
+        Self::copy_dir_if_exists(&paths.live_exports_dir, &paths.rollback_dir.join("exports"))?;
+
+        Self::copy_dir_if_exists(
+            &paths.live_templates_dir,
+            &paths.rollback_dir.join("templates"),
+        )?;
+
+        Ok(())
+    }
+
+    fn replace_live_paths(paths: &RestoreOperationPaths) -> Result<(), AppErrorDto> {
+        Self::replace_file(&paths.staged_database_path, &paths.live_database_path)?;
+
+        Self::replace_dir(&paths.staged_data_dir, &paths.live_data_dir)?;
+
+        Self::replace_dir(&paths.staged_thumbnails_dir, &paths.live_thumbnails_dir)?;
+
+        Self::replace_dir(&paths.staged_exports_dir, &paths.live_exports_dir)?;
+
+        Self::replace_dir(&paths.staged_templates_dir, &paths.live_templates_dir)?;
+
+        Ok(())
+    }
+
+    fn rollback_live_paths(paths: &RestoreOperationPaths) -> Result<(), AppErrorDto> {
+        Self::replace_file(
+            &paths.rollback_dir.join("casegraph.sqlite"),
+            &paths.live_database_path,
+        )?;
+
+        Self::replace_dir(&paths.rollback_dir.join("data"), &paths.live_data_dir)?;
+
+        Self::replace_dir(
+            &paths.rollback_dir.join("thumbnails"),
+            &paths.live_thumbnails_dir,
+        )?;
+
+        Self::replace_dir(&paths.rollback_dir.join("exports"), &paths.live_exports_dir)?;
+
+        Self::replace_dir(
+            &paths.rollback_dir.join("templates"),
+            &paths.live_templates_dir,
+        )?;
+
+        Ok(())
+    }
+
+    fn replace_file(source: &PathBuf, target: &PathBuf) -> Result<(), AppErrorDto> {
+        if !source.exists() {
+            return Ok(());
+        }
+
+        if let Some(parent) = target.parent() {
+            std::fs::create_dir_all(parent)
+                .map_err(|err| AppErrorDto::filesystem(err.to_string()))?;
+        }
+
+        if target.exists() {
+            std::fs::remove_file(target).map_err(|err| AppErrorDto::filesystem(err.to_string()))?;
+        }
+
+        if std::fs::rename(source, target).is_err() {
+            std::fs::copy(source, target)
+                .map_err(|err| AppErrorDto::filesystem(err.to_string()))?;
+            let _ = std::fs::remove_file(source);
+        }
+
+        Ok(())
+    }
+
+    fn replace_dir(source: &PathBuf, target: &PathBuf) -> Result<(), AppErrorDto> {
+        if !source.exists() {
+            return Ok(());
+        }
+
+        if target.exists() {
+            std::fs::remove_dir_all(target)
+                .map_err(|err| AppErrorDto::filesystem(err.to_string()))?;
+        }
+
+        if std::fs::rename(source, target).is_err() {
+            Self::copy_dir_recursive(source, target)?;
+            let _ = std::fs::remove_dir_all(source);
+        }
+
+        Ok(())
+    }
+
+    fn copy_file_if_exists(source: &PathBuf, target: &PathBuf) -> Result<(), AppErrorDto> {
+        if !source.exists() {
+            return Ok(());
+        }
+
+        if let Some(parent) = target.parent() {
+            std::fs::create_dir_all(parent)
+                .map_err(|err| AppErrorDto::filesystem(err.to_string()))?;
+        }
+
+        std::fs::copy(source, target).map_err(|err| AppErrorDto::filesystem(err.to_string()))?;
+
+        Ok(())
+    }
+
+    fn copy_dir_if_exists(source: &PathBuf, target: &PathBuf) -> Result<(), AppErrorDto> {
+        if !source.exists() {
+            return Ok(());
+        }
+
+        Self::copy_dir_recursive(source, target)
+    }
+
+    fn copy_dir_recursive(source: &PathBuf, target: &PathBuf) -> Result<(), AppErrorDto> {
+        std::fs::create_dir_all(target).map_err(|err| AppErrorDto::filesystem(err.to_string()))?;
+
+        for entry in walkdir::WalkDir::new(source) {
+            let entry = entry.map_err(|err| AppErrorDto::filesystem(err.to_string()))?;
+
+            let relative = entry
+                .path()
+                .strip_prefix(source)
+                .map_err(|_| AppErrorDto::validation("Ошибка подготовки restore paths"))?;
+
+            let destination = target.join(relative);
+
+            if entry.file_type().is_dir() {
+                std::fs::create_dir_all(&destination)
+                    .map_err(|err| AppErrorDto::filesystem(err.to_string()))?;
+            } else {
+                if let Some(parent) = destination.parent() {
+                    std::fs::create_dir_all(parent)
+                        .map_err(|err| AppErrorDto::filesystem(err.to_string()))?;
+                }
+
+                std::fs::copy(entry.path(), &destination)
+                    .map_err(|err| AppErrorDto::filesystem(err.to_string()))?;
+            }
+        }
+
+        Ok(())
+    }
+
+    // ── Restore audit helpers ───────────────────────────────────────────────
+
+    fn audit_restore_started(
+        app: &AppHandle,
+        current_user: &crate::security::session::CurrentUserDto,
+        operation_id: &str,
+        restore_backup_code: Option<&str>,
+        restore_archive_sha256: &str,
+        safety_backup_code: &str,
+        safety_archive_sha256: &str,
+    ) -> Result<(), AppErrorDto> {
+        let snapshot = restore_started_snapshot(
+            operation_id,
+            restore_backup_code,
+            restore_archive_sha256,
+            safety_backup_code,
+            safety_archive_sha256,
+        )?;
+
+        let details = restore_started_details("full_restore")?;
+
+        AuditService::write_best_effort(
+            app,
+            AuditWriteInput::success(current_user, audit_action::backup::RESTORE_STARTED)
+                .with_entity("backup", restore_backup_code.unwrap_or("backup"))
+                .with_snapshots(None, Some(snapshot))
+                .with_details(details)
+                .with_entity_type("backup".to_owned()),
+        );
+
+        Ok(())
+    }
+
+    fn audit_restore_completed_with_conn(
+        conn: &rusqlite::Connection,
+        current_user: &crate::security::session::CurrentUserDto,
+        operation_id: &str,
+        restore_backup_code: Option<&str>,
+        restore_archive_sha256: &str,
+        safety_backup_code: &str,
+        safety_archive_sha256: &str,
+    ) -> Result<(), AppErrorDto> {
+        let snapshot = restore_completed_snapshot(
+            operation_id,
+            restore_backup_code,
+            restore_archive_sha256,
+            safety_backup_code,
+            safety_archive_sha256,
+        )?;
+
+        let details = restore_completed_details(true)?;
+
+        AuditService::write_best_effort_with_conn(
+            conn,
+            AuditWriteInput::success(current_user, audit_action::backup::RESTORE_COMPLETED)
+                .with_entity("backup", restore_backup_code.unwrap_or("backup"))
+                .with_snapshots(None, Some(snapshot))
+                .with_details(details)
+                .with_entity_type("backup".to_owned()),
+        );
+
+        Ok(())
+    }
+
+    fn audit_restore_failed(
+        app: &AppHandle,
+        current_user: &crate::security::session::CurrentUserDto,
+        operation_id: &str,
+        restore_backup_code: Option<&str>,
+        error_code: &str,
+    ) -> Result<(), AppErrorDto> {
+        let snapshot = restore_failed_snapshot(operation_id, restore_backup_code)?;
+
+        let details = restore_failed_details(error_code)?;
+
+        AuditService::write_best_effort(
+            app,
+            AuditWriteInput::failure(current_user, audit_action::backup::RESTORE_FAILED)
+                .with_entity("backup", restore_backup_code.unwrap_or("backup"))
+                .with_snapshots(None, Some(snapshot))
+                .with_details(details)
+                .with_entity_type("backup".to_owned()),
+        );
+
+        Ok(())
     }
 }
