@@ -42,6 +42,8 @@ pub struct BackupVerificationSummaryDto {
 pub struct BackupArchiveVerification {
     pub archive_sha256: String,
     pub metadata: Option<BackupMetadataDto>,
+    pub manifest: Option<BackupManifestDto>,
+    pub checksums: Option<BackupChecksumsDto>,
     pub summary: BackupVerificationSummaryDto,
     pub issues: Vec<BackupVerificationIssueDto>,
 }
@@ -181,6 +183,8 @@ impl BackupArchiveReader {
         Ok(BackupArchiveVerification {
             archive_sha256,
             metadata,
+            manifest,
+            checksums,
             summary,
             issues,
         })

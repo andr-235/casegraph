@@ -5,9 +5,11 @@ import { getBackupHistory } from "../../features/backup/api/backupApi";
 import type {
   BackupHistoryItemDto,
   CreateBackupResponse,
+  RestoreBackupPreflightResponse,
   VerifyBackupResponse,
 } from "../../features/backup/model/backupTypes";
 import { CreateBackupModal } from "../../features/backup/ui/CreateBackupModal";
+import { RestoreBackupModal } from "../../features/backup/ui/RestoreBackupModal";
 import { VerifyBackupModal } from "../../features/backup/ui/VerifyBackupModal";
 import { can } from "../../shared/lib/permissions";
 import { protectedOperations } from "../../shared/security/protectedOperations";
@@ -67,6 +69,8 @@ export function BackupPage({ permissions, onBack }: BackupPageProps) {
   const [isCreateModalOpen, setCreateModalOpen] = useState(false);
   const [isVerifyModalOpen, setVerifyModalOpen] = useState(false);
   const [verifyTarget, setVerifyTarget] = useState<BackupHistoryItemDto | null>(null);
+  const [isRestoreModalOpen, setRestoreModalOpen] = useState(false);
+  const [restoreTarget, setRestoreTarget] = useState<BackupHistoryItemDto | null>(null);
 
   const actionsDisabledReason =
     !canCreateBackup
@@ -126,6 +130,24 @@ export function BackupPage({ permissions, onBack }: BackupPageProps) {
     void loadHistory();
   }
 
+  function handleOpenRestoreFromHistory(item: BackupHistoryItemDto) {
+    setRestoreTarget(item);
+    setRestoreModalOpen(true);
+  }
+
+  function handleOpenRestoreFromFile() {
+    setRestoreTarget(null);
+    setRestoreModalOpen(true);
+  }
+
+  function handleRestorePreflightComplete(result: RestoreBackupPreflightResponse) {
+    setSuccessMessage(
+      result.canRestore
+        ? `Backup ${result.backupCode ?? result.fileName} прошёл preflight restore.`
+        : `Backup ${result.backupCode ?? result.fileName} нельзя восстановить.`,
+    );
+  }
+
   if (!canReadBackup) {
     return (
       <section className="page">
@@ -165,7 +187,11 @@ export function BackupPage({ permissions, onBack }: BackupPageProps) {
             Проверить backup
           </button>
 
-          <button type="button" disabled={!canRestoreBackup}>
+          <button
+            type="button"
+            disabled={!canRestoreBackup}
+            onClick={handleOpenRestoreFromFile}
+          >
             Восстановить
           </button>
 
@@ -223,6 +249,13 @@ export function BackupPage({ permissions, onBack }: BackupPageProps) {
                   >
                     Проверить
                   </button>
+                  <button
+                    type="button"
+                    disabled={!canRestoreBackup}
+                    onClick={() => handleOpenRestoreFromHistory(item)}
+                  >
+                    Восстановить
+                  </button>
                 </td>
               </tr>
             ))}
@@ -240,6 +273,13 @@ export function BackupPage({ permissions, onBack }: BackupPageProps) {
         backup={verifyTarget}
         onClose={() => setVerifyModalOpen(false)}
         onVerified={handleVerified}
+      />
+
+      <RestoreBackupModal
+        open={isRestoreModalOpen}
+        backup={restoreTarget}
+        onClose={() => setRestoreModalOpen(false)}
+        onPreflightComplete={handleRestorePreflightComplete}
       />
     </section>
   );

@@ -127,3 +127,73 @@ pub struct VerifyBackupResponse {
     pub summary: BackupVerificationSummaryDto,
     pub issues: Vec<BackupVerificationIssueDto>,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SelectRestoreBackupFileResponse {
+    pub file_path: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RestoreBackupPreflightPayload {
+    pub backup_id: Option<String>,
+    pub file_path: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RestoreBackupPreflightResponse {
+    pub backup_id: Option<String>,
+    pub backup_code: Option<String>,
+    pub file_name: String,
+    pub archive_sha256: String,
+    pub checked_at: String,
+    pub can_restore: bool,
+    pub requires_safety_backup: bool,
+    pub metadata: RestoreBackupMetadataPreviewDto,
+    pub compatibility: RestoreCompatibilityDto,
+    pub verification: BackupVerificationSummaryDto,
+    pub warnings: Vec<RestorePreflightIssueDto>,
+    pub errors: Vec<RestorePreflightIssueDto>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RestoreBackupMetadataPreviewDto {
+    pub backup_type: String,
+    pub app_version: String,
+    pub schema_version: i64,
+    pub created_at: String,
+    pub created_by: Option<String>,
+    pub case_id: Option<String>,
+    pub case_code: Option<String>,
+    pub file_count: usize,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RestoreCompatibilityDto {
+    pub app_version_ok: bool,
+    pub schema_version_ok: bool,
+    pub backup_type_ok: bool,
+    pub current_app_version: String,
+    pub backup_app_version: String,
+    pub current_schema_version: i64,
+    pub backup_schema_version: i64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RestorePreflightIssueDto {
+    pub code: String,
+    pub message: String,
+    pub severity: RestorePreflightIssueSeverity,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RestorePreflightIssueSeverity {
+    Warning,
+    Error,
+}

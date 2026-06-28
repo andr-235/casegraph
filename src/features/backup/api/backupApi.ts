@@ -3,8 +3,11 @@ import type {
   BackupHistoryItemDto,
   CreateBackupPayload,
   CreateBackupResponse,
+  RestoreBackupPreflightPayload,
+  RestoreBackupPreflightResponse,
   SelectBackupFileResponse,
   SelectBackupOutputFolderResponse,
+  SelectRestoreBackupFileResponse,
   VerifyBackupPayload,
   VerifyBackupResponse,
 } from "../model/backupTypes";
@@ -31,4 +34,19 @@ export function verifyBackup(
   payload: VerifyBackupPayload,
 ): Promise<VerifyBackupResponse> {
   return invokeCommand<VerifyBackupResponse>("verify_backup", { payload });
+}
+
+export function chooseRestoreBackupFile(): Promise<SelectRestoreBackupFileResponse> {
+  return invokeCommand<SelectRestoreBackupFileResponse>(
+    "choose_restore_backup_file",
+  );
+}
+
+export function restoreBackupPreflight(
+  payload: RestoreBackupPreflightPayload,
+): Promise<RestoreBackupPreflightResponse> {
+  return invokeCommand<RestoreBackupPreflightResponse>(
+    "restore_backup_preflight",
+    { payload },
+  );
 }

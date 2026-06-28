@@ -85,3 +85,54 @@ export type BackupVerificationIssueDto = {
   severity: "warning" | "error";
   archivePath: string | null;
 };
+
+export type SelectRestoreBackupFileResponse = {
+  filePath: string | null;
+};
+
+export type RestoreBackupPreflightPayload = {
+  backupId?: string | null;
+  filePath?: string | null;
+};
+
+export type RestoreBackupPreflightResponse = {
+  backupId: string | null;
+  backupCode: string | null;
+  fileName: string;
+  archiveSha256: string;
+  checkedAt: string;
+  canRestore: boolean;
+  requiresSafetyBackup: boolean;
+  metadata: RestoreBackupMetadataPreviewDto;
+  compatibility: RestoreCompatibilityDto;
+  verification: BackupVerificationSummaryDto;
+  warnings: RestorePreflightIssueDto[];
+  errors: RestorePreflightIssueDto[];
+};
+
+export type RestoreBackupMetadataPreviewDto = {
+  backupType: string;
+  appVersion: string;
+  schemaVersion: number;
+  createdAt: string;
+  createdBy: string | null;
+  caseId: string | null;
+  caseCode: string | null;
+  fileCount: number;
+};
+
+export type RestoreCompatibilityDto = {
+  appVersionOk: boolean;
+  schemaVersionOk: boolean;
+  backupTypeOk: boolean;
+  currentAppVersion: string;
+  backupAppVersion: string;
+  currentSchemaVersion: number;
+  backupSchemaVersion: number;
+};
+
+export type RestorePreflightIssueDto = {
+  code: string;
+  message: string;
+  severity: "warning" | "error";
+};

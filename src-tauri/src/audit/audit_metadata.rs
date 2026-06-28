@@ -348,6 +348,36 @@ pub fn safe_restore_snapshot(
     })
 }
 
+pub fn safe_restore_preflight_snapshot(
+    backup_code: Option<&str>,
+    can_restore: bool,
+    backup_type: &str,
+    schema_version: i64,
+    file_count: usize,
+) -> Result<AuditSafeSnapshot, AppErrorDto> {
+    build_snapshot(RestorePreflightAuditSnapshot {
+        backup_code,
+        can_restore,
+        backup_type,
+        schema_version,
+        file_count,
+    })
+}
+
+pub fn safe_restore_preflight_details(
+    operation: &str,
+    error_count: usize,
+    warning_count: usize,
+    verification_error_count: usize,
+) -> Result<AuditSafeDetails, AppErrorDto> {
+    build_details(RestorePreflightDetails {
+        operation,
+        error_count,
+        warning_count,
+        verification_error_count,
+    })
+}
+
 #[allow(clippy::too_many_arguments)]
 pub fn safe_integrity_run_snapshot(
     run_id: &str,
@@ -1398,6 +1428,25 @@ pub fn backup_verification_snapshot<'a>(
         warnings_count,
         checked_at,
     }
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RestorePreflightAuditSnapshot<'a> {
+    pub backup_code: Option<&'a str>,
+    pub can_restore: bool,
+    pub backup_type: &'a str,
+    pub schema_version: i64,
+    pub file_count: usize,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RestorePreflightDetails<'a> {
+    pub operation: &'a str,
+    pub error_count: usize,
+    pub warning_count: usize,
+    pub verification_error_count: usize,
 }
 
 #[derive(Debug, Serialize)]
