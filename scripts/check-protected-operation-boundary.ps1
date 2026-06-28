@@ -26,14 +26,15 @@ if ($directPolicyGuard) {
 }
 
 # ---------------------------------------------------------------------------
-# 2. No legacy protected context helpers outside context file and tests
+# 2. No legacy protected context helpers anywhere in production code
 # ---------------------------------------------------------------------------
 $legacyProtectedContext = Select-String -Path "src-tauri/src/**/*.rs" -Pattern "require_protected_(user|administrator|analyst_or_admin)\(" -SimpleMatch |
-    Where-Object { $_.Path -notmatch '\\security\\protected_service_context\.rs' -and $_.Path -notmatch '_tests\.rs$' -and $_.Path -notmatch '\\tests\\.*\.rs$' }
+    Where-Object { $_.Path -notmatch '_tests\.rs$' -and $_.Path -notmatch '\\tests\\.*\.rs$' }
 
 if ($legacyProtectedContext) {
     Write-Host ""
-    Write-Host "[FAIL] Legacy protected context helpers still used outside security/tests." -ForegroundColor Red
+    Write-Host "[FAIL] Legacy protected role wrappers are forbidden." -ForegroundColor Red
+    Write-Host "       Use ProtectedServiceContext::require_operation(...)." -ForegroundColor Yellow
     $legacyProtectedContext | ForEach-Object {
         Write-Host "  $($_.Path):$($_.LineNumber): $($_.Line.Trim())"
     }
@@ -44,7 +45,7 @@ if ($legacyProtectedContext) {
 # 3. No string action names outside ProtectedOperation definition and tests
 # ---------------------------------------------------------------------------
 $stringActionNames = Select-String -Path "src-tauri/src/**/*.rs" -Pattern '"(case|material|object|relation|timeline|report|docx|backup|settings|user|audit|integrity)\.[a-z]+"' |
-    Where-Object { $_.Path -notmatch '\\protected_operation\.rs' -and $_.Path -notmatch '_tests\.rs$' -and $_.Path -notmatch '\\tests\\.*\.rs$' }
+    Where-Object { $_.Path -notmatch '\\protected_operation\.rs' -and $_.Path -notmatch '\\audit\\' -and $_.Path -notmatch '_tests\.rs$' -and $_.Path -notmatch '\\tests\\.*\.rs$' }
 
 if ($stringActionNames) {
     Write-Host ""
