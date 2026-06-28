@@ -1,5 +1,11 @@
 use serde::{Deserialize, Serialize};
 
+use crate::backup::backup_archive_reader::BackupVerificationSummaryDto;
+
+pub use crate::backup::backup_archive_reader::{
+    BackupVerificationIssueDto, BackupVerificationIssueSeverity,
+};
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateBackupPayload {
@@ -94,4 +100,30 @@ pub struct BackupHistoryItemDto {
     pub created_at: String,
     pub verified_at: Option<String>,
     pub restored_at: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SelectBackupFileResponse {
+    pub file_path: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VerifyBackupPayload {
+    pub backup_id: Option<String>,
+    pub file_path: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VerifyBackupResponse {
+    pub backup_id: Option<String>,
+    pub backup_code: Option<String>,
+    pub file_name: String,
+    pub archive_sha256: String,
+    pub checked_at: String,
+    pub is_valid: bool,
+    pub summary: BackupVerificationSummaryDto,
+    pub issues: Vec<BackupVerificationIssueDto>,
 }

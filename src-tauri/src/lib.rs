@@ -86,7 +86,9 @@ pub fn run() {
             commands::security_commands::get_effective_permissions,
             commands::backup_commands::get_backup_history,
             commands::backup_commands::choose_backup_folder,
-            commands::backup_commands::create_backup
+            commands::backup_commands::create_backup,
+            commands::backup_commands::choose_backup_file,
+            commands::backup_commands::verify_backup
         ])
         .run(tauri::generate_context!())
         .expect("error while running CaseGraph");

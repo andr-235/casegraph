@@ -2,8 +2,13 @@ import { useCallback, useEffect, useState } from "react";
 
 import type { EffectivePermissionsDto } from "../../features/auth/model/effectivePermissionsTypes";
 import { getBackupHistory } from "../../features/backup/api/backupApi";
-import type { BackupHistoryItemDto, CreateBackupResponse } from "../../features/backup/model/backupTypes";
+import type {
+  BackupHistoryItemDto,
+  CreateBackupResponse,
+  VerifyBackupResponse,
+} from "../../features/backup/model/backupTypes";
 import { CreateBackupModal } from "../../features/backup/ui/CreateBackupModal";
+import { VerifyBackupModal } from "../../features/backup/ui/VerifyBackupModal";
 import { can } from "../../shared/lib/permissions";
 import { protectedOperations } from "../../shared/security/protectedOperations";
 
@@ -60,6 +65,8 @@ export function BackupPage({ permissions, onBack }: BackupPageProps) {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [isCreateModalOpen, setCreateModalOpen] = useState(false);
+  const [isVerifyModalOpen, setVerifyModalOpen] = useState(false);
+  const [verifyTarget, setVerifyTarget] = useState<BackupHistoryItemDto | null>(null);
 
   const actionsDisabledReason =
     !canCreateBackup
@@ -99,6 +106,26 @@ export function BackupPage({ permissions, onBack }: BackupPageProps) {
     void loadHistory();
   }
 
+  function handleOpenVerifyBackup(item: BackupHistoryItemDto) {
+    setVerifyTarget(item);
+    setVerifyModalOpen(true);
+  }
+
+  function handleOpenVerifyExternalFile() {
+    setVerifyTarget(null);
+    setVerifyModalOpen(true);
+  }
+
+  function handleVerified(result: VerifyBackupResponse) {
+    setSuccessMessage(
+      result.isValid
+        ? `Backup ${result.backupCode ?? result.fileName} успешно проверен.`
+        : `Backup ${result.backupCode ?? result.fileName} не прошёл проверку.`,
+    );
+
+    void loadHistory();
+  }
+
   if (!canReadBackup) {
     return (
       <section className="page">
@@ -130,7 +157,11 @@ export function BackupPage({ permissions, onBack }: BackupPageProps) {
             Создать backup
           </button>
 
-          <button type="button" disabled={!canVerifyBackup}>
+          <button
+            type="button"
+            disabled={!canVerifyBackup}
+            onClick={handleOpenVerifyExternalFile}
+          >
             Проверить backup
           </button>
 
@@ -171,6 +202,7 @@ export function BackupPage({ permissions, onBack }: BackupPageProps) {
               <th>Размер</th>
               <th>Дело</th>
               <th>Создано</th>
+              <th>Действия</th>
             </tr>
           </thead>
           <tbody>
@@ -183,6 +215,15 @@ export function BackupPage({ permissions, onBack }: BackupPageProps) {
                 <td>{formatFileSize(item.fileSize)}</td>
                 <td>{item.caseCode ?? "—"}</td>
                 <td>{item.createdAt}</td>
+                <td>
+                  <button
+                    type="button"
+                    disabled={!canVerifyBackup}
+                    onClick={() => handleOpenVerifyBackup(item)}
+                  >
+                    Проверить
+                  </button>
+                </td>
               </tr>
             ))}
           </tbody>
@@ -192,6 +233,13 @@ export function BackupPage({ permissions, onBack }: BackupPageProps) {
         open={isCreateModalOpen}
         onClose={() => setCreateModalOpen(false)}
         onCreated={handleBackupCreated}
+      />
+
+      <VerifyBackupModal
+        open={isVerifyModalOpen}
+        backup={verifyTarget}
+        onClose={() => setVerifyModalOpen(false)}
+        onVerified={handleVerified}
       />
     </section>
   );

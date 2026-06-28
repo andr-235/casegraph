@@ -46,3 +46,42 @@ export type BackupHistoryItemDto = {
   verifiedAt?: string | null;
   restoredAt?: string | null;
 };
+
+export type SelectBackupFileResponse = {
+  filePath: string | null;
+};
+
+export type VerifyBackupPayload = {
+  backupId?: string | null;
+  filePath?: string | null;
+};
+
+export type VerifyBackupResponse = {
+  backupId: string | null;
+  backupCode: string | null;
+  fileName: string;
+  archiveSha256: string;
+  checkedAt: string;
+  isValid: boolean;
+  summary: BackupVerificationSummaryDto;
+  issues: BackupVerificationIssueDto[];
+};
+
+export type BackupVerificationSummaryDto = {
+  metadataOk: boolean;
+  manifestOk: boolean;
+  checksumsOk: boolean;
+  totalManifestEntries: number;
+  totalChecksumEntries: number;
+  checkedEntries: number;
+  missingEntries: number;
+  mismatchedEntries: number;
+  errorCount: number;
+};
+
+export type BackupVerificationIssueDto = {
+  code: string;
+  message: string;
+  severity: "warning" | "error";
+  archivePath: string | null;
+};

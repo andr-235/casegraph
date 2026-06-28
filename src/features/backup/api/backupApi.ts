@@ -3,7 +3,10 @@ import type {
   BackupHistoryItemDto,
   CreateBackupPayload,
   CreateBackupResponse,
+  SelectBackupFileResponse,
   SelectBackupOutputFolderResponse,
+  VerifyBackupPayload,
+  VerifyBackupResponse,
 } from "../model/backupTypes";
 
 export function getBackupHistory(): Promise<BackupHistoryItemDto[]> {
@@ -18,4 +21,14 @@ export function createBackup(
   payload: CreateBackupPayload,
 ): Promise<CreateBackupResponse> {
   return invokeCommand<CreateBackupResponse>("create_backup", { payload });
+}
+
+export function chooseBackupFile(): Promise<SelectBackupFileResponse> {
+  return invokeCommand<SelectBackupFileResponse>("choose_backup_file");
+}
+
+export function verifyBackup(
+  payload: VerifyBackupPayload,
+): Promise<VerifyBackupResponse> {
+  return invokeCommand<VerifyBackupResponse>("verify_backup", { payload });
 }

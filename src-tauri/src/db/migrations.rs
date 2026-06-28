@@ -316,6 +316,7 @@ pub fn apply_migrations(conn: &Connection) -> Result<(), AppErrorDto> {
     .map_err(|err| AppErrorDto::database(err.to_string()))?;
 
     ensure_audit_log_columns(conn)?;
+    ensure_backup_history_verify_columns(conn)?;
 
     conn.execute_batch(
         r#"
@@ -373,6 +374,36 @@ pub fn apply_migrations(conn: &Connection) -> Result<(), AppErrorDto> {
     seed_roles(conn)?;
 
     seed_settings(conn)?;
+
+    Ok(())
+}
+
+fn ensure_backup_history_verify_columns(conn: &Connection) -> Result<(), AppErrorDto> {
+    let additions: [(&str, &str); 2] = [("verification_json", "TEXT"), ("updated_at", "TEXT")];
+
+    for (col_name, col_type) in &additions {
+        let exists: bool = conn
+            .query_row(
+                &format!(
+                    "SELECT COUNT(*) > 0 FROM pragma_table_info('backup_history') WHERE name = '{0}'",
+                    col_name
+                ),
+                [],
+                |row| row.get(0),
+            )
+            .map_err(|err| AppErrorDto::database(err.to_string()))?;
+
+        if !exists {
+            conn.execute(
+                &format!(
+                    "ALTER TABLE backup_history ADD COLUMN {0} {1}",
+                    col_name, col_type
+                ),
+                [],
+            )
+            .map_err(|err| AppErrorDto::database(err.to_string()))?;
+        }
+    }
 
     Ok(())
 }

@@ -22,6 +22,18 @@ pub struct NewBackupHistoryRow {
     pub metadata_json: String,
 }
 
+#[derive(Debug, Clone)]
+pub struct BackupHistoryPrivateRow {
+    pub id: String,
+    pub backup_code: String,
+    pub backup_type: String,
+    pub status: String,
+    pub file_path: String,
+    pub file_name: String,
+    pub file_size: i64,
+    pub sha256: String,
+}
+
 pub struct BackupRepository;
 
 impl BackupRepository {
@@ -106,6 +118,99 @@ impl BackupRepository {
                 row.created_by,
                 row.created_at,
                 row.metadata_json,
+            ],
+        )
+        .map_err(|err| AppErrorDto::database(err.to_string()))?;
+
+        Ok(())
+    }
+
+    pub fn find_private_by_id(
+        conn: &Connection,
+        backup_id: &str,
+    ) -> Result<Option<BackupHistoryPrivateRow>, AppErrorDto> {
+        let mut stmt = conn
+            .prepare(
+                r#"
+                SELECT
+                    id,
+                    backup_code,
+                    backup_type,
+                    status,
+                    file_path,
+                    file_name,
+                    file_size,
+                    sha256
+                FROM backup_history
+                WHERE id = ?1
+                "#,
+            )
+            .map_err(|err| AppErrorDto::database(err.to_string()))?;
+
+        let mut rows = stmt
+            .query(rusqlite::params![backup_id])
+            .map_err(|err| AppErrorDto::database(err.to_string()))?;
+
+        if let Some(row) = rows
+            .next()
+            .map_err(|err| AppErrorDto::database(err.to_string()))?
+        {
+            return Ok(Some(BackupHistoryPrivateRow {
+                id: row
+                    .get::<_, String>("id")
+                    .map_err(|err| AppErrorDto::database(err.to_string()))?,
+                backup_code: row
+                    .get::<_, String>("backup_code")
+                    .map_err(|err| AppErrorDto::database(err.to_string()))?,
+                backup_type: row
+                    .get::<_, String>("backup_type")
+                    .map_err(|err| AppErrorDto::database(err.to_string()))?,
+                status: row
+                    .get::<_, String>("status")
+                    .map_err(|err| AppErrorDto::database(err.to_string()))?,
+                file_path: row
+                    .get::<_, String>("file_path")
+                    .map_err(|err| AppErrorDto::database(err.to_string()))?,
+                file_name: row
+                    .get::<_, String>("file_name")
+                    .map_err(|err| AppErrorDto::database(err.to_string()))?,
+                file_size: row
+                    .get::<_, i64>("file_size")
+                    .map_err(|err| AppErrorDto::database(err.to_string()))?,
+                sha256: row
+                    .get::<_, String>("sha256")
+                    .map_err(|err| AppErrorDto::database(err.to_string()))?,
+            }));
+        }
+
+        Ok(None)
+    }
+
+    pub fn update_verification_result(
+        conn: &Connection,
+        backup_id: &str,
+        status: &str,
+        archive_sha256: &str,
+        verified_at: &str,
+        verification_json: &str,
+    ) -> Result<(), AppErrorDto> {
+        conn.execute(
+            r#"
+            UPDATE backup_history
+            SET
+                status = ?2,
+                sha256 = ?3,
+                verified_at = ?4,
+                verification_json = ?5,
+                updated_at = ?4
+            WHERE id = ?1
+            "#,
+            rusqlite::params![
+                backup_id,
+                status,
+                archive_sha256,
+                verified_at,
+                verification_json
             ],
         )
         .map_err(|err| AppErrorDto::database(err.to_string()))?;
