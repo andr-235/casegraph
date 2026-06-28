@@ -20,6 +20,8 @@ impl ProtectedServiceContext {
         app: &AppHandle,
         operation: ProtectedOperation,
     ) -> Result<Self, AppErrorDto> {
+        Self::require_restore_not_blocking(app, operation)?;
+
         let session = app.state::<SessionState>();
         let session_user = session.require_current_user()?;
 
@@ -98,6 +100,23 @@ impl ProtectedServiceContext {
         );
 
         Err(AppErrorDto::password_change_required())
+    }
+
+    fn require_restore_not_blocking(
+        app: &AppHandle,
+        operation: ProtectedOperation,
+    ) -> Result<(), AppErrorDto> {
+        if operation.is_restore_recovery_allowed() {
+            return Ok(());
+        }
+
+        if crate::backup::RestoreMaintenanceService::is_recovery_required(app)? {
+            return Err(AppErrorDto::restore_in_progress(
+                "Приложение находится в режиме восстановления после restore",
+            ));
+        }
+
+        Ok(())
     }
 
     fn write_access_denied_best_effort(

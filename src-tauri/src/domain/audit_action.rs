@@ -80,6 +80,9 @@ pub mod backup {
     pub const RESTORE_FAILED: &str = "RESTORE_FAILED";
     pub const SAFETY_BACKUP_CREATED: &str = "SAFETY_BACKUP_CREATED";
     pub const SAFETY_BACKUP_FAILED: &str = "SAFETY_BACKUP_FAILED";
+    pub const RESTORE_RECOVERY_DETECTED: &str = "RESTORE_RECOVERY_DETECTED";
+    pub const RESTORE_RECOVERY_RESOLVED: &str = "RESTORE_RECOVERY_RESOLVED";
+    pub const RESTORE_RECOVERY_FAILED: &str = "RESTORE_RECOVERY_FAILED";
 }
 
 pub mod integrity {

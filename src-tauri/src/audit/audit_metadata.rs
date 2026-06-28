@@ -1811,6 +1811,41 @@ pub fn restore_failed_details(error_code: &str) -> Result<AuditSafeDetails, AppE
     }))
 }
 
+// ── Restore recovery audit builders ─────────────────────────────────────────
+//
+// These builders produce safe audit entries for the restore startup recovery flow.
+// They deliberately exclude all filesystem paths, raw io errors, and file content.
+
+pub fn restore_recovery_snapshot(
+    operation_id: Option<&str>,
+    phase: Option<&str>,
+    restore_backup_code: Option<&str>,
+    safety_backup_code: Option<&str>,
+    last_error_code: Option<&str>,
+) -> Result<AuditSafeSnapshot, AppErrorDto> {
+    build_snapshot(serde_json::json!({
+        "restoreOperationId": operation_id,
+        "phase": phase,
+        "restoreBackupCode": restore_backup_code,
+        "safetyBackupCode": safety_backup_code,
+        "lastErrorCode": last_error_code
+    }))
+}
+
+pub fn restore_recovery_details(action: &str) -> Result<AuditSafeDetails, AppErrorDto> {
+    build_details(serde_json::json!({
+        "operation": "restore_recovery",
+        "action": action
+    }))
+}
+
+pub fn restore_recovery_resolved_snapshot(action: &str) -> Result<AuditSafeSnapshot, AppErrorDto> {
+    build_snapshot(serde_json::json!({
+        "resolved": true,
+        "action": action
+    }))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

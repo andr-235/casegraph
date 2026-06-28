@@ -6,7 +6,11 @@ pub mod backup_path_resolver;
 pub mod backup_repository;
 pub mod backup_service;
 pub mod restore_execution;
+pub mod restore_maintenance_service;
+pub mod restore_operation_state;
+pub mod restore_recovery_dto;
 pub mod restore_service;
+pub mod restore_startup_recovery_service;
 
 pub use backup_archive_reader::{
     BackupArchiveReader, BackupArchiveVerification, BackupVerificationIssueDto,
@@ -29,4 +33,11 @@ pub use backup_path_resolver::BackupPathResolver;
 pub use backup_repository::{BackupRepository, NewBackupHistoryRow};
 pub use backup_service::BackupService;
 pub use restore_execution::{RestoreOperationPaths, RestoreSafetyBackupCheck};
+pub use restore_maintenance_service::RestoreMaintenanceService;
+pub use restore_operation_state::{RestoreOperationPhase, RestoreOperationState};
+pub use restore_recovery_dto::{
+    ResolveRestoreRecoveryPayload, ResolveRestoreRecoveryResponse, RestoreRecoveryActionDto,
+    RestoreRecoveryStatusDto,
+};
 pub use restore_service::RestoreService;
+pub use restore_startup_recovery_service::RestoreStartupRecoveryService;

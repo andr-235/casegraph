@@ -19,7 +19,8 @@ use crate::backup::{
     CreateRestoreSafetyBackupPayload, CreateRestoreSafetyBackupResponse,
     InternalCreateBackupRequest, RestoreBackupMetadataPreviewDto, RestoreBackupPayload,
     RestoreBackupPreflightPayload, RestoreBackupPreflightResponse, RestoreBackupResponse,
-    RestoreCompatibilityDto, RestoreOperationPaths, RestorePreflightIssueDto,
+    RestoreCompatibilityDto, RestoreMaintenanceService, RestoreOperationPaths,
+    RestoreOperationPhase, RestoreOperationState, RestorePreflightIssueDto,
     RestorePreflightIssueSeverity, RestoreSafetyBackupCheck, RestoreSafetyTargetDto,
     SelectRestoreBackupFileResponse,
 };
@@ -588,9 +589,24 @@ impl RestoreService {
             &safety.archive_sha256,
         );
 
-        // 5. Build paths and restore lock.
+        // 5. Write restore operation state and lock.
         let paths = Self::build_restore_operation_paths(app, &operation_id)?;
-        Self::create_restore_lock(&paths)?;
+        let state = RestoreOperationState {
+            operation_id: operation_id.clone(),
+            phase: RestoreOperationPhase::Started,
+            restore_backup_id: preflight.backup_id.clone(),
+            restore_backup_code: preflight.backup_code.clone(),
+            restore_archive_sha256: preflight.archive_sha256.clone(),
+            safety_backup_id: safety.backup_id.clone(),
+            safety_backup_code: safety.backup_code.clone(),
+            safety_archive_sha256: safety.archive_sha256.clone(),
+            started_at: started_at.clone(),
+            updated_at: started_at.clone(),
+            last_error_code: None,
+        };
+
+        RestoreMaintenanceService::write_state(app, &state)?;
+        RestoreMaintenanceService::create_lock(app, &operation_id)?;
 
         // 6. Close live DB connection before destructive file operations.
         drop(ctx);
@@ -602,10 +618,14 @@ impl RestoreService {
             &operation_id,
         );
 
-        Self::remove_restore_lock_best_effort(&paths);
-
         match restore_result {
             Ok(_) => {
+                let _ = RestoreMaintenanceService::update_phase(
+                    app,
+                    RestoreOperationPhase::CompletedRequiresRestart,
+                    None,
+                );
+
                 let completed_at = Utc::now().to_rfc3339();
 
                 let _ = BackupRepository::mark_restored(
@@ -644,6 +664,12 @@ impl RestoreService {
                 })
             }
             Err(error) => {
+                let _ = RestoreMaintenanceService::update_phase(
+                    app,
+                    RestoreOperationPhase::FailedNeedsRecovery,
+                    Some(error.code.clone()),
+                );
+
                 let _ = Self::audit_restore_failed(
                     app,
                     &user_dto,
@@ -655,6 +681,14 @@ impl RestoreService {
                 Err(error)
             }
         }
+    }
+
+    pub(crate) fn rollback_by_operation_id(
+        app: &AppHandle,
+        operation_id: &str,
+    ) -> Result<(), AppErrorDto> {
+        let paths = Self::build_restore_operation_paths(app, operation_id)?;
+        Self::rollback_live_paths(&paths)
     }
 
     fn validate_restore_confirmation(payload: &RestoreBackupPayload) -> Result<(), AppErrorDto> {
@@ -827,27 +861,8 @@ impl RestoreService {
         })
     }
 
-    fn create_restore_lock(paths: &RestoreOperationPaths) -> Result<(), AppErrorDto> {
-        if let Some(parent) = paths.restore_lock_file.parent() {
-            std::fs::create_dir_all(parent)
-                .map_err(|err| AppErrorDto::filesystem(err.to_string()))?;
-        }
-
-        std::fs::write(
-            &paths.restore_lock_file,
-            format!("restore_operation_id={}", paths.operation_id),
-        )
-        .map_err(|err| AppErrorDto::filesystem(err.to_string()))?;
-
-        Ok(())
-    }
-
-    fn remove_restore_lock_best_effort(paths: &RestoreOperationPaths) {
-        let _ = std::fs::remove_file(&paths.restore_lock_file);
-    }
-
     fn execute_restore_with_rollback(
-        _app: &AppHandle,
+        app: &AppHandle,
         paths: &RestoreOperationPaths,
         restore_archive_path: &PathBuf,
         _operation_id: &str,
@@ -864,19 +879,49 @@ impl RestoreService {
         // 2. Extract archive to staging only.
         BackupArchiveReader::extract_to_restore_staging(restore_archive_path, &paths.staging_dir)?;
 
+        let _ = RestoreMaintenanceService::update_phase(
+            app,
+            RestoreOperationPhase::StagingExtracted,
+            None,
+        );
+
         // 3. Validate staged content.
         Self::validate_staged_restore(paths)?;
+
+        let _ = RestoreMaintenanceService::update_phase(
+            app,
+            RestoreOperationPhase::StagingValidated,
+            None,
+        );
 
         // 4. Backup current live paths into rollback dir.
         Self::prepare_rollback_copy(paths)?;
 
+        let _ = RestoreMaintenanceService::update_phase(
+            app,
+            RestoreOperationPhase::RollbackPrepared,
+            None,
+        );
+
         // 5. Replace live paths.
+        let _ = RestoreMaintenanceService::update_phase(
+            app,
+            RestoreOperationPhase::ReplacingLiveData,
+            None,
+        );
+
         let replace_result = Self::replace_live_paths(paths);
 
         if let Err(error) = replace_result {
             let _ = Self::rollback_live_paths(paths);
             return Err(error);
         }
+
+        let _ = RestoreMaintenanceService::update_phase(
+            app,
+            RestoreOperationPhase::LiveDataReplaced,
+            None,
+        );
 
         // 6. Leave rollback dir for post-mortem.
         Ok(())

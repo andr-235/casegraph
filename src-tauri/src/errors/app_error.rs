@@ -56,6 +56,10 @@ impl AppErrorDto {
         )
     }
 
+    pub fn restore_in_progress(message: &str) -> Self {
+        Self::new("ERR_RESTORE_IN_PROGRESS", message, None)
+    }
+
     pub fn password_change_required() -> Self {
         Self::new(
             "ERR_PASSWORD_CHANGE_REQUIRED",
@@ -117,5 +121,12 @@ where
 
     pub fn err(error: AppErrorDto) -> Self {
         Self::Err { ok: false, error }
+    }
+
+    pub fn from_result(result: Result<T, AppErrorDto>) -> Self {
+        match result {
+            Ok(data) => Self::ok(data),
+            Err(error) => Self::err(error),
+        }
     }
 }

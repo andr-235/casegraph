@@ -102,6 +102,25 @@ impl ProtectedOperation {
         }
     }
 
+    pub fn is_restore_recovery_allowed(self) -> bool {
+        matches!(self, Self::BackupRestore)
+    }
+
+    pub fn is_write_operation(self) -> bool {
+        !matches!(
+            self,
+            Self::CaseRead
+                | Self::MaterialRead
+                | Self::ObjectRead
+                | Self::RelationRead
+                | Self::TimelineRead
+                | Self::ReportDraftRead
+                | Self::AuditLogRead
+                | Self::SettingsRead
+                | Self::BackupRead
+        )
+    }
+
     pub const fn all() -> &'static [Self] {
         &[
             Self::CaseCreate,

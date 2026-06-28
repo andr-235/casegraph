@@ -92,7 +92,9 @@ pub fn run() {
             commands::backup_commands::choose_restore_backup_file,
             commands::backup_commands::restore_backup_preflight,
             commands::backup_commands::create_restore_safety_backup,
-            commands::backup_commands::restore_backup
+            commands::backup_commands::restore_backup,
+            commands::restore_recovery_commands::get_restore_recovery_status,
+            commands::restore_recovery_commands::resolve_restore_recovery,
         ])
         .run(tauri::generate_context!())
         .expect("error while running CaseGraph");
