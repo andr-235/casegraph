@@ -1,4 +1,4 @@
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ProtectedOperation {
     CaseCreate,
     CaseRead,
@@ -64,5 +64,39 @@ impl ProtectedOperation {
             Self::IntegrityCheckRead => "integrity.read",
             Self::IntegrityCheckRun => "integrity.run",
         }
+    }
+
+    pub const fn all() -> &'static [Self] {
+        &[
+            Self::CaseCreate,
+            Self::CaseRead,
+            Self::CaseUpdate,
+            Self::MaterialImport,
+            Self::MaterialRead,
+            Self::MaterialUpdate,
+            Self::ObjectCreate,
+            Self::ObjectRead,
+            Self::ObjectUpdate,
+            Self::RelationCreate,
+            Self::RelationRead,
+            Self::RelationUpdate,
+            Self::TimelineCreate,
+            Self::TimelineRead,
+            Self::TimelineUpdate,
+            Self::ReportDraftGenerate,
+            Self::ReportDraftRead,
+            Self::ReportDraftUpdate,
+            Self::DocxExport,
+            Self::AuditLogRead,
+            Self::UserManage,
+            Self::SettingsRead,
+            Self::SettingsUpdate,
+            Self::BackupRead,
+            Self::BackupCreate,
+            Self::BackupVerify,
+            Self::BackupRestore,
+            Self::IntegrityCheckRead,
+            Self::IntegrityCheckRun,
+        ]
     }
 }

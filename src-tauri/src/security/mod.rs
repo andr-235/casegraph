@@ -15,3 +15,9 @@ mod policy_aware_permission_tests;
 
 #[cfg(test)]
 mod protected_service_context_tests;
+
+#[cfg(test)]
+mod protected_operation_matrix_tests;
+
+#[cfg(test)]
+mod protected_service_context_matrix_tests;
