@@ -18,13 +18,14 @@ impl PolicyAwarePermissionService {
         operation: ProtectedOperation,
     ) -> PermissionDecision {
         match operation {
-            ProtectedOperation::DocxExport => Self::decide_docx_export(conn, user),
-            ProtectedOperation::BackupCreate => Self::decide_backup_create(conn, user),
-            ProtectedOperation::BackupRestore => Self::administrator_only(user),
-            ProtectedOperation::SettingsRead => Self::administrator_only(user),
-            ProtectedOperation::SettingsUpdate => Self::administrator_only(user),
-            ProtectedOperation::UserManage => Self::administrator_only(user),
-            ProtectedOperation::AuditLogRead => Self::audit_log_read(user),
+            ProtectedOperation::CaseRead
+            | ProtectedOperation::MaterialRead
+            | ProtectedOperation::ObjectRead
+            | ProtectedOperation::RelationRead
+            | ProtectedOperation::TimelineRead
+            | ProtectedOperation::ReportDraftRead
+            | ProtectedOperation::BackupRead
+            | ProtectedOperation::IntegrityCheckRead => Self::any_authenticated(user),
 
             ProtectedOperation::CaseCreate
             | ProtectedOperation::CaseUpdate
@@ -39,7 +40,23 @@ impl PolicyAwarePermissionService {
             | ProtectedOperation::ReportDraftGenerate
             | ProtectedOperation::ReportDraftUpdate
             | ProtectedOperation::IntegrityCheckRun => Self::analyst_or_admin(user),
+
+            ProtectedOperation::DocxExport => Self::decide_docx_export(conn, user),
+
+            ProtectedOperation::BackupCreate => Self::decide_backup_create(conn, user),
+            ProtectedOperation::BackupVerify => Self::analyst_or_admin(user),
+            ProtectedOperation::BackupRestore => Self::administrator_only(user),
+
+            ProtectedOperation::AuditLogRead => Self::audit_log_read(user),
+
+            ProtectedOperation::SettingsRead
+            | ProtectedOperation::SettingsUpdate
+            | ProtectedOperation::UserManage => Self::administrator_only(user),
         }
+    }
+
+    fn any_authenticated(_user: &CurrentUserDto) -> PermissionDecision {
+        PermissionDecision::Allow
     }
 
     fn decide_docx_export(conn: &Connection, user: &CurrentUserDto) -> PermissionDecision {

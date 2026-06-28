@@ -15,7 +15,8 @@ use crate::repositories::material_repository::{
     CreateMaterialRecord, MaterialRepository, MaterialRow, UpdateMaterialRecord,
 };
 use crate::security::session::SessionState;
-use crate::services::protected_service_context::require_protected_user_for;
+use crate::security::ProtectedOperation;
+use crate::security::ProtectedServiceContext;
 use crate::storage::material_file_storage::import_material_file;
 
 pub struct MaterialService;
@@ -23,10 +24,11 @@ pub struct MaterialService;
 impl MaterialService {
     pub fn get_materials(
         app: &AppHandle,
-        session: &SessionState,
+        _session: &SessionState,
         payload: GetMaterialsPayload,
     ) -> Result<Vec<MaterialDto>, AppErrorDto> {
-        let context = require_protected_user_for(app, session, "GET_MATERIALS")?;
+        let context =
+            ProtectedServiceContext::require_operation(app, ProtectedOperation::MaterialRead)?;
         let conn = &context.conn;
 
         let case_id = payload.case_id.trim().to_string();
@@ -42,10 +44,11 @@ impl MaterialService {
 
     pub fn create_material(
         app: &AppHandle,
-        session: &SessionState,
+        _session: &SessionState,
         payload: CreateMaterialPayload,
     ) -> Result<CreateMaterialResponse, AppErrorDto> {
-        let context = require_protected_user_for(app, session, "CREATE_MATERIAL")?;
+        let context =
+            ProtectedServiceContext::require_operation(app, ProtectedOperation::MaterialImport)?;
         let current_user = &context.current_user;
         let conn = &context.conn;
 
@@ -141,10 +144,11 @@ impl MaterialService {
 
     pub fn delete_material(
         app: &AppHandle,
-        session: &SessionState,
+        _session: &SessionState,
         payload: DeleteMaterialPayload,
     ) -> Result<DeleteMaterialResponse, AppErrorDto> {
-        let context = require_protected_user_for(app, session, "DELETE_MATERIAL")?;
+        let context =
+            ProtectedServiceContext::require_operation(app, ProtectedOperation::MaterialUpdate)?;
         let current_user = &context.current_user;
         let conn = &context.conn;
 
@@ -177,10 +181,11 @@ impl MaterialService {
 
     pub fn update_material(
         app: &AppHandle,
-        session: &SessionState,
+        _session: &SessionState,
         payload: UpdateMaterialPayload,
     ) -> Result<UpdateMaterialResponse, AppErrorDto> {
-        let context = require_protected_user_for(app, session, "UPDATE_MATERIAL")?;
+        let context =
+            ProtectedServiceContext::require_operation(app, ProtectedOperation::MaterialUpdate)?;
         let current_user = &context.current_user;
         let conn = &context.conn;
 

@@ -13,9 +13,8 @@ use crate::repositories::relation_repository::{
     CreateRelationRecord, RelationRepository, UpdateRelationRecord,
 };
 use crate::security::session::SessionState;
-use crate::services::protected_service_context::{
-    require_protected_analyst_or_admin_for, require_protected_user_for,
-};
+use crate::security::ProtectedOperation;
+use crate::security::ProtectedServiceContext;
 use crate::services::relation_validation::{
     normalize_analyst_comment, normalize_confidence_level, normalize_optional_id,
     normalize_relation_basis, normalize_relation_title, normalize_relation_type,
@@ -27,10 +26,11 @@ pub struct RelationService;
 impl RelationService {
     pub fn create_relation(
         app: &AppHandle,
-        session: &SessionState,
+        _session: &SessionState,
         payload: CreateRelationPayload,
     ) -> Result<CreateRelationResponse, AppErrorDto> {
-        let context = require_protected_analyst_or_admin_for(app, session, "CREATE_RELATION")?;
+        let context =
+            ProtectedServiceContext::require_operation(app, ProtectedOperation::RelationCreate)?;
         let current_user = &context.current_user;
         let conn = &context.conn;
 
@@ -126,10 +126,11 @@ impl RelationService {
 
     pub fn get_relations(
         app: &AppHandle,
-        session: &SessionState,
+        _session: &SessionState,
         payload: GetRelationsPayload,
     ) -> Result<GetRelationsResponse, AppErrorDto> {
-        let context = require_protected_user_for(app, session, "GET_RELATIONS")?;
+        let context =
+            ProtectedServiceContext::require_operation(app, ProtectedOperation::RelationRead)?;
         let conn = &context.conn;
 
         let case_id =
@@ -145,10 +146,11 @@ impl RelationService {
 
     pub fn get_relation_by_id(
         app: &AppHandle,
-        session: &SessionState,
+        _session: &SessionState,
         payload: GetRelationByIdPayload,
     ) -> Result<GetRelationByIdResponse, AppErrorDto> {
-        let context = require_protected_user_for(app, session, "GET_RELATION_BY_ID")?;
+        let context =
+            ProtectedServiceContext::require_operation(app, ProtectedOperation::RelationRead)?;
         let conn = &context.conn;
 
         let case_id =
@@ -168,10 +170,11 @@ impl RelationService {
 
     pub fn update_relation(
         app: &AppHandle,
-        session: &SessionState,
+        _session: &SessionState,
         payload: UpdateRelationPayload,
     ) -> Result<UpdateRelationResponse, AppErrorDto> {
-        let context = require_protected_analyst_or_admin_for(app, session, "UPDATE_RELATION")?;
+        let context =
+            ProtectedServiceContext::require_operation(app, ProtectedOperation::RelationUpdate)?;
         let current_user = &context.current_user;
         let conn = &context.conn;
 
@@ -234,10 +237,11 @@ impl RelationService {
 
     pub fn soft_delete_relation(
         app: &AppHandle,
-        session: &SessionState,
+        _session: &SessionState,
         payload: SoftDeleteRelationPayload,
     ) -> Result<SoftDeleteRelationResponse, AppErrorDto> {
-        let context = require_protected_analyst_or_admin_for(app, session, "SOFT_DELETE_RELATION")?;
+        let context =
+            ProtectedServiceContext::require_operation(app, ProtectedOperation::RelationUpdate)?;
         let current_user = &context.current_user;
         let conn = &context.conn;
 

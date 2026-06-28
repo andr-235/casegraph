@@ -4,9 +4,8 @@ use tauri::AppHandle;
 
 use crate::errors::app_error::AppErrorDto;
 use crate::security::session::SessionState;
-use crate::security::PolicyAwarePermissionGuard;
 use crate::security::ProtectedOperation;
-use crate::services::protected_service_context::require_protected_user_for;
+use crate::security::ProtectedServiceContext;
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -115,10 +114,13 @@ pub struct ReportDraftService;
 impl ReportDraftService {
     pub fn generate_report_draft(
         app: &AppHandle,
-        session: &SessionState,
+        _session: &SessionState,
         payload: GenerateReportDraftPayload,
     ) -> Result<ReportDraft, AppErrorDto> {
-        let context = require_protected_user_for(app, session, "GENERATE_REPORT_DRAFT")?;
+        let context = ProtectedServiceContext::require_operation(
+            app,
+            ProtectedOperation::ReportDraftGenerate,
+        )?;
         let conn = &context.conn;
 
         let draft_id = ReportRepository::generate_draft(
@@ -171,10 +173,11 @@ impl ReportDraftService {
 
     pub fn update_report_draft(
         app: &AppHandle,
-        session: &SessionState,
+        _session: &SessionState,
         payload: UpdateReportDraftPayload,
     ) -> Result<ReportDraft, AppErrorDto> {
-        let context = require_protected_user_for(app, session, "UPDATE_REPORT_DRAFT")?;
+        let context =
+            ProtectedServiceContext::require_operation(app, ProtectedOperation::ReportDraftUpdate)?;
         let conn = &context.conn;
 
         let old_draft = ReportRepository::get_report_draft_by_id(conn, &payload.draft_id)?;
@@ -276,18 +279,12 @@ impl ReportDraftService {
 
     pub fn validate_report_draft_for_docx(
         app: &AppHandle,
-        session: &SessionState,
+        _session: &SessionState,
         payload: ReportDraftPayload,
     ) -> Result<ValidationResult, AppErrorDto> {
-        let context = require_protected_user_for(app, session, "VALIDATE_REPORT_DRAFT")?;
+        let context =
+            ProtectedServiceContext::require_operation(app, ProtectedOperation::DocxExport)?;
         let conn = &context.conn;
-
-        PolicyAwarePermissionGuard::require(
-            app,
-            conn,
-            &context.current_user,
-            ProtectedOperation::DocxExport,
-        )?;
 
         let draft = ReportRepository::get_report_draft_by_id(conn, &payload.draft_id)?;
 
@@ -321,10 +318,11 @@ impl ReportDraftService {
 
     pub fn delete_report_draft(
         app: &AppHandle,
-        session: &SessionState,
+        _session: &SessionState,
         payload: ReportDraftPayload,
     ) -> Result<(), AppErrorDto> {
-        let context = require_protected_user_for(app, session, "DELETE_REPORT_DRAFT")?;
+        let context =
+            ProtectedServiceContext::require_operation(app, ProtectedOperation::ReportDraftUpdate)?;
         let conn = &context.conn;
 
         let old_draft = ReportRepository::get_report_draft_by_id(conn, &payload.draft_id)?;

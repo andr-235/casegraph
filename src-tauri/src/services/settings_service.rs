@@ -14,7 +14,8 @@ use crate::models::settings::{
 use crate::models::settings_catalog::{setting_definition, SettingCategory};
 use crate::models::settings_keys::*;
 use crate::security::session::SessionState;
-use crate::services::protected_service_context::require_protected_administrator_for;
+use crate::security::ProtectedOperation;
+use crate::security::ProtectedServiceContext;
 use crate::services::settings_validator::{validate_path, validate_setting_pair};
 
 pub struct SettingsService;
@@ -24,9 +25,10 @@ impl SettingsService {
 
     pub fn get_settings(
         app: &AppHandle,
-        session: &SessionState,
+        _session: &SessionState,
     ) -> Result<AppSettingsDto, AppErrorDto> {
-        let context = require_protected_administrator_for(app, session, "settings.get")?;
+        let context =
+            ProtectedServiceContext::require_operation(app, ProtectedOperation::SettingsRead)?;
         let conn = crate::db::connection::open_connection(app)?;
         let settings =
             crate::repositories::settings_repository::SettingsRepository::get_settings(&conn)?;
@@ -38,10 +40,11 @@ impl SettingsService {
 
     pub fn update_settings(
         app: &AppHandle,
-        session: &SessionState,
+        _session: &SessionState,
         payload: UpdateSettingsPayload,
     ) -> Result<AppSettingsDto, AppErrorDto> {
-        let mut context = require_protected_administrator_for(app, session, "update_settings")?;
+        let mut context =
+            ProtectedServiceContext::require_operation(app, ProtectedOperation::SettingsUpdate)?;
 
         let conn = &mut context.conn;
 
@@ -73,10 +76,10 @@ impl SettingsService {
 
     pub fn reset_settings_to_defaults(
         app: &AppHandle,
-        session: &SessionState,
+        _session: &SessionState,
     ) -> Result<AppSettingsDto, AppErrorDto> {
         let mut context =
-            require_protected_administrator_for(app, session, "reset_settings_to_defaults")?;
+            ProtectedServiceContext::require_operation(app, ProtectedOperation::SettingsUpdate)?;
         let conn = &mut context.conn;
 
         let old_settings =
@@ -105,11 +108,11 @@ impl SettingsService {
 
     pub fn choose_settings_directory(
         app: &AppHandle,
-        session: &SessionState,
+        _session: &SessionState,
         _payload: ChooseSettingsDirectoryPayload,
     ) -> Result<ChooseSettingsDirectoryResponse, AppErrorDto> {
         let _context =
-            require_protected_administrator_for(app, session, "choose_settings_directory")?;
+            ProtectedServiceContext::require_operation(app, ProtectedOperation::SettingsUpdate)?;
 
         let selected_path = pick_folder(app)?;
 

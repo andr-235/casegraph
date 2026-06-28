@@ -13,13 +13,12 @@ use crate::repositories::object_repository::{
     CreateObjectRecord, ObjectMaterialLinkRecord, ObjectRepository, UpdateObjectRecord,
 };
 use crate::security::session::SessionState;
+use crate::security::ProtectedOperation;
+use crate::security::ProtectedServiceContext;
 use crate::services::object_validation::{
     normalize_confidence_note, normalize_link_reason, normalize_object_description,
     normalize_object_title, normalize_object_type, normalize_optional_value, normalize_required_id,
     normalize_unique_ids,
-};
-use crate::services::protected_service_context::{
-    require_protected_analyst_or_admin_for, require_protected_user_for,
 };
 
 pub struct ObjectService;
@@ -27,10 +26,11 @@ pub struct ObjectService;
 impl ObjectService {
     pub fn create_object(
         app: &AppHandle,
-        session: &SessionState,
+        _session: &SessionState,
         payload: CreateObjectPayload,
     ) -> Result<CreateObjectResponse, AppErrorDto> {
-        let context = require_protected_analyst_or_admin_for(app, session, "CREATE_OBJECT")?;
+        let context =
+            ProtectedServiceContext::require_operation(app, ProtectedOperation::ObjectCreate)?;
         let current_user = &context.current_user;
         let conn = &context.conn;
 
@@ -89,10 +89,11 @@ impl ObjectService {
 
     pub fn get_objects(
         app: &AppHandle,
-        session: &SessionState,
+        _session: &SessionState,
         payload: GetObjectsPayload,
     ) -> Result<GetObjectsResponse, AppErrorDto> {
-        let context = require_protected_user_for(app, session, "GET_OBJECTS")?;
+        let context =
+            ProtectedServiceContext::require_operation(app, ProtectedOperation::ObjectRead)?;
         let conn = &context.conn;
 
         let case_id =
@@ -105,10 +106,11 @@ impl ObjectService {
 
     pub fn get_object_by_id(
         app: &AppHandle,
-        session: &SessionState,
+        _session: &SessionState,
         payload: GetObjectByIdPayload,
     ) -> Result<GetObjectByIdResponse, AppErrorDto> {
-        let context = require_protected_user_for(app, session, "GET_OBJECT_BY_ID")?;
+        let context =
+            ProtectedServiceContext::require_operation(app, ProtectedOperation::ObjectRead)?;
         let conn = &context.conn;
 
         let case_id =
@@ -128,11 +130,11 @@ impl ObjectService {
 
     pub fn link_object_to_materials(
         app: &AppHandle,
-        session: &SessionState,
+        _session: &SessionState,
         payload: LinkObjectToMaterialsPayload,
     ) -> Result<LinkObjectToMaterialsResponse, AppErrorDto> {
         let context =
-            require_protected_analyst_or_admin_for(app, session, "LINK_OBJECT_TO_MATERIALS")?;
+            ProtectedServiceContext::require_operation(app, ProtectedOperation::ObjectUpdate)?;
         let current_user = &context.current_user;
         let conn = &context.conn;
 
@@ -188,10 +190,11 @@ impl ObjectService {
 
     pub fn update_object(
         app: &AppHandle,
-        session: &SessionState,
+        _session: &SessionState,
         payload: UpdateObjectPayload,
     ) -> Result<UpdateObjectResponse, AppErrorDto> {
-        let context = require_protected_analyst_or_admin_for(app, session, "UPDATE_OBJECT")?;
+        let context =
+            ProtectedServiceContext::require_operation(app, ProtectedOperation::ObjectUpdate)?;
         let current_user = &context.current_user;
         let conn = &context.conn;
 
@@ -242,10 +245,11 @@ impl ObjectService {
 
     pub fn soft_delete_object(
         app: &AppHandle,
-        session: &SessionState,
+        _session: &SessionState,
         payload: SoftDeleteObjectPayload,
     ) -> Result<SoftDeleteObjectResponse, AppErrorDto> {
-        let context = require_protected_analyst_or_admin_for(app, session, "SOFT_DELETE_OBJECT")?;
+        let context =
+            ProtectedServiceContext::require_operation(app, ProtectedOperation::ObjectUpdate)?;
         let current_user = &context.current_user;
         let conn = &context.conn;
 

@@ -5,9 +5,8 @@ use tauri::AppHandle;
 
 use crate::errors::app_error::AppErrorDto;
 use crate::security::session::{CurrentUserDto, SessionState};
-use crate::security::PolicyAwarePermissionGuard;
 use crate::security::ProtectedOperation;
-use crate::services::protected_service_context::require_protected_user_for;
+use crate::security::ProtectedServiceContext;
 
 fn now_epoch_secs() -> String {
     SystemTime::now()
@@ -50,18 +49,12 @@ pub struct BackupService;
 impl BackupService {
     pub fn create_backup(
         app: &AppHandle,
-        session: &SessionState,
+        _session: &SessionState,
         _payload: CreateBackupPayload,
     ) -> Result<CreateBackupResponse, AppErrorDto> {
-        let context = require_protected_user_for(app, session, "CREATE_BACKUP")?;
-        let conn = &context.conn;
-
-        PolicyAwarePermissionGuard::require(
-            app,
-            conn,
-            &context.current_user,
-            ProtectedOperation::BackupCreate,
-        )?;
+        let context =
+            ProtectedServiceContext::require_operation(app, ProtectedOperation::BackupCreate)?;
+        let _conn = &context.conn;
 
         // Backup generation logic will be implemented in a later slice.
         // For now, enforce policy and return a stub response.
@@ -83,18 +76,12 @@ impl BackupService {
 
     pub fn create_case_backup(
         app: &AppHandle,
-        session: &SessionState,
+        _session: &SessionState,
         case_id: String,
     ) -> Result<CreateBackupResponse, AppErrorDto> {
-        let context = require_protected_user_for(app, session, "CREATE_CASE_BACKUP")?;
-        let conn = &context.conn;
-
-        PolicyAwarePermissionGuard::require(
-            app,
-            conn,
-            &context.current_user,
-            ProtectedOperation::BackupCreate,
-        )?;
+        let context =
+            ProtectedServiceContext::require_operation(app, ProtectedOperation::BackupCreate)?;
+        let _conn = &context.conn;
 
         let backup_id = uuid::Uuid::new_v4().to_string();
         let now = now_epoch_secs();
@@ -114,18 +101,12 @@ impl BackupService {
 
     pub fn restore_backup(
         app: &AppHandle,
-        session: &SessionState,
+        _session: &SessionState,
         _payload: RestoreBackupPayload,
     ) -> Result<RestoreBackupResponse, AppErrorDto> {
-        let context = require_protected_user_for(app, session, "RESTORE_BACKUP")?;
-        let conn = &context.conn;
-
-        PolicyAwarePermissionGuard::require(
-            app,
-            conn,
-            &context.current_user,
-            ProtectedOperation::BackupRestore,
-        )?;
+        let context =
+            ProtectedServiceContext::require_operation(app, ProtectedOperation::BackupRestore)?;
+        let _conn = &context.conn;
 
         let now = now_epoch_secs();
 
@@ -137,18 +118,12 @@ impl BackupService {
 
     pub fn create_safety_backup_before_restore(
         app: &AppHandle,
-        session: &SessionState,
+        _session: &SessionState,
     ) -> Result<CreateBackupResponse, AppErrorDto> {
         // Safety backup before restore — internal operation, administrator-only
-        let context = require_protected_user_for(app, session, "SAFETY_BACKUP_BEFORE_RESTORE")?;
-        let conn = &context.conn;
-
-        PolicyAwarePermissionGuard::require(
-            app,
-            conn,
-            &context.current_user,
-            ProtectedOperation::BackupRestore,
-        )?;
+        let context =
+            ProtectedServiceContext::require_operation(app, ProtectedOperation::BackupRestore)?;
+        let _conn = &context.conn;
 
         let backup_id = uuid::Uuid::new_v4().to_string();
         let now = now_epoch_secs();

@@ -11,13 +11,18 @@ use crate::repositories::case_repository::{
     CaseRepository, CaseRow, CreateCaseRecord, UpdateCaseRecord,
 };
 use crate::security::session::SessionState;
-use crate::services::protected_service_context::require_protected_user_for;
+use crate::security::ProtectedOperation;
+use crate::security::ProtectedServiceContext;
 
 pub struct CaseService;
 
 impl CaseService {
-    pub fn get_cases(app: &AppHandle, session: &SessionState) -> Result<Vec<CaseDto>, AppErrorDto> {
-        let context = require_protected_user_for(app, session, "GET_CASES")?;
+    pub fn get_cases(
+        app: &AppHandle,
+        _session: &SessionState,
+    ) -> Result<Vec<CaseDto>, AppErrorDto> {
+        let context =
+            ProtectedServiceContext::require_operation(app, ProtectedOperation::CaseRead)?;
         let conn = &context.conn;
         let rows = CaseRepository::get_cases(conn)?;
 
@@ -26,10 +31,11 @@ impl CaseService {
 
     pub fn create_case(
         app: &AppHandle,
-        session: &SessionState,
+        _session: &SessionState,
         payload: CreateCasePayload,
     ) -> Result<CreateCaseResponse, AppErrorDto> {
-        let context = require_protected_user_for(app, session, "CREATE_CASE")?;
+        let context =
+            ProtectedServiceContext::require_operation(app, ProtectedOperation::CaseCreate)?;
         let current_user = &context.current_user;
         let conn = &context.conn;
 
@@ -78,10 +84,11 @@ impl CaseService {
 
     pub fn get_case_by_id(
         app: &AppHandle,
-        session: &SessionState,
+        _session: &SessionState,
         payload: GetCaseByIdPayload,
     ) -> Result<CaseDto, AppErrorDto> {
-        let context = require_protected_user_for(app, session, "GET_CASE_BY_ID")?;
+        let context =
+            ProtectedServiceContext::require_operation(app, ProtectedOperation::CaseRead)?;
         let conn = &context.conn;
 
         let case_id = payload.case_id.trim();
@@ -102,10 +109,11 @@ impl CaseService {
 
     pub fn update_case(
         app: &AppHandle,
-        session: &SessionState,
+        _session: &SessionState,
         payload: UpdateCasePayload,
     ) -> Result<UpdateCaseResponse, AppErrorDto> {
-        let context = require_protected_user_for(app, session, "UPDATE_CASE")?;
+        let context =
+            ProtectedServiceContext::require_operation(app, ProtectedOperation::CaseUpdate)?;
         let current_user = &context.current_user;
         let conn = &context.conn;
 
@@ -161,10 +169,11 @@ impl CaseService {
 
     pub fn update_case_status(
         app: &AppHandle,
-        session: &SessionState,
+        _session: &SessionState,
         payload: UpdateCaseStatusPayload,
     ) -> Result<UpdateCaseStatusResponse, AppErrorDto> {
-        let context = require_protected_user_for(app, session, "UPDATE_CASE_STATUS")?;
+        let context =
+            ProtectedServiceContext::require_operation(app, ProtectedOperation::CaseUpdate)?;
         let current_user = &context.current_user;
         let conn = &context.conn;
 

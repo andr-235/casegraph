@@ -19,9 +19,8 @@ use crate::repositories::timeline_repository::{
     CreateEventRecord, TimelineFiltersRecord, TimelineRepository, UpdateEventRecord,
 };
 use crate::security::session::SessionState;
-use crate::services::protected_service_context::{
-    require_protected_analyst_or_admin_for, require_protected_user_for,
-};
+use crate::security::ProtectedOperation;
+use crate::security::ProtectedServiceContext;
 
 use super::timeline_validation::{
     normalize_create_event_payload, normalize_required_id, normalize_timeline_filters,
@@ -33,10 +32,11 @@ pub struct TimelineService;
 impl TimelineService {
     pub fn get_timeline(
         app: &AppHandle,
-        session: &SessionState,
+        _session: &SessionState,
         payload: GetTimelinePayload,
     ) -> Result<GetTimelineResponse, AppErrorDto> {
-        let context = require_protected_user_for(app, session, "GET_TIMELINE")?;
+        let context =
+            ProtectedServiceContext::require_operation(app, ProtectedOperation::TimelineRead)?;
         let conn = &context.conn;
 
         let case_id = normalize_required_id(
@@ -64,10 +64,11 @@ impl TimelineService {
 
     pub fn create_event(
         app: &AppHandle,
-        session: &SessionState,
+        _session: &SessionState,
         payload: CreateEventPayload,
     ) -> Result<CreateEventResponse, AppErrorDto> {
-        let mut context = require_protected_analyst_or_admin_for(app, session, "CREATE_EVENT")?;
+        let mut context =
+            ProtectedServiceContext::require_operation(app, ProtectedOperation::TimelineCreate)?;
         let current_user = context.current_user.clone();
 
         let normalized = normalize_create_event_payload(payload)?;
@@ -203,10 +204,11 @@ impl TimelineService {
 
     pub fn get_event_by_id(
         app: &AppHandle,
-        session: &SessionState,
+        _session: &SessionState,
         payload: GetEventByIdPayload,
     ) -> Result<GetEventByIdResponse, AppErrorDto> {
-        let context = require_protected_user_for(app, session, "GET_EVENT_BY_ID")?;
+        let context =
+            ProtectedServiceContext::require_operation(app, ProtectedOperation::TimelineRead)?;
         let conn = &context.conn;
 
         let case_id = normalize_required_id(
@@ -229,10 +231,11 @@ impl TimelineService {
 
     pub fn update_event(
         app: &AppHandle,
-        session: &SessionState,
+        _session: &SessionState,
         payload: UpdateEventPayload,
     ) -> Result<UpdateEventResponse, AppErrorDto> {
-        let mut context = require_protected_analyst_or_admin_for(app, session, "UPDATE_EVENT")?;
+        let mut context =
+            ProtectedServiceContext::require_operation(app, ProtectedOperation::TimelineUpdate)?;
         let current_user = context.current_user.clone();
 
         let normalized = normalize_update_event_payload(payload)?;
@@ -403,10 +406,11 @@ impl TimelineService {
 
     pub fn soft_delete_event(
         app: &AppHandle,
-        session: &SessionState,
+        _session: &SessionState,
         payload: SoftDeleteEventPayload,
     ) -> Result<SoftDeleteEventResponse, AppErrorDto> {
-        let context = require_protected_analyst_or_admin_for(app, session, "SOFT_DELETE_EVENT")?;
+        let context =
+            ProtectedServiceContext::require_operation(app, ProtectedOperation::TimelineUpdate)?;
         let current_user = &context.current_user;
         let conn = &context.conn;
 
@@ -452,11 +456,11 @@ impl TimelineService {
 
     pub fn toggle_event_report_include(
         app: &AppHandle,
-        session: &SessionState,
+        _session: &SessionState,
         payload: ToggleEventReportIncludePayload,
     ) -> Result<ToggleEventReportIncludeResponse, AppErrorDto> {
         let context =
-            require_protected_analyst_or_admin_for(app, session, "TOGGLE_EVENT_REPORT_INCLUDE")?;
+            ProtectedServiceContext::require_operation(app, ProtectedOperation::TimelineUpdate)?;
         let current_user = &context.current_user;
         let conn = &context.conn;
 

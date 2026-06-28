@@ -13,7 +13,8 @@ use crate::errors::app_error::AppErrorDto;
 use crate::repositories::user_management_repository::UserManagementRepository;
 use crate::security::password::{hash_password, verify_password};
 use crate::security::session::{CurrentUserDto, SessionState};
-use crate::services::protected_service_context::require_protected_administrator_for;
+use crate::security::ProtectedOperation;
+use crate::security::ProtectedServiceContext;
 use crate::services::user_management_validation::{
     normalize_block_user_payload, normalize_change_own_password_payload,
     normalize_create_user_payload, normalize_reset_user_password_payload,
@@ -28,10 +29,11 @@ pub struct UserManagementService;
 impl UserManagementService {
     pub fn get_users(
         app: &AppHandle,
-        session: &SessionState,
+        _session: &SessionState,
         payload: GetUsersPayload,
     ) -> Result<GetUsersResponse, AppErrorDto> {
-        let context = require_protected_administrator_for(app, session, "GET_USERS")?;
+        let context =
+            ProtectedServiceContext::require_operation(app, ProtectedOperation::UserManage)?;
         let conn = &context.conn;
 
         let limit = normalize_limit(payload.limit);
@@ -60,10 +62,11 @@ impl UserManagementService {
 
     pub fn create_user(
         app: &AppHandle,
-        session: &SessionState,
+        _session: &SessionState,
         payload: CreateUserPayload,
     ) -> Result<CreateUserResponse, AppErrorDto> {
-        let context = require_protected_administrator_for(app, session, "CREATE_USER")?;
+        let context =
+            ProtectedServiceContext::require_operation(app, ProtectedOperation::UserManage)?;
         let current_user = &context.current_user;
         let conn = &context.conn;
         let input = normalize_create_user_payload(payload)?;
@@ -95,10 +98,11 @@ impl UserManagementService {
 
     pub fn get_user_by_id(
         app: &AppHandle,
-        session: &SessionState,
+        _session: &SessionState,
         payload: GetUserByIdPayload,
     ) -> Result<GetUserByIdResponse, AppErrorDto> {
-        let context = require_protected_administrator_for(app, session, "GET_USER_BY_ID")?;
+        let context =
+            ProtectedServiceContext::require_operation(app, ProtectedOperation::UserManage)?;
         let conn = &context.conn;
 
         let user_id = payload.user_id.trim();
@@ -114,10 +118,11 @@ impl UserManagementService {
 
     pub fn update_user(
         app: &AppHandle,
-        session: &SessionState,
+        _session: &SessionState,
         payload: UpdateUserPayload,
     ) -> Result<UpdateUserResponse, AppErrorDto> {
-        let context = require_protected_administrator_for(app, session, "UPDATE_USER")?;
+        let context =
+            ProtectedServiceContext::require_operation(app, ProtectedOperation::UserManage)?;
         let current_user = &context.current_user;
         let conn = &context.conn;
         let input = normalize_update_user_payload(payload)?;
@@ -159,10 +164,11 @@ impl UserManagementService {
 
     pub fn block_user(
         app: &AppHandle,
-        session: &SessionState,
+        _session: &SessionState,
         payload: BlockUserPayload,
     ) -> Result<BlockUserResponse, AppErrorDto> {
-        let context = require_protected_administrator_for(app, session, "BLOCK_USER")?;
+        let context =
+            ProtectedServiceContext::require_operation(app, ProtectedOperation::UserManage)?;
         let current_user = &context.current_user;
         let conn = &context.conn;
         let user_id = normalize_block_user_payload(payload)?;
@@ -206,10 +212,11 @@ impl UserManagementService {
 
     pub fn unblock_user(
         app: &AppHandle,
-        session: &SessionState,
+        _session: &SessionState,
         payload: UnblockUserPayload,
     ) -> Result<UnblockUserResponse, AppErrorDto> {
-        let context = require_protected_administrator_for(app, session, "UNBLOCK_USER")?;
+        let context =
+            ProtectedServiceContext::require_operation(app, ProtectedOperation::UserManage)?;
         let current_user = &context.current_user;
         let conn = &context.conn;
         let user_id = normalize_unblock_user_payload(payload)?;
@@ -290,10 +297,11 @@ impl UserManagementService {
 
     pub fn reset_user_password(
         app: &AppHandle,
-        session: &SessionState,
+        _session: &SessionState,
         payload: ResetUserPasswordPayload,
     ) -> Result<ResetUserPasswordResponse, AppErrorDto> {
-        let context = require_protected_administrator_for(app, session, "RESET_USER_PASSWORD")?;
+        let context =
+            ProtectedServiceContext::require_operation(app, ProtectedOperation::UserManage)?;
         let current_user = &context.current_user;
         let conn = &context.conn;
         let input = normalize_reset_user_password_payload(payload)?;
@@ -317,9 +325,10 @@ impl UserManagementService {
 
     pub fn get_roles(
         app: &AppHandle,
-        session: &SessionState,
+        _session: &SessionState,
     ) -> Result<GetRolesResponse, AppErrorDto> {
-        let context = require_protected_administrator_for(app, session, "GET_ROLES")?;
+        let context =
+            ProtectedServiceContext::require_operation(app, ProtectedOperation::UserManage)?;
         let conn = &context.conn;
         let roles = UserManagementRepository::get_roles(conn)?;
 

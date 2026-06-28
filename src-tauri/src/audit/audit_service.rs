@@ -16,11 +16,12 @@ use crate::domain::audit::{
 use crate::domain::audit_action;
 use crate::errors::app_error::AppErrorDto;
 use crate::security::session::{CurrentUserDto, SessionState};
+use crate::security::ProtectedOperation;
+use crate::security::ProtectedServiceContext;
 use crate::services::audit_guards::{
     audit_user_filter_for_reader, require_audit_admin, require_audit_reader,
     require_no_user_filter_for_analyst, require_own_audit_entry_or_admin,
 };
-use crate::services::protected_service_context::require_protected_user_for;
 
 use super::audit_repository::{AuditInsertRow, AuditLogFilters, AuditRepository};
 
@@ -189,10 +190,11 @@ impl AuditService {
 
     pub fn get_audit_logs(
         app: &AppHandle,
-        session: &SessionState,
+        _session: &SessionState,
         payload: GetAuditLogsPayload,
     ) -> Result<GetAuditLogsResponse, AppErrorDto> {
-        let context = require_protected_user_for(app, session, "GET_AUDIT_LOGS")?;
+        let context =
+            ProtectedServiceContext::require_operation(app, ProtectedOperation::AuditLogRead)?;
         let current_user = &context.current_user;
         let conn = &context.conn;
 
@@ -238,9 +240,10 @@ impl AuditService {
 
     pub fn get_audit_actions(
         app: &AppHandle,
-        session: &SessionState,
+        _session: &SessionState,
     ) -> Result<GetAuditActionsResponse, AppErrorDto> {
-        let context = require_protected_user_for(app, session, "GET_AUDIT_ACTIONS")?;
+        let context =
+            ProtectedServiceContext::require_operation(app, ProtectedOperation::AuditLogRead)?;
         let current_user = &context.current_user;
         let conn = &context.conn;
 
@@ -259,9 +262,10 @@ impl AuditService {
 
     pub fn get_audit_users(
         app: &AppHandle,
-        session: &SessionState,
+        _session: &SessionState,
     ) -> Result<GetAuditUsersResponse, AppErrorDto> {
-        let context = require_protected_user_for(app, session, "GET_AUDIT_USERS")?;
+        let context =
+            ProtectedServiceContext::require_operation(app, ProtectedOperation::UserManage)?;
         let current_user = &context.current_user;
         let conn = &context.conn;
 
@@ -279,10 +283,11 @@ impl AuditService {
 
     pub fn get_audit_log_by_id(
         app: &AppHandle,
-        session: &SessionState,
+        _session: &SessionState,
         payload: GetAuditLogByIdPayload,
     ) -> Result<GetAuditLogByIdResponse, AppErrorDto> {
-        let context = require_protected_user_for(app, session, "GET_AUDIT_LOG_BY_ID")?;
+        let context =
+            ProtectedServiceContext::require_operation(app, ProtectedOperation::AuditLogRead)?;
         let current_user = &context.current_user;
         let conn = &context.conn;
 
@@ -335,10 +340,11 @@ impl AuditService {
 
     pub fn export_audit_log(
         app: &AppHandle,
-        session: &SessionState,
+        _session: &SessionState,
         payload: ExportAuditLogPayload,
     ) -> Result<ExportAuditLogResponse, AppErrorDto> {
-        let context = require_protected_user_for(app, session, "EXPORT_AUDIT_LOG")?;
+        let context =
+            ProtectedServiceContext::require_operation(app, ProtectedOperation::UserManage)?;
         let current_user = &context.current_user;
         let conn = &context.conn;
 
