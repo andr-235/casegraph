@@ -1,7 +1,51 @@
-# Tauri + React + Typescript
+# CaseGraph
 
-This template should help get you started developing with Tauri, React and Typescript in Vite.
+> Десктопное приложение для управления делами, связями, материалами и временной шкалой.
 
-## Recommended IDE Setup
+CaseGraph — офлайн-приложение на Tauri v2 для персонального и командного управления делами. Визуализация связей, временная шкала, аудит и резервное копирование. Три роли доступа, безопасная аутентификация.
 
-- [VS Code](https://code.visualstudio.com/) + [Tauri](https://marketplace.visualstudio.com/items?itemName=tauri-apps.tauri-vscode) + [rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer)
+## Быстрый старт
+
+```bash
+npm install
+npm run tauri dev
+```
+
+Для продакшн-сборки:
+
+```bash
+npm run tauri build
+```
+
+## Возможности
+
+- **Управление делами** — создание, статусы, коды дел (CASE-001, ...)
+- **Объекты и связи** — объекты произвольных типов с графовой визуализацией связей
+- **Материалы** — файловое хранилище с проверкой целостности
+- **Временная шкала** — события с фильтрацией и точностью дат
+- **Аудит** — полный журнал действий, экспорт, безопасные снепшоты
+- **Резервное копирование** — ZIP-архивы с проверкой и восстановлением
+- **Роли доступа** — администратор, аналитик, наблюдатель; матрица из 27+ операций
+
+## Команды
+
+| Команда | Описание |
+|---------|---------|
+| `npm run dev` | Vite-сервер на `127.0.0.1:1420` |
+| `npm run build` | `tsc && vite build` |
+| `npm run typecheck` | `tsc --noEmit` |
+| `npm run tauri` | Tauri CLI (`npm run tauri build`) |
+
+## Документация
+
+| Руководство | Описание |
+|-------------|---------|
+| [Быстрый старт](docs/getting-started.md) | Установка, первый запуск, создание администратора |
+| [Архитектура](docs/architecture.md) | Структура проекта, слои, правила зависимостей |
+| [API](docs/api.md) | Справочник Tauri-команд |
+| [Настройки](docs/configuration.md) | Параметры приложения, политики доступа |
+| [Аутентификация](docs/auth.md) | Роли, права, сессии, безопасность |
+
+## Лицензия
+
+MIT
