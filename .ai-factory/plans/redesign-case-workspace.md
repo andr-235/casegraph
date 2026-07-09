@@ -168,7 +168,7 @@
   - Логирование: DEBUG — загрузка деталей объекта (objectCode); INFO — toggle isKey/includeInReport (старое → новое значение); INFO — открытие EditModal
   - Тесты: рендер InspectorContent с мок-данными ObjectDetailsDto; проверка вызова `updateObject` при toggle isKey и includeInReport; рендер EditModal с формой
 
-- [ ] **Task 11: Редизайн ObjectsPage — таблица, фильтры, интеграция с Inspector**
+- [x] **Task 11: Редизайн ObjectsPage — таблица, фильтры, интеграция с Inspector**
   - Файлы: `src/pages/case-workspace/ObjectsPage.tsx` (рефакторинг)
   - Фильтр-бар: строка поиска (фильтр по `title` и `value`, debounce 200ms не обязателен — фильтрация мгновенная на небольших объёмах), выпадающие списки «Тип» (все + 12 значений из `objectTypeOptions`), «Ключевые» (все/да/нет), «В справке» (все/да/нет), кнопка «Сбросить» (сбрасывает все фильтры)
   - Фильтрация: клиентская, `useMemo` — фильтрует `items` по поисковой строке (`.includes()`, case-insensitive) и выбранным значениям фильтров
@@ -185,7 +185,7 @@
   - Логирование: DEBUG — применение фильтров (количество результатов до/после); INFO — клик по строке → Inspector (objectCode); INFO — двойной клик → EditModal
   - Тесты: рендер таблицы с мок-данными (5+ объектов); фильтрация по поиску (ввод текста → меньше строк); фильтрация по типу; клик по строке вызывает `inspector.open`
 
-- [ ] **Task 12: Обработчик клавиши Esc для закрытия Inspector**
+- [x] **Task 12: Обработчик клавиши Esc для закрытия Inspector**
   - Файлы: `src/pages/case-workspace/CaseWorkspacePage.tsx` (добавить useEffect), или `src/shared/ui/inspector/InspectorPanel.tsx`
   - Добавить `useEffect` с `keydown`-листенером на `window`: при нажатии `Escape` вызывать `inspector.close()`
   - **Не закрывать Inspector**, если фокус находится внутри `input`, `textarea`, или `select` (проверка `document.activeElement?.tagName`), или если открыта модалка (проверка наличия `.modal-backdrop` в DOM)
@@ -196,7 +196,7 @@
 
 ### Этап 4: Распространение и полировка
 
-- [ ] **Task 13: Редизайн CaseOverviewPage с метриками из getCaseOverview**
+- [x] **Task 13: Редизайн CaseOverviewPage с метриками из getCaseOverview**
   - Файлы: `src/pages/case-workspace/CaseOverviewPage.tsx` (рефакторинг)
   - **Зависит от:** Task 11 (ObjectsPage + Inspector) — Overview может навигировать на ObjectsPage с открытым Inspector при клике на ключевой объект
   - Загрузка: `getCaseOverview(caseId)` при монтировании; показывать скелетон (серые placeholder-блоки) во время загрузки

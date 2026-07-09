@@ -301,10 +301,10 @@ a:hover {
 }
 
 .graph-panel {
-  border: 1px solid #d9dee8;
-  border-radius: 8px;
-  padding: 16px;
-  background: #ffffff;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  background: var(--bg-elevated);
 }
 
 .graph-panel h2 {
@@ -543,7 +543,7 @@ a:hover {
 }
 
 .graph-table-row-clickable:hover {
-  background: #f8fafc;
+  background: var(--bg-hover);
 }
 
 @media (max-width: 1200px) {

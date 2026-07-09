@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { CurrentUserDto } from "../../features/auth/model/authTypes";
 import type { EffectivePermissionsDto } from "../../features/auth/model/effectivePermissionsTypes";
 import type { CaseDto } from "../../features/cases/model/caseTypes";
@@ -16,6 +16,7 @@ import { RelationsPage } from "./RelationsPage";
 import { TimelinePage } from "./TimelinePage";
 import { can } from "../../shared/lib/permissions";
 import { protectedOperations } from "../../shared/security/protectedOperations";
+import type { ObjectListItemDto } from "../../features/objects/model/objectTypes";
 
 type Props = {
   user: CurrentUserDto;
@@ -49,6 +50,16 @@ export function CaseWorkspacePage({
 
   const inspector = useCaseInspector();
 
+  // Ref для callback обновления объекта из Inspector → ObjectsPage
+  const onObjectUpdatedRef = useRef<((item: ObjectListItemDto) => void) | null>(null);
+
+  const registerObjectUpdateHandler = useCallback(
+    (handler: (item: ObjectListItemDto) => void) => {
+      onObjectUpdatedRef.current = handler;
+    },
+    [],
+  );
+
   // Закрывать Inspector при смене раздела
   const handleSectionChange = useCallback(
     (section: CaseWorkspaceSection) => {
@@ -65,14 +76,53 @@ export function CaseWorkspacePage({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [caseItem.id]);
 
+  // Esc — закрыть Inspector (кроме случаев, когда фокус в input/textarea/select или открыта модалка)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+
+      // Не закрывать если фокус в поле ввода
+      const tag = document.activeElement?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") {
+        log.debug("Esc ignored — focus in form field");
+        return;
+      }
+
+      // Не закрывать если открыта модалка
+      if (document.querySelector(".modal-backdrop")) {
+        log.debug("Esc ignored — modal backdrop present");
+        return;
+      }
+
+      if (inspector.target === null) {
+        log.debug("Esc ignored — inspector already closed");
+        return;
+      }
+
+      log.debug("Esc → inspector.close()");
+      inspector.close();
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [inspector]);
+
   const handleOpenFullCard = useCallback(
     (target: { type: string; id: string }) => {
       log.info(
         `Open full card: type=${target.type} id=${target.id}`
       );
-      // В будущем здесь будет открытие соответствующей модалки
+      // В будущем здесь будет переключение на страницу с открытой модалкой
     },
     []
+  );
+
+  // Проброс обновления из Inspector → ObjectsPage
+  const handleObjectUpdated = useCallback(
+    (item: ObjectListItemDto) => {
+      onObjectUpdatedRef.current?.(item);
+    },
+    [],
   );
 
   return (
@@ -108,6 +158,10 @@ export function CaseWorkspacePage({
             <CaseOverviewPage
               caseItem={caseItem}
               onCaseUpdated={onCaseUpdated}
+              onNavigateToSection={handleSectionChange}
+              onNavigateToObject={(objectId) =>
+                inspector.open("object", objectId)
+              }
             />
           )}
 
@@ -116,7 +170,14 @@ export function CaseWorkspacePage({
           )}
 
           {activeSection === "objects" && (
-            <ObjectsPage caseItem={caseItem} />
+            <ObjectsPage
+              caseItem={caseItem}
+              onInspectorOpen={(objectId) =>
+                inspector.open("object", objectId)
+              }
+              onInspectorInvalidate={inspector.invalidate}
+              onRegisterUpdateHandler={registerObjectUpdateHandler}
+            />
           )}
 
           {activeSection === "relations" && (
@@ -159,6 +220,7 @@ export function CaseWorkspacePage({
           onClose={inspector.close}
           onOpenFullCard={handleOpenFullCard}
           onInvalidate={inspector.invalidate}
+          onObjectUpdated={handleObjectUpdated}
         />
       </div>
     </AppShell>

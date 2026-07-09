@@ -7,6 +7,8 @@ import { CreateCaseModal } from "./CreateCaseModal";
 import { getCaseStatusLabel } from "../../features/cases/model/caseStatus";
 import { can } from "../../shared/lib/permissions";
 import { protectedOperations } from "../../shared/security/protectedOperations";
+import { AppShell } from "../../shared/ui/AppShell";
+import { TopBar } from "../../shared/ui/TopBar";
 
 type Props = {
   user: CurrentUserDto;
@@ -50,104 +52,113 @@ export function CasesPage({ user, permissions, onLogout, onOpenCase, onOpenAudit
   }
 
   return (
-    <main style={{ padding: 32 }}>
-      <header style={{ display: "flex", justifyContent: "space-between" }}>
-        <div>
-          <h1>Список дел</h1>
-          <p>
-            Пользователь: <strong>{user.displayName}</strong> · Роль:{" "}
-            <strong>{user.role}</strong>
-          </p>
-        </div>
+    <AppShell>
+      <TopBar
+        displayName={user.displayName}
+        onOpenSettings={onOpenSettings}
+        onOpenBackup={onOpenBackup}
+        onOpenAuditLog={onOpenAuditLog}
+        onOpenUsers={onOpenUsers}
+        onLogout={onLogout}
+      />
 
-        <div style={{ display: "flex", gap: 8 }}>
-          {can(permissions, protectedOperations.userManage) && onOpenUsers ? (
-            <button type="button" onClick={onOpenUsers}>
-              Пользователи
-            </button>
-          ) : null}
-
-          {can(permissions, protectedOperations.settingsRead) && onOpenSettings ? (
-            <button type="button" onClick={onOpenSettings}>
-              ⚙ Настройки
-            </button>
-          ) : null}
-
-          {can(permissions, protectedOperations.backupRead) && onOpenBackup ? (
-            <button type="button" onClick={onOpenBackup}>
-              Резервное копирование
-            </button>
-          ) : null}
-
-          {can(permissions, protectedOperations.auditRead) && onOpenAuditLog ? (
-            <button type="button" onClick={onOpenAuditLog}>
-              Журнал
-            </button>
-          ) : null}
+      <main
+        style={{
+          padding: "var(--space-6)",
+          overflow: "auto",
+          flex: 1,
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: "var(--space-5)",
+          }}
+        >
+          <h2 style={{ margin: 0, color: "var(--text-primary)", fontSize: 18 }}>
+            Список дел
+          </h2>
 
           {can(permissions, protectedOperations.caseCreate) ? (
             <button type="button" onClick={() => setCreateModalOpen(true)}>
               Создать дело
             </button>
           ) : null}
-
-          <button type="button" onClick={onLogout}>
-            Выйти
-          </button>
         </div>
-      </header>
 
-      <hr />
+        {loading && <p style={{ color: "var(--text-muted)" }}>Загрузка дел...</p>}
 
-      {loading && <p>Загрузка дел...</p>}
+        {error && <p style={{ color: "var(--danger)" }}>{error}</p>}
 
-      {error && <p style={{ color: "crimson" }}>{error}</p>}
+        {!loading && !error && cases.length === 0 && (
+          <section>
+            <h2>Дел пока нет</h2>
+            <p>Создайте первое дело, чтобы начать работу.</p>
+          </section>
+        )}
 
-      {!loading && !error && cases.length === 0 && (
-        <section>
-          <h2>Дел пока нет</h2>
-          <p>Создайте первое дело, чтобы начать работу.</p>
-        </section>
-      )}
-
-      {!loading && !error && cases.length > 0 && (
-        <table border={1} cellPadding={8} style={{ borderCollapse: "collapse" }}>
-          <thead>
-            <tr>
-              <th>Код</th>
-              <th>Название</th>
-              <th>Объект анализа</th>
-              <th>Статус</th>
-              <th>Создано</th>
-              <th>Действия</th>
-            </tr>
-          </thead>
-
-          <tbody>
-            {cases.map((caseItem) => (
-              <tr key={caseItem.id}>
-                <td>{caseItem.caseCode}</td>
-                <td>{caseItem.title}</td>
-                <td>{caseItem.subject}</td>
-                <td>{getCaseStatusLabel(caseItem.status)}</td>
-                <td>{caseItem.createdAt}</td>
-                <td>
-                  <button type="button" onClick={() => onOpenCase(caseItem)}>
-                    Открыть
-                  </button>
-                </td>
+        {!loading && !error && cases.length > 0 && (
+          <table
+            style={{
+              width: "100%",
+              borderCollapse: "collapse",
+              color: "var(--text-primary)",
+            }}
+          >
+            <thead>
+              <tr
+                style={{
+                  borderBottom: "1px solid var(--border-subtle)",
+                  color: "var(--text-secondary)",
+                  fontSize: 13,
+                  textAlign: "left",
+                }}
+              >
+                <th style={{ padding: "var(--space-2) var(--space-3)" }}>Код</th>
+                <th style={{ padding: "var(--space-2) var(--space-3)" }}>Название</th>
+                <th style={{ padding: "var(--space-2) var(--space-3)" }}>Объект анализа</th>
+                <th style={{ padding: "var(--space-2) var(--space-3)" }}>Статус</th>
+                <th style={{ padding: "var(--space-2) var(--space-3)" }}>Создано</th>
+                <th style={{ padding: "var(--space-2) var(--space-3)" }}>Действия</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
+            </thead>
 
-      {createModalOpen && (
-        <CreateCaseModal
-          onCreated={handleCaseCreated}
-          onClose={() => setCreateModalOpen(false)}
-        />
-      )}
-    </main>
+            <tbody>
+              {cases.map((caseItem) => (
+                <tr
+                  key={caseItem.id}
+                  style={{
+                    borderBottom: "1px solid var(--border-subtle)",
+                    fontSize: 13,
+                  }}
+                >
+                  <td style={{ padding: "var(--space-3)" }}>{caseItem.caseCode}</td>
+                  <td style={{ padding: "var(--space-3)" }}>{caseItem.title}</td>
+                  <td style={{ padding: "var(--space-3)" }}>{caseItem.subject}</td>
+                  <td style={{ padding: "var(--space-3)" }}>
+                    {getCaseStatusLabel(caseItem.status)}
+                  </td>
+                  <td style={{ padding: "var(--space-3)" }}>{caseItem.createdAt}</td>
+                  <td style={{ padding: "var(--space-3)" }}>
+                    <button type="button" onClick={() => onOpenCase(caseItem)}>
+                      Открыть
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+
+        {createModalOpen && (
+          <CreateCaseModal
+            onCreated={handleCaseCreated}
+            onClose={() => setCreateModalOpen(false)}
+          />
+        )}
+      </main>
+    </AppShell>
   );
 }

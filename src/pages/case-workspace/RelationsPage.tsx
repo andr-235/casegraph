@@ -56,11 +56,17 @@ export function RelationsPage({ caseId, canEdit }: RelationsPageProps) {
 
   return (
     <section>
-      <div className="page-header">
-        <div>
-          <h1>Связи</h1>
-          <p>Связи между объектами анализа внутри текущего дела.</p>
-        </div>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginBottom: "var(--space-4)",
+        }}
+      >
+        <h2 style={{ margin: 0, color: "var(--text-primary)", fontSize: 18 }}>
+          Связи
+        </h2>
 
         {canEdit && (
           <button
@@ -73,26 +79,64 @@ export function RelationsPage({ caseId, canEdit }: RelationsPageProps) {
         )}
       </div>
 
-      {error && <div className="error-box">{error}</div>}
+      {error && (
+        <div
+          style={{
+            padding: "var(--space-2) var(--space-3)",
+            border: "1px solid var(--danger)",
+            borderRadius: "var(--radius-sm)",
+            background: "color-mix(in srgb, var(--danger) 10%, transparent)",
+            color: "var(--danger)",
+            marginBottom: "var(--space-4)",
+            fontSize: 13,
+          }}
+        >
+          {error}
+        </div>
+      )}
 
       {isLoading ? (
-        <p>Загрузка связей...</p>
+        <p style={{ color: "var(--text-muted)" }}>Загрузка связей...</p>
       ) : relations.length === 0 ? (
-        <div className="empty-state">
-          <h2>Связей пока нет</h2>
-          <p>Создайте минимум два объекта, затем добавьте связь между ними.</p>
+        <div
+          style={{
+            marginTop: "var(--space-5)",
+            padding: "var(--space-6)",
+            border: "1px dashed var(--border-subtle)",
+            borderRadius: "var(--radius-md)",
+            color: "var(--text-muted)",
+            fontSize: 13,
+          }}
+        >
+          <h3 style={{ margin: "0 0 var(--space-2)", color: "var(--text-primary)" }}>
+            Связей пока нет
+          </h3>
+          <p style={{ margin: 0 }}>Создайте минимум два объекта, затем добавьте связь между ними.</p>
         </div>
       ) : (
-        <table className="data-table">
+        <table
+          style={{
+            width: "100%",
+            borderCollapse: "collapse",
+            color: "var(--text-primary)",
+          }}
+        >
           <thead>
-            <tr>
-              <th>Код</th>
-              <th>Тип</th>
-              <th>Источник</th>
-              <th>Цель</th>
-              <th>Достоверность</th>
-              <th>Материал</th>
-              <th>В DOCX</th>
+            <tr
+              style={{
+                borderBottom: "1px solid var(--border-subtle)",
+                color: "var(--text-secondary)",
+                fontSize: 13,
+                textAlign: "left",
+              }}
+            >
+              <th style={{ padding: "var(--space-2) var(--space-3)" }}>Код</th>
+              <th style={{ padding: "var(--space-2) var(--space-3)" }}>Тип</th>
+              <th style={{ padding: "var(--space-2) var(--space-3)" }}>Источник</th>
+              <th style={{ padding: "var(--space-2) var(--space-3)" }}>Цель</th>
+              <th style={{ padding: "var(--space-2) var(--space-3)" }}>Достоверность</th>
+              <th style={{ padding: "var(--space-2) var(--space-3)" }}>Материал</th>
+              <th style={{ padding: "var(--space-2) var(--space-3)" }}>В DOCX</th>
             </tr>
           </thead>
           <tbody>
@@ -100,27 +144,39 @@ export function RelationsPage({ caseId, canEdit }: RelationsPageProps) {
               <tr
                 key={relation.id}
                 onClick={() => setSelectedRelationId(relation.id)}
-                style={{ cursor: "pointer" }}
+                style={{
+                  cursor: "pointer",
+                  borderBottom: "1px solid var(--border-subtle)",
+                  fontSize: 13,
+                }}
               >
-                <td>{relation.relationCode}</td>
-                <td>{getRelationTypeLabel(relation.relationType)}</td>
-                <td>
+                <td style={{ padding: "var(--space-3)" }}>
+                  {relation.relationCode}
+                </td>
+                <td style={{ padding: "var(--space-3)" }}>
+                  {getRelationTypeLabel(relation.relationType)}
+                </td>
+                <td style={{ padding: "var(--space-3)" }}>
                   {relation.sourceObject.objectCode} ·{" "}
                   {getObjectTypeLabel(relation.sourceObject.objectType)} ·{" "}
                   {relation.sourceObject.title}
                 </td>
-                <td>
+                <td style={{ padding: "var(--space-3)" }}>
                   {relation.targetObject.objectCode} ·{" "}
                   {getObjectTypeLabel(relation.targetObject.objectType)} ·{" "}
                   {relation.targetObject.title}
                 </td>
-                <td>{getRelationConfidenceLabel(relation.confidenceLevel)}</td>
-                <td>
+                <td style={{ padding: "var(--space-3)" }}>
+                  {getRelationConfidenceLabel(relation.confidenceLevel)}
+                </td>
+                <td style={{ padding: "var(--space-3)" }}>
                   {relation.supportingMaterial
                     ? `${relation.supportingMaterial.materialCode} · ${relation.supportingMaterial.title}`
                     : "—"}
                 </td>
-                <td>{relation.includeInReport ? "Да" : "Нет"}</td>
+                <td style={{ padding: "var(--space-3)" }}>
+                  {relation.includeInReport ? "Да" : "Нет"}
+                </td>
               </tr>
             ))}
           </tbody>

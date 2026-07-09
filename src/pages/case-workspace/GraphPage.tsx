@@ -59,41 +59,117 @@ export function GraphPage({ caseId }: GraphPageProps) {
   }, [filteredGraphData.nodes]);
 
   return (
-    <section className="case-section">
-      <div className="section-header">
-        <div>
-          <h1>Граф связей</h1>
-          <p>
-            Базовое представление активных объектов и связей дела. Визуальный
-            canvas добавим отдельным срезом.
-          </p>
-        </div>
+    <section>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginBottom: "var(--space-4)",
+        }}
+      >
+        <h2 style={{ margin: 0, color: "var(--text-primary)", fontSize: 18 }}>
+          Граф связей
+        </h2>
 
         <button type="button" onClick={loadGraphData} disabled={isLoading}>
           Обновить
         </button>
       </div>
 
-      {errorText ? <div className="error-state">{errorText}</div> : null}
+      {errorText ? (
+        <div
+          style={{
+            padding: "var(--space-2) var(--space-3)",
+            border: "1px solid var(--danger)",
+            borderRadius: "var(--radius-sm)",
+            background: "color-mix(in srgb, var(--danger) 10%, transparent)",
+            color: "var(--danger)",
+            marginBottom: "var(--space-4)",
+            fontSize: 13,
+          }}
+        >
+          {errorText}
+        </div>
+      ) : null}
 
-      {isLoading ? <div className="loading-state">Загрузка графа…</div> : null}
+      {isLoading ? <p style={{ color: "var(--text-muted)" }}>Загрузка графа…</p> : null}
 
       {!isLoading && !errorText ? (
         <>
-          <div className="graph-summary">
-            <div className="summary-card">
-              <span>Узлы после фильтра</span>
-              <strong>{filteredGraphData.nodes.length}</strong>
+          <div
+            style={{
+              display: "flex",
+              gap: "var(--space-3)",
+              marginBottom: "var(--space-4)",
+            }}
+          >
+            <div
+              style={{
+                border: "1px solid var(--border-subtle)",
+                borderRadius: "var(--radius-md)",
+                padding: "var(--space-3) var(--space-4)",
+                minWidth: 140,
+                background: "var(--bg-elevated)",
+              }}
+            >
+              <span
+                style={{
+                  display: "block",
+                  fontSize: 12,
+                  color: "var(--text-muted)",
+                  marginBottom: "var(--space-1)",
+                }}
+              >
+                Узлы после фильтра
+              </span>
+              <strong style={{ fontSize: 22 }}>{filteredGraphData.nodes.length}</strong>
             </div>
 
-            <div className="summary-card">
-              <span>Связи после фильтра</span>
-              <strong>{filteredGraphData.edges.length}</strong>
+            <div
+              style={{
+                border: "1px solid var(--border-subtle)",
+                borderRadius: "var(--radius-md)",
+                padding: "var(--space-3) var(--space-4)",
+                minWidth: 140,
+                background: "var(--bg-elevated)",
+              }}
+            >
+              <span
+                style={{
+                  display: "block",
+                  fontSize: 12,
+                  color: "var(--text-muted)",
+                  marginBottom: "var(--space-1)",
+                }}
+              >
+                Связи после фильтра
+              </span>
+              <strong style={{ fontSize: 22 }}>{filteredGraphData.edges.length}</strong>
             </div>
 
-            <div className="summary-card">
-              <span>Ключевые после фильтра</span>
-              <strong>{filteredGraphData.nodes.filter((node) => node.isKey).length}</strong>
+            <div
+              style={{
+                border: "1px solid var(--border-subtle)",
+                borderRadius: "var(--radius-md)",
+                padding: "var(--space-3) var(--space-4)",
+                minWidth: 140,
+                background: "var(--bg-elevated)",
+              }}
+            >
+              <span
+                style={{
+                  display: "block",
+                  fontSize: 12,
+                  color: "var(--text-muted)",
+                  marginBottom: "var(--space-1)",
+                }}
+              >
+                Ключевые после фильтра
+              </span>
+              <strong style={{ fontSize: 22 }}>
+                {filteredGraphData.nodes.filter((node) => node.isKey).length}
+              </strong>
             </div>
           </div>
 

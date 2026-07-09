@@ -163,11 +163,20 @@ export function TimelinePage({ caseId, readonly = false }: TimelinePageProps) {
   }, [items]);
 
   return (
-    <section className="workspace-section">
-      <div className="section-header">
+    <section>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginBottom: "var(--space-4)",
+        }}
+      >
         <div>
-          <h1>Хронология</h1>
-          <p>
+          <h2 style={{ margin: 0, color: "var(--text-primary)", fontSize: 18 }}>
+            Хронология
+          </h2>
+          <p style={{ margin: "var(--space-1) 0 0", color: "var(--text-muted)", fontSize: 12 }}>
             Событий: {stats.total} · В справку: {stats.included} · С объектами:{" "}
             {stats.withObjects} · С материалами: {stats.withMaterials}
           </p>
@@ -180,7 +189,21 @@ export function TimelinePage({ caseId, readonly = false }: TimelinePageProps) {
         )}
       </div>
 
-      {errorMessage && <div className="error-box">{errorMessage}</div>}
+      {errorMessage && (
+        <div
+          style={{
+            padding: "var(--space-2) var(--space-3)",
+            border: "1px solid var(--danger)",
+            borderRadius: "var(--radius-sm)",
+            background: "color-mix(in srgb, var(--danger) 10%, transparent)",
+            color: "var(--danger)",
+            marginBottom: "var(--space-4)",
+            fontSize: 13,
+          }}
+        >
+          {errorMessage}
+        </div>
+      )}
 
       <TimelineFiltersPanel
         filters={filters}
@@ -192,47 +215,85 @@ export function TimelinePage({ caseId, readonly = false }: TimelinePageProps) {
       />
 
       {isLoading ? (
-        <p>Загрузка хронологии...</p>
+        <p style={{ color: "var(--text-muted)" }}>Загрузка хронологии...</p>
       ) : items.length === 0 ? (
-        <div className="empty-state">
-          <h2>Событий пока нет</h2>
-          <p>Создай первое событие, чтобы начать формировать хронологию дела.</p>
+        <div
+          style={{
+            marginTop: "var(--space-5)",
+            padding: "var(--space-6)",
+            border: "1px dashed var(--border-subtle)",
+            borderRadius: "var(--radius-md)",
+            color: "var(--text-muted)",
+            fontSize: 13,
+          }}
+        >
+          <h3 style={{ margin: "0 0 var(--space-2)", color: "var(--text-primary)" }}>
+            Событий пока нет
+          </h3>
+          <p style={{ margin: 0 }}>Создайте первое событие, чтобы начать формировать хронологию дела.</p>
         </div>
       ) : (
-        <table className="data-table">
+        <table
+          style={{
+            width: "100%",
+            borderCollapse: "collapse",
+            color: "var(--text-primary)",
+          }}
+        >
           <thead>
-            <tr>
-              <th>Код</th>
-              <th>Дата</th>
-              <th>Тип</th>
-              <th>Название</th>
-              <th>Объекты</th>
-              <th>Материалы</th>
-              <th>DOCX</th>
-              <th>Действия</th>
+            <tr
+              style={{
+                borderBottom: "1px solid var(--border-subtle)",
+                color: "var(--text-secondary)",
+                fontSize: 13,
+                textAlign: "left",
+              }}
+            >
+              <th style={{ padding: "var(--space-2) var(--space-3)" }}>Код</th>
+              <th style={{ padding: "var(--space-2) var(--space-3)" }}>Дата</th>
+              <th style={{ padding: "var(--space-2) var(--space-3)" }}>Тип</th>
+              <th style={{ padding: "var(--space-2) var(--space-3)" }}>Название</th>
+              <th style={{ padding: "var(--space-2) var(--space-3)" }}>Объекты</th>
+              <th style={{ padding: "var(--space-2) var(--space-3)" }}>Материалы</th>
+              <th style={{ padding: "var(--space-2) var(--space-3)" }}>DOCX</th>
+              <th style={{ padding: "var(--space-2) var(--space-3)" }}>Действия</th>
             </tr>
           </thead>
           <tbody>
             {items.map((item) => (
-              <tr key={item.id}>
-                <td>{item.eventCode}</td>
-                <td>
+              <tr
+                key={item.id}
+                style={{
+                  borderBottom: "1px solid var(--border-subtle)",
+                  fontSize: 13,
+                }}
+              >
+                <td style={{ padding: "var(--space-3)" }}>{item.eventCode}</td>
+                <td style={{ padding: "var(--space-3)" }}>
                   {item.eventDate}
                   {item.eventTime ? ` ${item.eventTime}` : ""}
-                  <div className="muted">
+                  <div style={{ color: "var(--text-muted)", fontSize: 11 }}>
                     {getDatePrecisionLabel(item.datePrecision)}
                   </div>
                 </td>
-                <td>{getEventTypeLabel(item.eventType)}</td>
-                <td>
+                <td style={{ padding: "var(--space-3)" }}>
+                  {getEventTypeLabel(item.eventType)}
+                </td>
+                <td style={{ padding: "var(--space-3)" }}>
                   <strong>{item.title}</strong>
                   {item.description && (
-                    <div className="muted">{item.description}</div>
+                    <div style={{ color: "var(--text-muted)", fontSize: 11 }}>
+                      {item.description}
+                    </div>
                   )}
                 </td>
-                <td>{item.linkedObjectCount}</td>
-                <td>{item.linkedMaterialCount}</td>
-                <td>
+                <td style={{ padding: "var(--space-3)" }}>
+                  {item.linkedObjectCount}
+                </td>
+                <td style={{ padding: "var(--space-3)" }}>
+                  {item.linkedMaterialCount}
+                </td>
+                <td style={{ padding: "var(--space-3)" }}>
                   <EventReportIncludeButton
                     includeInReport={item.includeInReport}
                     disabled={readonly || Boolean(togglingEventId)}
@@ -245,7 +306,7 @@ export function TimelinePage({ caseId, readonly = false }: TimelinePageProps) {
                     }
                   />
                 </td>
-                <td>
+                <td style={{ padding: "var(--space-3)" }}>
                   <button
                     type="button"
                     onClick={() => setSelectedEventId(item.id)}
