@@ -62,3 +62,18 @@ export type UpdateCaseStatusPayload = {
 export type UpdateCaseStatusResponse = {
   caseItem: CaseDto;
 };
+
+// ===================================================================
+// Типы для workspace-редизайна (case summary / overview)
+// ===================================================================
+
+export type GetCaseSummaryPayload = {
+  caseId: string;
+};
+
+export type GetCaseOverviewPayload = {
+  caseId: string;
+};
+
+// Реэкспорт DTO из shared типов для удобства импорта
+export type { CaseSummaryDto, ObjectPreviewDto, ActivityItemDto, CaseOverviewDto } from "../../../shared/types/workspaceTypes";

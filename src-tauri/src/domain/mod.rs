@@ -1,7 +1,9 @@
 pub mod audit;
 pub mod audit_action;
 pub mod audit_action_label;
+pub mod case_overview;
 pub mod case_status;
+pub mod case_summary;
 pub mod cases;
 pub mod event_date_precision;
 pub mod event_type;

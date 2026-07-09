@@ -3,6 +3,7 @@ pub mod audit_guards;
 pub mod auth_service;
 pub mod backup_service;
 pub mod case_service;
+pub mod case_summary_service;
 pub mod graph_service;
 pub mod material_service;
 pub mod object_service;

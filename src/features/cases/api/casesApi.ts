@@ -1,8 +1,12 @@
 import { invokeCommand } from "../../../shared/api/invoke";
 import type {
   CaseDto,
+  CaseOverviewDto,
+  CaseSummaryDto,
   CreateCasePayload,
   CreateCaseResponse,
+  GetCaseOverviewPayload,
+  GetCaseSummaryPayload,
   UpdateCasePayload,
   UpdateCaseResponse,
   UpdateCaseStatusPayload,
@@ -42,4 +46,16 @@ export function updateCaseStatus(
   return invokeCommand<UpdateCaseStatusResponse>("update_case_status", {
     payload,
   });
+}
+
+export function getCaseSummary(
+  payload: GetCaseSummaryPayload
+): Promise<CaseSummaryDto> {
+  return invokeCommand<CaseSummaryDto>("get_case_summary", { payload });
+}
+
+export function getCaseOverview(
+  payload: GetCaseOverviewPayload
+): Promise<CaseOverviewDto> {
+  return invokeCommand<CaseOverviewDto>("get_case_overview", { payload });
 }

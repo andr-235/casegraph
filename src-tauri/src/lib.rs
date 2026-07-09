@@ -15,6 +15,7 @@ use commands::auth_commands::{create_first_admin, get_current_user, login, logou
 use commands::case_commands::{
     create_case, get_case_by_id, get_cases, update_case, update_case_status,
 };
+use commands::case_summary_commands::{get_case_overview, get_case_summary};
 use commands::material_commands::{
     create_material, delete_material, get_materials, update_material,
 };
@@ -29,6 +30,11 @@ use security::session::SessionState;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    env_logger::Builder::from_env(
+        env_logger::Env::default().default_filter_or("info"),
+    )
+    .init();
+
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .manage(SessionState::default())
@@ -43,6 +49,8 @@ pub fn run() {
             get_case_by_id,
             update_case,
             update_case_status,
+            get_case_summary,
+            get_case_overview,
             get_materials,
             create_material,
             update_material,

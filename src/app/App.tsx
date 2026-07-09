@@ -176,6 +176,10 @@ export function App() {
         onCaseUpdated={setSelectedCase}
         onBackToCases={() => setSelectedCase(null)}
         onLogout={handleLogout}
+        onOpenSettings={() => setShowSettings(true)}
+        onOpenBackup={() => setShowBackup(true)}
+        onOpenAuditLog={() => setShowAuditLog(true)}
+        onOpenUsers={() => setShowUsers(true)}
       />
     );
   }

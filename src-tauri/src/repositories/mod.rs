@@ -1,4 +1,5 @@
 pub mod case_repository;
+pub mod case_summary_repository;
 pub mod graph_repository;
 pub mod material_repository;
 pub mod object_repository;

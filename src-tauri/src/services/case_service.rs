@@ -246,7 +246,7 @@ fn validate_create_case_payload(
     Ok(())
 }
 
-fn case_row_to_dto(row: CaseRow) -> CaseDto {
+pub(crate) fn case_row_to_dto(row: CaseRow) -> CaseDto {
     CaseDto {
         id: row.id,
         case_code: row.case_code,
