@@ -157,6 +157,89 @@ function login(payload: { username: string; password: string }): Promise<LoginRe
 |---------|---------|---------|
 | `get_effective_permissions` | Матрица прав | — |
 
+## Сводки
+
+### get_case_summary
+
+```typescript
+function getCaseSummary(payload: { caseId: string }): Promise<CaseSummaryDto>
+```
+
+**Ответ:** `CaseSummaryDto`
+
+```typescript
+type CaseSummaryDto = {
+  objectCount: number;
+  materialCount: number;
+  relationCount: number;
+  eventCount: number;
+};
+```
+
+Счётчики для каждой группы дел. Используется в CaseSidebar для отображения количества объектов, материалов, связей и событий.
+
+**Пример ответа:**
+
+```json
+{
+  "ok": true,
+  "data": {
+    "objectCount": 12,
+    "materialCount": 8,
+    "relationCount": 15,
+    "eventCount": 23
+  }
+}
+```
+
+### get_case_overview
+
+```typescript
+function getCaseOverview(payload: { caseId: string }): Promise<CaseOverviewDto>
+```
+
+**Ответ:** `CaseOverviewDto`
+
+```typescript
+type CaseOverviewDto = {
+  keyObjects: ObjectPreviewDto[];
+  recentActivity: ActivityItemDto[];
+};
+
+type ObjectPreviewDto = {
+  id: string;
+  objectCode: string;
+  title: string;
+  objectType: string;
+};
+
+type ActivityItemDto = {
+  id: string;
+  entityType: string;    // "object" | "material" | "relation" | "event"
+  code: string;
+  title: string;
+  timestamp: string;     // ISO 8601
+};
+```
+
+Композитные данные для страницы обзора дела: ключевые объекты (★) и последняя активность.
+
+**Пример ответа:**
+
+```json
+{
+  "ok": true,
+  "data": {
+    "keyObjects": [
+      { "id": "uuid-1", "objectCode": "OBJ-001", "title": "Иванов Иван", "objectType": "person" }
+    ],
+    "recentActivity": [
+      { "id": "uuid-2", "entityType": "event", "code": "EVT-003", "title": "Обыск проведён", "timestamp": "2026-07-09T14:30:00Z" }
+    ]
+  }
+}
+```
+
 ## См. также
 
 - [Архитектура](architecture.md) — слои и зависимости

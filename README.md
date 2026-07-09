@@ -34,7 +34,10 @@ npm run tauri build
 | `npm run dev` | Vite-сервер на `127.0.0.1:1420` |
 | `npm run build` | `tsc && vite build` |
 | `npm run typecheck` | `tsc --noEmit` |
+| `npm run test` | `vitest run` — однократный прогон фронтенд-тестов |
+| `npm run test:watch` | `vitest` — watch-режим |
 | `npm run tauri` | Tauri CLI (`npm run tauri build`) |
+| `cd src-tauri && cargo test` | Прогон Rust-тестов |
 
 ## Документация
 

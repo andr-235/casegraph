@@ -105,10 +105,12 @@ casegraph/
 |----------|------|----------|
 | README | README.md | Лендинг проекта |
 | Быстрый старт | docs/getting-started.md | Установка, первый запуск, создание администратора |
-| Архитектура | docs/architecture.md | Структура проекта, слои, правила зависимостей |
-| API | docs/api.md | Справочник Tauri-команд (45+) |
+| Архитектура | docs/architecture.md | Структура проекта, слои, UI Architecture (трёхпанельный макет, Inspector, дизайн-токены) |
+| API | docs/api.md | Справочник Tauri-команд (45+) + get_case_summary, get_case_overview |
 | Настройки | docs/configuration.md | Параметры приложения, политики доступа |
 | Аутентификация | docs/auth.md | Роли, права, безопасность |
+| Тесты (Rust) | src-tauri/src/repositories/case_summary_repository.rs | Интеграционные тесты CaseSummaryRepository (6 тестов) |
+| Тесты (frontend) | src/__tests__/ | Unit-тесты can(), useCaseInspector (15 тестов) |
 | AGENTS.md | AGENTS.md | Структурная карта проекта для AI-агентов |
 
 ## AI-контекстные файлы

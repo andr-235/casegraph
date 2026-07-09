@@ -208,7 +208,7 @@
   - Логирование: DEBUG — загрузка overview (количество ключевых объектов, активностей); INFO — клик по ключевому объекту → навигация
   - Тесты: рендер overview с мок-данными; проверка отображения KPI-карточек (4 штуки); проверка клика по ключевому объекту
 
-- [ ] **Task 14: Адаптация остальных страниц под новый макет + удаление settings из workspace**
+- [x] **Task 14: Адаптация остальных страниц под новый макет + удаление settings из workspace**
   - Файлы: `src/pages/case-workspace/RelationsPage.tsx`, `src/pages/case-workspace/GraphPage.tsx`, `src/pages/case-workspace/TimelinePage.tsx`, `src/pages/materials/MaterialsPage.tsx`, `src/pages/cases/CasesPage.tsx`, `src/App.tsx`
   - MaterialsPage: убрать дублирующий `<header>` (информация о деле теперь в TopBar), перевести на токены (`background: var(--bg-surface)`, `border: 1px solid var(--border-subtle)` для карточек), интегрировать MaterialInspectorContent — минимальная заглушка (Inspector показывает `materialCode` + `title` + `materialType` + `integrityStatus`; кнопка «Открыть карточку» ведёт на существующий MaterialCardModal)
   - RelationsPage: адаптировать макет (убрать header, перевести на токены), RelationInspectorContent — заглушка (Inspector показывает `relationCode` + `relationType` + source → target + `confidenceLevel`; кнопка «Открыть карточку» ведёт на существующий RelationCardModal)
@@ -220,7 +220,7 @@
   - Логирование: DEBUG — рендер каждой адаптированной страницы (имя страницы + caseId)
   - Тесты: smoke-тест рендера каждой страницы в новом макете (проверка отсутствия старого header'а с h1)
 
-- [ ] **Task 15: Тесты и документация**
+- [x] **Task 15: Тесты и документация**
   - Файлы: тесты в `src/__tests__/` и `src-tauri/tests/`, `docs/architecture.md` (обновление), `docs/api.md` (обновление)
   - Фронтенд-тесты: рендер CaseSidebar (expanded/collapsed/группы/счётчики после мок-API), InspectorPanel (открытие/закрытие/переключение между сущностями), ObjectsPage (таблица с данными, фильтрация по поиску и типу, выделение строки, двойной клик → EditModal), useCaseInspector (open/close/invalidate/revision), Esc-обработчик (закрытие, игнорирование при фокусе в input)
   - Бэкенд-тесты: интеграционные тесты `get_case_summary` (создание дела → counts = 0 → добавление объектов/материалов/связей/событий → counts > 0 → проверка конкретных значений), `get_case_overview` (key_objects содержит ★-объекты, recent_activity содержит последние изменения), тест на пустое дело (все counts = 0, key_objects = [], recent_activity = [])
