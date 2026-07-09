@@ -316,7 +316,6 @@ pub fn apply_migrations(conn: &Connection) -> Result<(), AppErrorDto> {
     .map_err(|err| AppErrorDto::database(err.to_string()))?;
 
     ensure_audit_log_columns(conn)?;
-    ensure_backup_history_verify_columns(conn)?;
 
     conn.execute_batch(
         r#"
@@ -370,6 +369,8 @@ pub fn apply_migrations(conn: &Connection) -> Result<(), AppErrorDto> {
         "#,
     )
     .map_err(|err| AppErrorDto::database(err.to_string()))?;
+
+    ensure_backup_history_verify_columns(conn)?;
 
     seed_roles(conn)?;
 
